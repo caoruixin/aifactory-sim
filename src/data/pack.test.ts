@@ -372,10 +372,125 @@ describe('系统与场景', () => {
 })
 
 describe('批次占位集合', () => {
-  it('flows / comparisons 本批为空数组（批次 3 / 4 填充），结构完整可迭代', () => {
-    expect(Array.isArray(pack.flows)).toBe(true)
+  it('comparisons 本批仍为空数组（批次 4 填充），结构完整可迭代', () => {
     expect(Array.isArray(pack.comparisons)).toBe(true)
-    expect(pack.flows).toEqual([])
     expect(pack.comparisons).toEqual([])
+  })
+})
+
+describe('推理数据流剧本（FlowEpisode）通用不变量', () => {
+  const modelIds = new Set(pack.models.map((m) => m.id))
+  const connectionIds = new Set(pack.connections.map((c) => c.id))
+  const PHASES: (typeof pack.flows)[number]['steps'][number]['phase'][] = [
+    'ingress',
+    'prefill',
+    'kv-write',
+    'decode',
+    'moe-dispatch',
+    'moe-combine',
+    'egress',
+  ]
+  const phaseIndex = new Map(PHASES.map((p, i) => [p, i]))
+
+  it('批次 3 起 flows 非空，结构完整可迭代', () => {
+    expect(Array.isArray(pack.flows)).toBe(true)
+    expect(pack.flows.length).toBeGreaterThan(0)
+  })
+
+  it('systemId 存在，modelId 为 null 或指向已登记模型', () => {
+    for (const f of pack.flows) {
+      expect(systemIds.has(f.systemId), `${f.id} 的 systemId`).toBe(true)
+      if (f.modelId !== null) expect(modelIds.has(f.modelId), `${f.id} 的 modelId ${f.modelId}`).toBe(true)
+    }
+  })
+
+  it('sourceIds 全部指向已登记的源', () => {
+    for (const f of pack.flows) {
+      for (const sid of f.sourceIds) expect(sourceById.has(sid), `${f.id} → ${sid}`).toBe(true)
+    }
+  })
+
+  it('每个 episode 至少有一个步骤，title/summary 非空', () => {
+    for (const f of pack.flows) {
+      expect(f.steps.length, f.id).toBeGreaterThan(0)
+      expect(f.title.trim().length, `${f.id}.title`).toBeGreaterThan(0)
+      expect(f.summary.trim().length, `${f.id}.summary`).toBeGreaterThan(0)
+    }
+  })
+
+  it('★ phase 顺序在 FLOW_PHASE_ORDER 下单调不减', () => {
+    for (const f of pack.flows) {
+      let prev = -1
+      for (const step of f.steps) {
+        const idx = phaseIndex.get(step.phase)!
+        expect(idx, `${f.id} 的步骤 ${step.id} phase=${step.phase} 非法`).toBeDefined()
+        expect(idx, `${f.id} 的步骤 ${step.id} 违反 phase 单调`).toBeGreaterThanOrEqual(prev)
+        prev = idx
+      }
+    }
+  })
+
+  it('durationHint 均为正数', () => {
+    for (const f of pack.flows) {
+      for (const step of f.steps) {
+        expect(step.durationHint, `${f.id}.${step.id}.durationHint`).toBeGreaterThan(0)
+      }
+    }
+  })
+
+  it('每个步骤 label/description 非空（narration 不留空）', () => {
+    for (const f of pack.flows) {
+      for (const step of f.steps) {
+        expect(step.label.trim().length, `${f.id}.${step.id}.label`).toBeGreaterThan(0)
+        expect(step.description.trim().length, `${f.id}.${step.id}.description`).toBeGreaterThan(0)
+      }
+    }
+  })
+
+  it('★ connectionIds 全部指向内容包中存在的 Connection，且与 episode 同系统', () => {
+    const byId = new Map(pack.connections.map((c) => [c.id, c]))
+    for (const f of pack.flows) {
+      for (const step of f.steps) {
+        for (const cid of step.connectionIds) {
+          expect(connectionIds.has(cid), `${f.id}.${step.id} 引用了不存在的连接 ${cid}`).toBe(true)
+          expect(byId.get(cid)!.systemId, `${f.id}.${step.id} 引用的连接 ${cid} 跨系统`).toBe(f.systemId)
+        }
+      }
+    }
+  })
+
+  it('★ highlightAssemblyIds 全部指向内容包中存在的装配节点，且与 episode 同系统', () => {
+    for (const f of pack.flows) {
+      for (const step of f.steps) {
+        for (const aid of step.highlightAssemblyIds) {
+          const node = assemblyById.get(aid)
+          expect(node, `${f.id}.${step.id} 高亮了不存在的装配节点 ${aid}`).toBeDefined()
+          expect(node!.systemId, `${f.id}.${step.id} 高亮的 ${aid} 跨系统`).toBe(f.systemId)
+        }
+      }
+    }
+  })
+
+  it('logicalOnly 步骤可以没有 connectionIds/highlightAssemblyIds，但不强制要求为空', () => {
+    for (const f of pack.flows) {
+      for (const step of f.steps) {
+        expect(typeof step.logicalOnly, `${f.id}.${step.id}.logicalOnly`).toBe('boolean')
+      }
+    }
+  })
+
+  it('每个 episode 至少一个 logicalOnly 步骤，且至少覆盖 moe-dispatch 与 moe-combine 阶段', () => {
+    for (const f of pack.flows) {
+      expect(f.steps.some((s) => s.logicalOnly), `${f.id} 缺少 logicalOnly 步骤`).toBe(true)
+      expect(f.steps.some((s) => s.phase === 'moe-dispatch'), `${f.id} 缺少 moe-dispatch 步骤`).toBe(true)
+      expect(f.steps.some((s) => s.phase === 'moe-combine'), `${f.id} 缺少 moe-combine 步骤`).toBe(true)
+    }
+  })
+
+  it('episode 总时长（durationHint 之和，教学节奏）< 60 秒', () => {
+    for (const f of pack.flows) {
+      const total = f.steps.reduce((sum, s) => sum + s.durationHint, 0)
+      expect(total, f.id).toBeLessThan(60)
+    }
   })
 })
