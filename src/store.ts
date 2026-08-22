@@ -17,6 +17,7 @@ import type { LodLevel, NetworkPlane } from './data/types'
 import type { DrillState } from './lib/drill'
 import { initialDrillState, nextState } from './lib/drill'
 import { PLANE_ORDER } from './lib/palette'
+import { detectWebGL } from './lib/webgl'
 
 export type PlaneFlags = Record<NetworkPlane, boolean>
 
@@ -102,6 +103,21 @@ function prefersReducedMotion(): boolean {
   }
 }
 
+/**
+ * `glStatus` 必须在**首次渲染前**同步算出，不能留到 `useShotParams` 的 `useEffect` 里再定。
+ *
+ * ★ 这不是风格问题，是一个实测踩过的 bug：`useEffect` 排在首次 commit **之后**才跑，
+ *   如果初始值是 'unknown'，`FactoryPage` 的 `degraded` 判定第一帧会算成 false，
+ *   于是懒加载的 `<FactoryCanvas>`（进而 three-vendor chunk）会被**提前触发 import()**
+ *   ——哪怕紧接着第二帧就把 `glStatus` 纠正成 'none'，那个网络请求已经发出去了，
+ *   `?gl=off` 与探测失败两条路径「永不加载 three」的承诺就被开场这一帧破了。
+ *   与下面 `reducedMotion` 用 `prefersReducedMotion()` 做初始种子是同一个模式。
+ */
+function initialGlStatus(): FactoryState['glStatus'] {
+  if (typeof window === 'undefined') return 'unknown'
+  return detectWebGL(window.location.search)
+}
+
 /** 非浏览器环境（Vitest node / SSR）下的空存储，避免 persist 触碰不存在的 localStorage。 */
 const memoryStore = new Map<string, string>()
 const safeStorage = {
@@ -171,7 +187,7 @@ export const useFactoryStore = create<FactoryState>()(
       flow: { episodeIdx: 0, stepIdx: 0, playing: false, speed: 1 },
       tourStopIdx: -1,
       reducedMotion: prefersReducedMotion(),
-      glStatus: 'unknown',
+      glStatus: initialGlStatus(),
       ready: false,
 
       drillTo: (assemblyId) => set((s) => nextState(s, { type: 'drillTo', assemblyId })),

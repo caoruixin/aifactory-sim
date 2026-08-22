@@ -70,6 +70,30 @@ describe('routeConnections：确定性与基本结构', () => {
   })
 })
 
+describe('集群视图的 nvlink 平面（B4 交接问题③ 回归覆盖）', () => {
+  // GB300 的机架在装配树里只有**一个**节点（roleKey='rack'，count=8 代表 8 台物理机架，
+  // 靠 slots 摆位而非各自建树），因此机架内的每一条 nvlink 连接（GPU↔NVSwitch、
+  // NVSwitch↔背板等）在 cluster 深度下两端都会收缩到同一个「机架」盒子，全部退化——
+  // 也就是说 GB300 的集群总览天然不会画出任何 NVLink 线，不需要额外过滤就是对的。
+  it('GB300：cluster 深度下没有任何非退化的 nvlink 路由', () => {
+    const routes = routeConnections(SYSTEM_ID, layout, 'cluster')
+    const nvlinkRoutes = routes.filter((r) => r.plane === 'nvlink')
+    expect(nvlinkRoutes).toHaveLength(0)
+  })
+
+  // Rubin Ultra NVL576 相反：`asm.ru.interrack-fabric` 是装配树里独立的 cluster 级节点
+  // （8 机架通过 NPO/CPO 光互连组成 Dragonfly，NVLink 域第一次跨出机架），
+  // 所以它在 cluster 深度下**应该**保留一条非退化的 nvlink 路由——这是与 GB300
+  // 相反但同样正确的行为，此处一并钉住，避免以后为了「修」GB300 顺手把这条也删掉。
+  it('Rubin Ultra NVL576：cluster 深度下保留跨机架 scale-up 光互连（唯一预期的 nvlink 路由）', () => {
+    const NVL576 = 'sys.rubin-ultra-nvl576'
+    const ru576Layout = resolveLayout(NVL576)
+    const routes = routeConnections(NVL576, ru576Layout, 'cluster')
+    const nvlinkRoutes = routes.filter((r) => r.plane === 'nvlink')
+    expect(nvlinkRoutes.map((r) => r.connectionId)).toEqual(['con.ru.optics-interrack'])
+  })
+})
+
 describe('折线连续性', () => {
   const routes = routeConnections(SYSTEM_ID, layout, 'rack')
 
