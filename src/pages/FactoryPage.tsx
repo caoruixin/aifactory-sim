@@ -15,7 +15,7 @@
  * 深链播种与降级检测不因断点切换而失效。
  */
 
-import { Suspense, lazy, useState } from 'react'
+import { Suspense, lazy, useEffect, useState } from 'react'
 import BreadcrumbBar from '../components/panels/BreadcrumbBar'
 import CapacityPanel from '../components/panels/CapacityPanel'
 import ComparePanel from '../components/panels/ComparePanel'
@@ -43,10 +43,23 @@ export default function FactoryPage() {
   const mode = useFactoryStore((s) => s.mode)
   const generation = useFactoryStore((s) => s.generation)
   const compareRight = useFactoryStore((s) => s.compare.right)
+  const setReady = useFactoryStore((s) => s.setReady)
   const [tab, setTab] = useState<RightTab>('detail')
 
   const degraded = glStatus === 'none' || glStatus === 'failed'
   const compareMode = mode === 'compare'
+  /**
+   * 这一屏根本不会挂 `<Canvas>`，因此**没有 `onCreated` 会来置 `ready`**：
+   *   - 降级路径（`?gl=off`、探测不到 WebGL、运行期 context lost）；
+   *   - 移动端 + 比较模式（窄屏放弃双视口，只剩产能卡与 diff 明细，见 MobileFactoryView）。
+   * `data-ready` 的契约是「首帧已出**或已确定走降级**」，不在这里补的话它会永远停在 0：
+   * 界面本身是好的，但所有等 `data-ready="1"` 的深链/截图/E2E 流程都会白等到超时。
+   * （`useShotParams` 只覆盖了 `?gl=off` 这一种，另外两种此前是漏的。）
+   */
+  const noCanvas = degraded || (isMobile && compareMode)
+  useEffect(() => {
+    if (noCanvas) setReady(true)
+  }, [noCanvas, setReady])
 
   return (
     <main

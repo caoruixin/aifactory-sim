@@ -248,6 +248,17 @@ test('移动·390×844：导览第 1 站截图 + 下一站按钮推进', async (
   await expect(page.locator('[data-tour-stop]')).toHaveAttribute('data-tour-stop', '1')
 })
 
+test('移动·比较模式：没有 Canvas 也必须置 data-ready（否则深链/E2E 白等）', async ({ page }, testInfo) => {
+  onlyOn(testInfo, 'mobile')
+  // 窄屏 + compare 是唯一一条「不降级、却也不挂 Canvas」的路径（见 MobileFactoryView）：
+  // 没有 onCreated 就没人置 ready，data-ready 会永远停在 0。界面本身是好的，
+  // 所以只有断言这个锚点才抓得到。
+  await gotoAndSettle(page, '/?mode=compare&motion=off', 400)
+  await expect(page.locator('main')).toHaveAttribute('data-mode', 'compare')
+  await expect(page.locator('[data-capacity-card]')).toHaveCount(2)
+  await expect(page.locator('[data-diff-role]').first()).toBeVisible()
+})
+
 // ─────────────────────────── 8：数据流步骤条 DOM 断言 ───────────────────────────
 
 test('桌面·数据流步骤条：10 步走完 + 逻辑/物理徽章按内容包切换', async ({ page }, testInfo) => {
