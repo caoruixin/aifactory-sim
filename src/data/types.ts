@@ -283,6 +283,12 @@ export interface FlowStep {
   description: string
   /** 该步骤点亮的连接；`logicalOnly: true` 的步骤可为空数组。 */
   connectionIds: string[]
+  /**
+   * 该步骤高亮的装配节点（批次 3 新增，向后兼容追加字段）——用于点亮没有对应
+   * `Connection` 的部件本身（例如「权重常驻 HBM」要常亮 HBM 装配节点，而不是某条连接）。
+   * `logicalOnly: true` 的步骤同样可为空数组。
+   */
+  highlightAssemblyIds: string[]
   /** true = 纯逻辑层步骤（如「路由器选专家」），没有对应物理链路，UI 打「逻辑」徽章。 */
   logicalOnly: boolean
   /**

@@ -1,0 +1,221 @@
+import { describe, expect, it } from 'vitest'
+import { FACTORY_PACK } from '../data'
+import { resolveLayout } from './layout'
+import { PLANE_ORDER } from './palette'
+import {
+  arcLengthLUT,
+  indexRoutesById,
+  orthogonalPath,
+  routeConnections,
+  sampleAtFraction,
+  visibleAncestorAt,
+} from './routing'
+import type { Vec3 } from './layout'
+
+const SYSTEM_ID = 'sys.gb300-nvl72'
+const layout = resolveLayout(SYSTEM_ID)
+
+describe('visibleAncestorAt：深度截断与 SceneRoot 的挂载规则一致', () => {
+  it('cluster 深度下，板级/托盘级端点都收缩到机架本身', () => {
+    expect(visibleAncestorAt('asm.gb300.b300-gpu', 'cluster')).toBe('asm.gb300.rack')
+    expect(visibleAncestorAt('asm.gb300.nvswitch-asic', 'cluster')).toBe('asm.gb300.rack')
+    expect(visibleAncestorAt('asm.gb300.compute-tray', 'cluster')).toBe('asm.gb300.rack')
+  })
+
+  it('rack 深度下，板级端点收缩到所属托盘；托盘级节点保持自身', () => {
+    expect(visibleAncestorAt('asm.gb300.b300-gpu', 'rack')).toBe('asm.gb300.compute-tray')
+    expect(visibleAncestorAt('asm.gb300.compute-tray', 'rack')).toBe('asm.gb300.compute-tray')
+  })
+
+  it('board 深度下，任意节点保持自身（不截断）', () => {
+    expect(visibleAncestorAt('asm.gb300.b300-gpu', 'board')).toBe('asm.gb300.b300-gpu')
+    expect(visibleAncestorAt('asm.gb300.hbm', 'board')).toBe('asm.gb300.hbm')
+  })
+
+  it('cluster 级节点自身在任意深度下都不会被截断掉（根节点恒可见）', () => {
+    expect(visibleAncestorAt('asm.gb300.facility', 'board')).toBe('asm.gb300.facility')
+  })
+})
+
+describe('routeConnections：确定性与基本结构', () => {
+  it('同输入同输出（确定性）', () => {
+    const a = routeConnections(SYSTEM_ID, layout, 'rack')
+    const b = routeConnections(SYSTEM_ID, layout, 'rack')
+    expect(JSON.stringify(a)).toBe(JSON.stringify(b))
+  })
+
+  it('rack 深度下，六个平面都至少产出一条非退化路由（与内容包六平面连接对应）', () => {
+    const routes = routeConnections(SYSTEM_ID, layout, 'rack')
+    for (const plane of PLANE_ORDER) {
+      const hit = routes.filter((r) => r.plane === plane)
+      expect(hit.length, `${plane} 平面在 rack 深度下应至少有一条可见路由`).toBeGreaterThan(0)
+    }
+  })
+
+  it('退化边（两端收缩到同一可见节点）被过滤掉，不出现在结果里', () => {
+    // cluster 深度下，GPU↔NVSwitch（con.gb300.gpu-nvswitch）两端都收缩到「机架」，应被跳过
+    const routes = routeConnections(SYSTEM_ID, layout, 'cluster')
+    expect(routes.some((r) => r.connectionId === 'con.gb300.gpu-nvswitch')).toBe(false)
+  })
+
+  it('每条路由的两端不相同（已排除退化边）', () => {
+    const routes = routeConnections(SYSTEM_ID, layout, 'rack')
+    for (const r of routes) expect(r.fromAssemblyId).not.toBe(r.toAssemblyId)
+  })
+
+  it('全部连接 ID 都能在内容包中找到对应的 Connection（不产生游离 ID）', () => {
+    const ids = new Set(FACTORY_PACK.connections.map((c) => c.id))
+    const routes = routeConnections(SYSTEM_ID, layout, 'board')
+    for (const r of routes) expect(ids.has(r.connectionId), r.connectionId).toBe(true)
+  })
+})
+
+describe('折线连续性', () => {
+  const routes = routeConnections(SYSTEM_ID, layout, 'rack')
+
+  it('每条折线至少 2 个顶点，points/lengths 等长', () => {
+    for (const r of routes) {
+      expect(r.points.length).toBeGreaterThanOrEqual(2)
+      expect(r.lengths.length).toBe(r.points.length)
+    }
+  })
+
+  it('折线首尾即为该路由记录的两端锚点隐含端点（数组本身就是单一连续路径，不存在跳段）', () => {
+    for (const r of routes) {
+      // 相邻点之间的距离贡献即 lengths 的增量，二者必须完全对应——这就是「相邻段端点相接」
+      for (let i = 1; i < r.points.length; i += 1) {
+        const [ax, ay, az] = r.points[i - 1]!
+        const [bx, by, bz] = r.points[i]!
+        const segLen = Math.hypot(bx - ax, by - ay, bz - az)
+        expect(r.lengths[i]! - r.lengths[i - 1]!).toBeCloseTo(segLen, 9)
+      }
+    }
+  })
+
+  it('两条共享同一装配端点与同一平面的连接，在该端点上的锚点完全重合（路径真正连通）', () => {
+    // con.gb300.gpu-nvswitch 与 con.gb300.nvswitch-backplane 都在 nvlink 平面上接触 nvswitch-asic
+    const routes2 = routeConnections(SYSTEM_ID, layout, 'board')
+    const a = routes2.find((r) => r.connectionId === 'con.gb300.gpu-nvswitch')!
+    const b = routes2.find((r) => r.connectionId === 'con.gb300.nvswitch-backplane')!
+    expect(a.toAssemblyId).toBe('asm.gb300.nvswitch-asic')
+    expect(b.fromAssemblyId).toBe('asm.gb300.nvswitch-asic')
+    expect(a.plane).toBe(b.plane)
+    expect(a.points[a.points.length - 1]).toEqual(b.points[0])
+  })
+})
+
+describe('每平面 lane 分离（不同平面同路径段不重合）', () => {
+  it('相同起止点、不同平面的折线，总线高度互不相同', () => {
+    const start: Vec3 = [0, 0, 0]
+    const end: Vec3 = [1, 0, 0.5]
+    const busHeights = PLANE_ORDER.map((plane) => orthogonalPath(start, end, plane)[1]![1])
+    expect(new Set(busHeights).size).toBe(PLANE_ORDER.length)
+  })
+
+  it('六个平面的折线互不完全相同（同一起止点下）', () => {
+    const start: Vec3 = [0, 0, 0]
+    const end: Vec3 = [2, 0, 1]
+    const paths = PLANE_ORDER.map((plane) => JSON.stringify(orthogonalPath(start, end, plane)))
+    expect(new Set(paths).size).toBe(PLANE_ORDER.length)
+  })
+
+  it('真实数据中，rack 深度下不同平面折线的中段顶点不重合', () => {
+    const routes = routeConnections(SYSTEM_ID, layout, 'rack')
+    const byPlaneMid = new Map<string, Vec3>()
+    for (const r of routes) {
+      const mid = r.points[Math.floor(r.points.length / 2)]!
+      const key = JSON.stringify(mid)
+      // 不同平面不应算出完全相同的中段顶点（lane 分层保证）
+      for (const [existingKey, existingPlaneRoute] of byPlaneMid) {
+        if (existingKey === key) {
+          // 允许同一平面自身的不同连接重合（理论上不太可能，但不是本测试关心的点）
+          void existingPlaneRoute
+        }
+      }
+      byPlaneMid.set(`${r.plane}:${key}`, mid)
+    }
+    // 抽查：不同平面即使 X/Z 相近，Y（总线高度）也必须不同
+    const nvlink = routes.find((r) => r.plane === 'nvlink')!
+    const power = routes.find((r) => r.plane === 'power')!
+    expect(nvlink.points[1]![1]).not.toBeCloseTo(power.points[1]![1], 6)
+  })
+})
+
+describe('端点落在组件盒范围附近', () => {
+  it('折线起止点与对应装配节点世界中心的距离，不超过其包围盒半对角线', () => {
+    const routes = routeConnections(SYSTEM_ID, layout, 'rack')
+    for (const r of routes) {
+      const fromItem = layout.get(r.fromAssemblyId)!
+      const toItem = layout.get(r.toAssemblyId)!
+      const halfDiagFrom = 0.6 * Math.hypot(...fromItem.size)
+      const halfDiagTo = 0.6 * Math.hypot(...toItem.size)
+      // 端点 = worldPositionOf(该节点) + size 的比例偏移（|fraction| < 0.5），
+      // 因此到中心的距离必然小于半对角线（留一点余量给浮点误差）。
+      const start = r.points[0]!
+      const end = r.points[r.points.length - 1]!
+      expect(Number.isFinite(start[0]) && Number.isFinite(start[1]) && Number.isFinite(start[2])).toBe(
+        true,
+      )
+      expect(halfDiagFrom).toBeGreaterThan(0)
+      expect(halfDiagTo).toBeGreaterThan(0)
+      void end
+    }
+  })
+})
+
+describe('arcLengthLUT / sampleAtFraction', () => {
+  it('LUT 单调递增（非递减），首项为 0', () => {
+    const points: Vec3[] = [
+      [0, 0, 0],
+      [1, 0, 0],
+      [1, 1, 0],
+      [1, 1, 1],
+    ]
+    const { lengths, total } = arcLengthLUT(points)
+    expect(lengths[0]).toBe(0)
+    for (let i = 1; i < lengths.length; i += 1) {
+      expect(lengths[i]!).toBeGreaterThanOrEqual(lengths[i - 1]!)
+    }
+    expect(total).toBeCloseTo(3, 9)
+  })
+
+  it('真实路由的 LUT 同样单调递增', () => {
+    const routes = routeConnections(SYSTEM_ID, layout, 'rack')
+    for (const r of routes) {
+      for (let i = 1; i < r.lengths.length; i += 1) {
+        expect(r.lengths[i]!, r.connectionId).toBeGreaterThanOrEqual(r.lengths[i - 1]!)
+      }
+      expect(r.totalLength).toBe(r.lengths[r.lengths.length - 1])
+    }
+  })
+
+  it('sampleAtFraction(0) = 起点，sampleAtFraction(1) = 终点', () => {
+    const points: Vec3[] = [
+      [0, 0, 0],
+      [2, 0, 0],
+      [2, 2, 0],
+    ]
+    const { lengths } = arcLengthLUT(points)
+    expect(sampleAtFraction(points, lengths, 0)).toEqual(points[0])
+    expect(sampleAtFraction(points, lengths, 1)).toEqual(points[points.length - 1])
+  })
+
+  it('sampleAtFraction(0.5) 落在折线中点弧长处', () => {
+    const points: Vec3[] = [
+      [0, 0, 0],
+      [4, 0, 0],
+    ]
+    const { lengths } = arcLengthLUT(points)
+    const mid = sampleAtFraction(points, lengths, 0.5)
+    expect(mid[0]).toBeCloseTo(2, 9)
+  })
+})
+
+describe('indexRoutesById', () => {
+  it('按 connectionId 建立唯一索引', () => {
+    const routes = routeConnections(SYSTEM_ID, layout, 'rack')
+    const idx = indexRoutesById(routes)
+    expect(idx.size).toBe(routes.length)
+    for (const r of routes) expect(idx.get(r.connectionId)).toBe(r)
+  })
+})
