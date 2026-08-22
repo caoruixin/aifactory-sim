@@ -4,6 +4,9 @@ import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 
 export default defineConfig({
+  // GitHub Pages 部署在 /<repo>/ 子路径下，构建时用 DEPLOY_BASE=/aifactory-sim/ 覆盖；
+  // 本地 dev/preview 与 E2E 一律走默认 '/'，互不影响。
+  base: process.env.DEPLOY_BASE || '/',
   plugins: [react(), tailwindcss()],
   build: {
     rollupOptions: {
