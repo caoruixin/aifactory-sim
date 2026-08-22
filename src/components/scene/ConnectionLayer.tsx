@@ -10,6 +10,15 @@
  *   因此这里显式收窄，只保留天然适合鸟瞰的 scale-out 主干（rack↔leaf↔spine）；
  * - 当前 `FlowStep` 引用的连接会加粗、提高不透明度，配合 `FlowBar` 播放/`reducedMotion`
  *   静态高亮（同一条连接不需要 `FlowLayer` 另画一遍，颜色即所在平面色）。
+ *
+ * ★ **连线是「示意图层」，一律 `depthTest={false}` + `renderOrder=2` 画在几何体之上。**
+ *   不这么做的话，**机架内部的连接会完全看不见**：`routing.ts` 的折线总线高度是
+ *   `max(端点 y) + 距离 × 5%`，机架内两个托盘之间的距离本来就小，算出来的折线整段
+ *   仍然埋在不透明的托盘盒子里。实测后果是 nvlink 平面在机架级**开关毫无画面变化**
+ *   （六条 nvlink 边全是机架内的 scale-up），而导览第 2 站「拆开一个机架：18+9 的结构」
+ *   恰恰点名要看 nvlink + power —— 那一屏当时是空的。
+ *   这些线本来就不是实物线缆（内容包里一条边代表 72×18 条链路），当作示意图层画在
+ *   最上层既符合它的语义，也让六个平面在任何层级下行为一致。
  */
 
 import { Line } from '@react-three/drei'
@@ -87,6 +96,8 @@ export default function ConnectionLayer({ systemId, layout, depth, planeFilter }
                   lineWidth={active ? 2.5 : 1.5}
                   transparent
                   opacity={active ? 1 : 0.55}
+                  depthTest={false}
+                  renderOrder={2}
                   raycast={() => null}
                 />
               )

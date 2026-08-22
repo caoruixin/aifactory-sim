@@ -105,6 +105,21 @@ test('桌面·机架级 + 全平面开启 截图', async ({ page }, testInfo) =>
   await expect(page).toHaveScreenshot('gb300-rack-allplanes.png')
 })
 
+test('桌面·机架级 nvlink 平面必须真的画得出线（导览第 2 站的前提）', async ({ page }, testInfo) => {
+  onlyOn(testInfo, 'desktop')
+  // GB300 的 nvlink 边全是**机架内**的 scale-up。这些折线一度整段埋在不透明托盘里，
+  // 表现为「机架级勾掉 NVLink 画面纹丝不动」，而导览第 2 站（planes=nvlink,power）
+  // 点名要看的就是这一层——那一屏当时等于空的。修复见 ConnectionLayer 的 depthTest 注释。
+  await gotoAndSettle(page, '/?motion=off&level=rack&focus=asm.gb300.rack&planes=nvlink', 900)
+  const canvas = page.locator('canvas')
+  const withNvlink = (await canvas.screenshot()).toString('base64')
+  await page.locator('section ul li:nth-child(1) input').uncheck()
+  await page.waitForTimeout(600)
+  const withoutNvlink = (await canvas.screenshot()).toString('base64')
+  // 坏状态恒为 0.000%；修复后实测约 0.06%（细线，占屏比例本就小）。
+  expect(await changedPixelRatio(page, withNvlink, withoutNvlink)).toBeGreaterThan(0.0002)
+})
+
 test('桌面·板级 explode 截图（计算托盘拆解）', async ({ page }, testInfo) => {
   onlyOn(testInfo, 'desktop')
   await gotoAndSettle(page, '/?level=board&focus=asm.gb300.compute-tray&motion=off')
