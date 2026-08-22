@@ -293,3 +293,27 @@ test('桌面·数据流自动播放：motion 开启时 useFrame 真的推进 ste
   await page.waitForTimeout(4000)
   await expect(page.locator('footer[data-flow-step]')).not.toHaveAttribute('data-flow-step', '0')
 })
+
+test('桌面·数据流粒子必须真的画得出来（InstancedMesh 视锥剔除回归）', async ({ page }, testInfo) => {
+  onlyOn(testInfo, 'desktop')
+  // ⚠️ 同样必须 headless（真实动画时序）。
+  // 这条盯的是一个「stepIdx 在推进、画面却纹丝不动」的坑：three 的
+  // `InstancedMesh.boundingSphere` 一旦从 instanceMatrix 算出来就永久缓存，而粒子在
+  // 未播放时停在 (0,-9999,0)——包围球被钉死在视锥外，之后粒子永远被剔除。
+  // 只断言 stepIdx 推进（上一条用例）是抓不到的，必须断言像素。
+  await page.goto('/?level=board&focus=asm.gb300.compute-tray')
+  await page.waitForSelector('main[data-ready="1"]', { timeout: 20_000 })
+  await page.waitForTimeout(1200)
+  // 第 3 步（Prefill）引用 con.gb300.gpu-nvswitch，durationHint = 8，
+  // 因此下面 1.5 秒的采样窗口内不会跨段——画面的变化只可能来自粒子在动。
+  await page.click('[data-flow-step-button="2"]')
+  await page.waitForTimeout(400)
+  const canvas = page.locator('canvas')
+  const t0 = (await canvas.screenshot()).toString('base64')
+  await page.click('footer button:has-text("播放")')
+  await page.waitForTimeout(1500)
+  const t1 = (await canvas.screenshot()).toString('base64')
+  await expect(page.locator('footer[data-flow-step]')).toHaveAttribute('data-flow-step', '2')
+  // 坏状态恒为 0.0000%；修复后实测约 0.04%（粒子本来就只有几十个像素）。
+  expect(await changedPixelRatio(page, t0, t1)).toBeGreaterThan(0.0001)
+})

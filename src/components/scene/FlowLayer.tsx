@@ -117,18 +117,36 @@ export default function FlowLayer({ systemId, layout, depth }: FlowLayerProps) {
 
   return (
     <group name="flow-layer">
-      <instancedMesh ref={meshRef} args={[undefined, undefined, MAX_PARTICLES]} raycast={() => null}>
+      {/* ★ `frustumCulled={false}` 不是性能开关，是**功能必需**（本项目所有 InstancedMesh 都这么写）：
+          three 的 `InstancedMesh.boundingSphere` 从 `instanceMatrix` 算出来后就**永久缓存**，
+          之后实例怎么动都不会重算。而粒子在「未播放 / 逻辑层步骤 / 当前深度查不到路径」时
+          一律停在 (0, -9999, 0)——也就是它第一次被渲染时的位置。于是包围球被钉死在视锥外，
+          `Frustum.intersectsObject` 从此恒为 false，**粒子永远不再出现**（哪怕把半径调到 0.25
+          也一个像素都看不到，实测确认过）。
+          ★ depthTest=false + renderOrder：粒子沿 ConnectionLayer 的折线跑，而那些线本身就是
+          画在几何体之上的示意图层（见 ConnectionLayer 注释）。粒子要是被托盘挡住，
+          就会出现「线在最上层、跑在线上的点却时隐时现」的割裂感。 */}
+      <instancedMesh
+        ref={meshRef}
+        args={[undefined, undefined, MAX_PARTICLES]}
+        frustumCulled={false}
+        renderOrder={3}
+        raycast={() => null}
+      >
         <sphereGeometry args={[PARTICLE_RADIUS, 12, 12]} />
         <meshStandardMaterial
           color={p.accent}
           emissive={p.accent}
           emissiveIntensity={1.8}
           toneMapped={false}
+          depthTest={false}
         />
       </instancedMesh>
 
+      {/* HBM 常亮微光同理：它埋在 GPU 封装内部，不当作覆盖层画就一定被遮住，
+          而「权重常驻显存」这条心智模型恰恰要求它随时可见。 */}
       {hbmPositions.map((pos, i) => (
-        <mesh key={i} position={pos} raycast={() => null}>
+        <mesh key={i} position={pos} renderOrder={3} raycast={() => null}>
           <sphereGeometry args={[PARTICLE_RADIUS * 0.9, 8, 8]} />
           <meshStandardMaterial
             color={p['plane-nvlink']}
@@ -137,6 +155,7 @@ export default function FlowLayer({ systemId, layout, depth }: FlowLayerProps) {
             transparent
             opacity={0.8}
             toneMapped={false}
+            depthTest={false}
           />
         </mesh>
       ))}
