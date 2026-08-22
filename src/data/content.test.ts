@@ -10,7 +10,19 @@ import {
   totalInstances,
 } from './index'
 import { kvBytesPerToken } from '../lib/roofline'
-import type { NetworkPlane } from './types'
+import {
+  RUBIN_ULTRA_ASSEMBLIES,
+  RUBIN_ULTRA_COMPONENTS,
+  RUBIN_ULTRA_CONNECTIONS,
+  RUBIN_ULTRA_SYSTEM,
+} from './rubin-ultra-nvl576'
+import {
+  VERA_RUBIN_ASSEMBLIES,
+  VERA_RUBIN_COMPONENTS,
+  VERA_RUBIN_CONNECTIONS,
+  VERA_RUBIN_SYSTEM,
+} from './vera-rubin-nvl72'
+import type { Claim, NetworkPlane } from './types'
 
 /**
  * GB300 NVL72 事实校验。
@@ -259,5 +271,299 @@ describe('数据源登记', () => {
         .map((a) => a.countClaim!.sourceId),
     )
     expect([...gb300Sources]).toEqual(['src.nvidia-nvl72-ra'])
+  })
+})
+
+// ═══════════════════════════ Vera Rubin NVL72（B4） ═══════════════════════════
+
+const VR = 'sys.vera-rubin-nvl72'
+const VR_RACK = 'asm.rubin.rack'
+
+/** 本代际文件里作者写下的全部 Claim（不含复用的共享/上代组件）。 */
+function claimsAuthoredIn(
+  system: typeof VERA_RUBIN_SYSTEM,
+  components: typeof VERA_RUBIN_COMPONENTS,
+  assemblies: typeof VERA_RUBIN_ASSEMBLIES,
+  connections: typeof VERA_RUBIN_CONNECTIONS,
+): { where: string; claim: Claim }[] {
+  const out: { where: string; claim: Claim }[] = []
+  for (const [k, c] of Object.entries(system.keySpecs)) out.push({ where: `${system.id}.keySpecs.${k}`, claim: c })
+  for (const comp of components) {
+    for (const [k, c] of Object.entries(comp.specs)) out.push({ where: `${comp.id}.specs.${k}`, claim: c })
+  }
+  for (const a of assemblies) if (a.countClaim) out.push({ where: `${a.id}.countClaim`, claim: a.countClaim })
+  for (const c of connections) if (c.bandwidth) out.push({ where: `${c.id}.bandwidth`, claim: c.bandwidth })
+  return out
+}
+
+describe('Vera Rubin NVL72：机架级数量（NVIDIA 官方口径）', () => {
+  it('系统存在且为已发布（announced）状态', () => {
+    expect(VERA_RUBIN_SYSTEM.status).toBe('announced')
+    expect(VERA_RUBIN_SYSTEM.generation).toBe('vera-rubin')
+    expect(systemById(VR)).toBeDefined()
+  })
+
+  it('18 计算托盘 + 9 交换托盘（与 GB300 骨架相同）', () => {
+    expect(assemblyById('asm.rubin.compute-tray')!.count).toBe(18)
+    expect(assemblyById('asm.rubin.nvswitch-tray')!.count).toBe(9)
+    expect(assemblyById('asm.rubin.compute-tray')!.countClaim!.sourceId).toBe('src.nvidia-rubin-pod-blog')
+  })
+
+  it('GPU 72 张、CPU 36 颗，与官方规格表 keySpecs 一致', () => {
+    expect(totalInstances('asm.rubin.rubin-gpu', VR_RACK)).toBe(72)
+    expect(totalInstances('asm.rubin.vera-cpu', VR_RACK)).toBe(36)
+    expect(VERA_RUBIN_SYSTEM.keySpecs.gpuCount!.value).toBe(72)
+    expect(VERA_RUBIN_SYSTEM.keySpecs.cpuCount!.value).toBe(36)
+  })
+
+  it('★ NVLink 6 交换芯片：9 托盘 × 4 = 36 颗（GB300 是 18 颗，最容易讲错的对比）', () => {
+    expect(assemblyById('asm.rubin.nvswitch-asic')!.count).toBe(4)
+    expect(totalInstances('asm.rubin.nvswitch-asic', VR_RACK)).toBe(36)
+    expect(totalInstances('asm.gb300.nvswitch-asic', RACK)).toBe(18)
+  })
+
+  it('★ ConnectX-9：18 托盘 × 4 板 × 2 = 144 张 = 每 GPU 两张（官方 DGX 规格表口径）', () => {
+    expect(totalInstances('asm.rubin.cx9-nic', VR_RACK)).toBe(144)
+    expect(totalInstances('asm.rubin.cx9-nic', VR_RACK)).toBe(
+      totalInstances('asm.rubin.rubin-gpu', VR_RACK) * 2,
+    )
+    expect(componentById('cmp.rubin.connectx-9')!.specs.gpuToNicRatio!.value).toContain('1:2')
+  })
+
+  it('★ 代际口径：托盘里是 ConnectX-9 与 BlueField-4，不是上一代 CX-8 / BF-3', () => {
+    const names = descendantsOf('asm.rubin.compute-tray')
+      .map((a) => componentById(a.componentId)!.name)
+      .join(' | ')
+    expect(names).toContain('ConnectX-9')
+    expect(names).toContain('BlueField-4')
+    expect(names).not.toContain('ConnectX-8')
+    expect(names).not.toContain('BlueField-3')
+  })
+
+  it('计算托盘仍是 2 CPU + 4 GPU（超级芯片口径：2 个超级芯片 = 2 Vera + 4 Rubin）', () => {
+    const byRole = new Map(descendantsOf('asm.rubin.compute-tray').map((a) => [a.roleKey, a]))
+    expect(byRole.get('host-cpu')!.count).toBe(2)
+    expect(byRole.get('accelerator')!.count).toBe(4)
+    expect(componentById('cmp.rubin.compute-tray')!.specs.superchipsPerTray!.value).toBe(2)
+  })
+})
+
+describe('Vera Rubin NVL72：证据纪律与 null 传播', () => {
+  const claims = claimsAuthoredIn(
+    VERA_RUBIN_SYSTEM,
+    VERA_RUBIN_COMPONENTS,
+    VERA_RUBIN_ASSEMBLIES,
+    VERA_RUBIN_CONNECTIONS,
+  )
+
+  it('★ 本代际的每条 Claim 都引用 NVIDIA 官方源，且状态为 announced', () => {
+    const official = new Set(
+      FACTORY_PACK.sources
+        .filter((s) => s.kind === 'official_doc' || s.kind === 'official_press')
+        .map((s) => s.id),
+    )
+    expect(claims.length).toBeGreaterThan(40)
+    for (const { where, claim } of claims) {
+      expect(official.has(claim.sourceId), `${where} 引用了非官方源 ${claim.sourceId}`).toBe(true)
+      expect(claim.status, `${where}.status`).toBe('announced')
+      expect(claim.evidence, `${where}.evidence`).toBe('verified_spec')
+      expect(claim.locator === null || claim.locator.length > 0, `${where}.locator`).toBe(true)
+    }
+  })
+
+  it('★ 官方未公布的项一律 value: null 且带说明（不编数）', () => {
+    const nulls = claims.filter((c) => c.claim.value === null)
+    expect(nulls.length).toBeGreaterThan(5)
+    for (const { where, claim } of nulls) {
+      expect(claim.note, `${where} 是 null 却没有说明`).not.toBeNull()
+      expect(claim.note!.length, `${where}.note 太短`).toBeGreaterThan(8)
+    }
+  })
+
+  it('★ 整机架功率官方未公布 → null（产能估算的 tokens/W 会因此拒绝出数）', () => {
+    const claim = VERA_RUBIN_SYSTEM.keySpecs.rackPowerKW!
+    expect(claim.value).toBeNull()
+    expect(claim.note).toContain('未在任何官方规格表中公布')
+  })
+
+  it('★ Rubin GPU 单卡 TDP 未公布 → mathSpecs.tdpW 为 null（1800 W 是另一款产品的假设，不挪用）', () => {
+    const gpu = componentById('cmp.rubin.rubin-gpu')!
+    const math = (gpu as Extract<typeof gpu, { kind: 'gpu' }>).mathSpecs!
+    expect(math.tdpW).toBeNull()
+    expect(gpu.specs.tdpW!.value).toBeNull()
+    expect(gpu.specs.tdpW!.note).toContain('NVL4')
+  })
+
+  it('★ mathSpecs 只取带「Dense specification」脚注的官方值，与整机架稠密值自洽', () => {
+    const gpu = componentById('cmp.rubin.rubin-gpu')!
+    const math = (gpu as Extract<typeof gpu, { kind: 'gpu' }>).mathSpecs!
+    expect(math.memoryGB).toBe(288)
+    expect(math.bandwidthTBs).toBe(22)
+    // 35 PFLOPS/卡 × 72 = 2,520 PFLOPS（官方 NVFP4 Training 稠密值）
+    expect((math.fp4Tflops! / 1000) * 72).toBe(VERA_RUBIN_SYSTEM.keySpecs.fp4DensePflops!.value)
+    // 17.5 PFLOPS/卡 × 72 = 1,260 PFLOPS（官方 FP8/FP6 Training 稠密值）
+    expect((math.fp8Tflops! / 1000) * 72).toBe(VERA_RUBIN_SYSTEM.keySpecs.fp8DensePflops!.value)
+    // 显存/带宽与整机架口径自洽（1% 容差：官方 20.7 TB / 1,580 TB/s 是取整后的值）
+    expect(Math.abs((math.memoryGB * 72) / 1000 - 20.7) / 20.7).toBeLessThan(0.01)
+    expect(Math.abs(math.bandwidthTBs * 72 - 1580) / 1580).toBeLessThan(0.01)
+    // NVFP4 Inference 那一列没有稠密标注，绝不能出现在 mathSpecs 里
+    expect(math.fp4Tflops).not.toBe(50_000)
+    expect(math.derivation).toContain('Dense specification')
+  })
+
+  it('预发布限定（Preliminary information）在关键 Claim 上留痕', () => {
+    expect(VERA_RUBIN_SYSTEM.keySpecs.gpuCount!.note).toContain('Preliminary')
+    expect(VERA_RUBIN_SYSTEM.keySpecs.fp4InferencePflops!.note).toContain('稀疏')
+  })
+})
+
+// ═══════════════════════════ Rubin Ultra NVL576（B4） ═══════════════════════════
+
+const RU = 'sys.rubin-ultra-nvl576'
+const RU_RACK = 'asm.ru.rack'
+
+describe('Rubin Ultra NVL576：结构（SemiAnalysis 口径）', () => {
+  it('系统为 forecast 状态', () => {
+    expect(RUBIN_ULTRA_SYSTEM.status).toBe('forecast')
+    expect(RUBIN_ULTRA_SYSTEM.generation).toBe('rubin-ultra')
+    expect(systemById(RU)!.sourceIds).toEqual(['src.semianalysis-nvl576'])
+  })
+
+  it('8 个 Oberon 机架构成**一个** NVLink 域，合计 576 张 GPU', () => {
+    expect(assemblyById(RU_RACK)!.count).toBe(8)
+    expect(totalInstances('asm.ru.gpu', RU_RACK)).toBe(72) // 每机架
+    expect(totalInstances('asm.ru.gpu')).toBe(576) // 全域
+    expect(RUBIN_ULTRA_SYSTEM.keySpecs.gpuCount!.value).toBe(576)
+  })
+
+  it('★ 9+18+9：18 个 1U 计算托架 + 18 个 0.75U 交换托架', () => {
+    expect(assemblyById('asm.ru.compute-tray')!.count).toBe(18)
+    expect(assemblyById('asm.ru.nvswitch-tray')!.count).toBe(18)
+    // 18 × 0.75U = 13.5U
+    expect(assemblyById('asm.ru.nvswitch-tray')!.rackU!.height).toBe(13.5)
+    expect(componentById('cmp.rubin-ultra.nvswitch-tray')!.specs.trayHeightU!.value).toBe(0.75)
+  })
+
+  it('★ 可扩展交换托架每个 4 颗 NVLink 7 芯片 ⇒ 每机架 72 颗（NVL72 版是 36 颗）', () => {
+    expect(assemblyById('asm.ru.nvswitch-asic')!.count).toBe(4)
+    expect(totalInstances('asm.ru.nvswitch-asic', RU_RACK)).toBe(72)
+    expect(componentById('cmp.rubin-ultra.nvswitch-tray')!.specs.asicsPerRack!.value).toBe(72)
+  })
+
+  it('计算托架 = 2 Vera CPU + 4 Rubin Ultra GPU；CPU socket 总数 288 与表①一致', () => {
+    const byRole = new Map(descendantsOf('asm.ru.compute-tray').map((a) => [a.roleKey, a]))
+    expect(byRole.get('host-cpu')!.count).toBe(2)
+    expect(byRole.get('accelerator')!.count).toBe(4)
+    expect(totalInstances('asm.ru.vera-cpu')).toBe(288)
+    expect(RUBIN_ULTRA_SYSTEM.keySpecs.cpuSocketCount!.value).toBe(288)
+  })
+
+  it('电源架 4 × 3U/110 kW（6 × 18.3 kW）', () => {
+    const shelf = componentById('cmp.rubin-ultra.power-shelf')!
+    expect(assemblyById('asm.ru.power-shelf')!.count).toBe(4)
+    expect(shelf.specs.shelfPowerKW!.value).toBe(110)
+    expect(shelf.specs.psuPowerKW!.value).toBe(18.3)
+    expect((shelf.specs.psusPerShelf!.value as number) * 18.3).toBeCloseTo(110, 0)
+  })
+
+  it('★ 跨机架 scale-up 光互连是本代新增层（机架内仍是铜）', () => {
+    expect(assemblyById('asm.ru.optics')).toBeDefined()
+    expect(assemblyById('asm.ru.interrack-fabric')!.roleKey).toBe('interrack-scaleup-fabric')
+    expect(componentById('cmp.rubin-ultra.backplane')!.specs.medium!.value).toContain('铜')
+    const nvlink = connectionsOfPlane(RU, 'nvlink').map((c) => c.id)
+    expect(nvlink).toContain('con.ru.optics-interrack')
+  })
+
+  it('★ 来源没写的东西不建模：全代际没有 scale-out / DPU 相关装配与连接', () => {
+    const roleKeys = new Set(RUBIN_ULTRA_ASSEMBLIES.map((a) => a.roleKey))
+    expect(roleKeys.has('scaleout-nic')).toBe(false)
+    expect(roleKeys.has('north-south-dpu')).toBe(false)
+    expect(connectionsOfPlane(RU, 'scaleout').length).toBe(0)
+    expect(connectionsOfPlane(RU, 'business').length).toBe(0)
+  })
+})
+
+describe('★ Rubin Ultra NVL576：证据纪律（全 forecast / analyst_estimate）', () => {
+  const claims = claimsAuthoredIn(
+    RUBIN_ULTRA_SYSTEM,
+    RUBIN_ULTRA_COMPONENTS,
+    RUBIN_ULTRA_ASSEMBLIES,
+    RUBIN_ULTRA_CONNECTIONS,
+  )
+
+  it('每条 Claim 都来自 SemiAnalysis、状态 forecast、证据 ∈ {analyst_estimate, forecast}', () => {
+    expect(claims.length).toBeGreaterThan(30)
+    for (const { where, claim } of claims) {
+      expect(claim.sourceId, `${where}.sourceId`).toBe('src.semianalysis-nvl576')
+      expect(claim.status, `${where}.status`).toBe('forecast')
+      expect(['analyst_estimate', 'forecast'], `${where}.evidence=${claim.evidence}`).toContain(claim.evidence)
+      expect(claim.confidence, `${where}.confidence`).toBe('low')
+    }
+  })
+
+  it('有值的 Claim 必须带页码 locator（能回查 PDF 第几页）', () => {
+    for (const { where, claim } of claims) {
+      if (claim.value === null) continue
+      expect(claim.locator, `${where} 没有 locator`).not.toBeNull()
+      expect(/p\.\d+/.test(claim.locator!), `${where}.locator 缺页码：${claim.locator}`).toBe(true)
+    }
+  })
+
+  it('★ Rubin Ultra GPU 的 mathSpecs 整体为 null（分析师规格表禁止进产能数学）', () => {
+    const gpu = componentById('cmp.rubin-ultra.gpu')!
+    expect(gpu.kind).toBe('gpu')
+    expect((gpu as Extract<typeof gpu, { kind: 'gpu' }>).mathSpecs).toBeNull()
+    // 但规格表里的数字仍作为「可展示的预测」保留，并明确标注不进产能
+    expect(gpu.specs.fp4DensePflopsPerPackage!.value).toBe(35)
+    expect(gpu.specs.fp4DensePflopsPerPackage!.note).toContain('不进 mathSpecs')
+  })
+
+  it('★ 反常识数字原样留痕：192 GB HBM4（低于 Rubin 的 288 GB）且标注冲突', () => {
+    const gpu = componentById('cmp.rubin-ultra.gpu')!
+    expect(gpu.specs.memoryPerPackageGB!.value).toBe(192)
+    expect(gpu.specs.memoryPerPackageGB!.note).toContain('冲突')
+    expect(componentById('cmp.rubin-ultra.hbm4')!.specs.generation!.note).toContain('HBM4e')
+  })
+
+  it('机架总功率没有出数（文中没有，440 kW 只是算术推论）', () => {
+    expect(RUBIN_ULTRA_SYSTEM.keySpecs.rackPowerKW!.value).toBeNull()
+    expect(RUBIN_ULTRA_SYSTEM.keySpecs.rackPowerKW!.note).toContain('推论')
+  })
+
+  it('年份口径冲突已留痕（表① 2027 / 表② 2026）', () => {
+    expect(RUBIN_ULTRA_SYSTEM.keySpecs.year!.note).toContain('矛盾')
+  })
+})
+
+describe('三代并存后的全局不变量', () => {
+  it('三个系统各自成树，且默认代际（systems[0]）是唯一 shipping 的一代', () => {
+    expect(FACTORY_PACK.systems.map((s) => s.id)).toEqual([SYSTEM_ID, VR, RU])
+    expect(FACTORY_PACK.systems.filter((s) => s.status === 'shipping').map((s) => s.id)).toEqual([SYSTEM_ID])
+  })
+
+  it('每代都有导览场景，且场景按系统分组连续排列（TourPanel 按系统内序号取用）', () => {
+    for (const sys of FACTORY_PACK.systems) {
+      expect(FACTORY_PACK.scenes.filter((s) => s.systemId === sys.id).length, sys.id).toBeGreaterThan(0)
+    }
+    const order = FACTORY_PACK.scenes.map((s) => s.systemId)
+    const firstIdx = new Map<string, number>()
+    order.forEach((id, i) => {
+      if (!firstIdx.has(id)) firstIdx.set(id, i)
+    })
+    for (const [id, start] of firstIdx) {
+      const count = order.filter((x) => x === id).length
+      expect(order.slice(start, start + count).every((x) => x === id), `${id} 的场景不连续`).toBe(true)
+    }
+  })
+
+  it('每代的六平面覆盖情况如实反映来源（GB300/Vera Rubin 六平面齐全，NVL576 只有四个）', () => {
+    const planes: NetworkPlane[] = ['nvlink', 'scaleout', 'business', 'mgmt', 'power', 'cooling']
+    for (const p of planes) {
+      expect(connectionsOfPlane(SYSTEM_ID, p).length, `GB300 ${p}`).toBeGreaterThan(0)
+      expect(connectionsOfPlane(VR, p).length, `Vera Rubin ${p}`).toBeGreaterThan(0)
+    }
+    for (const p of ['nvlink', 'power', 'mgmt', 'cooling'] as NetworkPlane[]) {
+      expect(connectionsOfPlane(RU, p).length, `NVL576 ${p}`).toBeGreaterThan(0)
+    }
   })
 })

@@ -250,17 +250,46 @@ describe('证据纪律', () => {
     }
   })
 
-  it('★ 非官方源（analyst_report / earnings_call）同样不得进入 countClaim 与组件 specs', () => {
-    // 比上一条更严：SemiAnalysis 之类的分析师源即使不在 BROKER 名单里也一样禁止
+  /**
+   * B4 调整（原 B1 版本一刀切禁止所有非官方源进入 countClaim/specs）：
+   * Rubin Ultra NVL576 这一代**只有** SemiAnalysis 的分析师文章可用，一刀切会让它无法建模。
+   * 因此规则精确化为：
+   *   1. 券商源（Marvell / GS / JPM）仍然绝对禁止（上一条测试）；
+   *   2. 其余非官方源可以承载 countClaim / specs，但**必须**同时满足
+   *      evidence ∈ {analyst_estimate, forecast} 且 status === 'forecast'
+   *      ——即只能出现在预测代际里，且永远不会被渲染成「官方规格」徽章。
+   */
+  it('★ 非官方源进入 countClaim / 组件 specs 时，必须是 forecast 状态的分析师/预测证据', () => {
     const nonOfficial = new Set(
       pack.sources.filter((s) => s.kind === 'analyst_report' || s.kind === 'earnings_call').map((s) => s.id),
     )
+    const allowedEvidence = new Set(['analyst_estimate', 'forecast'])
+    const check = (where: string, claim: Claim) => {
+      if (!nonOfficial.has(claim.sourceId)) return
+      expect(allowedEvidence.has(claim.evidence), `${where} 用非官方源却标了 ${claim.evidence}`).toBe(true)
+      expect(claim.status, `${where} 用非官方源却不是 forecast 状态`).toBe('forecast')
+    }
     for (const a of pack.assemblies) {
-      if (a.countClaim) expect(nonOfficial.has(a.countClaim.sourceId), `${a.id}.countClaim`).toBe(false)
+      if (a.countClaim) check(`${a.id}.countClaim`, a.countClaim)
     }
     for (const c of pack.components) {
-      for (const [k, claim] of Object.entries(c.specs)) {
-        expect(nonOfficial.has(claim.sourceId), `${c.id}.specs.${k}`).toBe(false)
+      for (const [k, claim] of Object.entries(c.specs)) check(`${c.id}.specs.${k}`, claim)
+    }
+  })
+
+  it('★ 非官方源只能出现在 forecast 系统的装配树里', () => {
+    const nonOfficial = new Set(
+      pack.sources.filter((s) => s.kind === 'analyst_report' || s.kind === 'earnings_call').map((s) => s.id),
+    )
+    const systemStatus = new Map(pack.systems.map((s) => [s.id, s.status]))
+    for (const a of pack.assemblies) {
+      if (a.countClaim && nonOfficial.has(a.countClaim.sourceId)) {
+        expect(systemStatus.get(a.systemId), `${a.id} 所属系统`).toBe('forecast')
+      }
+    }
+    for (const c of pack.connections) {
+      if (c.bandwidth && nonOfficial.has(c.bandwidth.sourceId)) {
+        expect(systemStatus.get(c.systemId), `${c.id} 所属系统`).toBe('forecast')
       }
     }
   })
@@ -371,10 +400,81 @@ describe('系统与场景', () => {
   })
 })
 
-describe('批次占位集合', () => {
-  it('comparisons 本批仍为空数组（批次 4 填充），结构完整可迭代', () => {
+describe('代际比较定义（B4 填充，替换原「comparisons 为空」占位断言）', () => {
+  it('comparisons 非空，且每条的左右系统都存在、不自比', () => {
     expect(Array.isArray(pack.comparisons)).toBe(true)
-    expect(pack.comparisons).toEqual([])
+    expect(pack.comparisons.length).toBeGreaterThan(0)
+    for (const c of pack.comparisons) {
+      expect(systemIds.has(c.leftSystemId), `${c.id} 的左系统 ${c.leftSystemId}`).toBe(true)
+      expect(systemIds.has(c.rightSystemId), `${c.id} 的右系统 ${c.rightSystemId}`).toBe(true)
+      expect(c.leftSystemId, `${c.id} 左右系统相同`).not.toBe(c.rightSystemId)
+    }
+  })
+
+  it('同一对系统只定义一次（方向敏感），且 summary / title 非空', () => {
+    const seen = new Set<string>()
+    for (const c of pack.comparisons) {
+      const key = `${c.leftSystemId}|${c.rightSystemId}`
+      expect(seen.has(key), `${c.id} 与已有定义重复`).toBe(false)
+      seen.add(key)
+      expect(c.title.trim().length, `${c.id}.title`).toBeGreaterThan(0)
+      expect(c.summary.length, `${c.id}.summary 至少一条要点`).toBeGreaterThan(0)
+      for (const s of c.summary) expect(s.trim().length, `${c.id}.summary 有空要点`).toBeGreaterThan(0)
+    }
+  })
+
+  it('rows 的 roleKey 在两侧至少一侧存在（不写不存在的 roleKey），narrative 非空', () => {
+    const roleKeysOf = (systemId: string) =>
+      new Set(pack.assemblies.filter((a) => a.systemId === systemId).map((a) => a.roleKey))
+    for (const c of pack.comparisons) {
+      const left = roleKeysOf(c.leftSystemId)
+      const right = roleKeysOf(c.rightSystemId)
+      const seen = new Set<string>()
+      for (const row of c.rows) {
+        expect(seen.has(row.roleKey), `${c.id} 的 roleKey ${row.roleKey} 重复`).toBe(false)
+        seen.add(row.roleKey)
+        expect(
+          left.has(row.roleKey) || right.has(row.roleKey),
+          `${c.id} 的 roleKey ${row.roleKey} 在两侧系统里都不存在`,
+        ).toBe(true)
+        if (row.narrative !== null) {
+          expect(row.narrative.trim().length, `${c.id}.${row.roleKey}.narrative 为空串`).toBeGreaterThan(0)
+        }
+      }
+    }
+  })
+
+  it('sourceIds 全部指向已登记的源', () => {
+    for (const c of pack.comparisons) {
+      for (const sid of c.sourceIds) expect(sourceById.has(sid), `${c.id} → ${sid}`).toBe(true)
+    }
+  })
+})
+
+describe('★ 跨代比较的前提：roleKey 在系统内唯一', () => {
+  it('同一系统内不出现重复 roleKey（否则 roleKey 配对不再确定）', () => {
+    for (const sys of pack.systems) {
+      const seen = new Map<string, string>()
+      for (const a of pack.assemblies.filter((x) => x.systemId === sys.id)) {
+        const prev = seen.get(a.roleKey)
+        expect(prev, `${sys.id} 的 roleKey「${a.roleKey}」被 ${prev} 与 ${a.id} 同时使用`).toBeUndefined()
+        seen.set(a.roleKey, a.id)
+      }
+    }
+  })
+
+  it('roleKey 命名规范：小写字母 + 连字符', () => {
+    for (const a of pack.assemblies) {
+      expect(/^[a-z][a-z0-9-]*$/.test(a.roleKey), `${a.id}.roleKey=${a.roleKey}`).toBe(true)
+    }
+  })
+
+  it('三代系统共享的核心 roleKey 都能配上（比较不会全是 added/removed）', () => {
+    const core = ['facility', 'rack-row', 'rack', 'compute-tray', 'nvswitch-tray', 'accelerator', 'host-cpu']
+    for (const sys of pack.systems) {
+      const keys = new Set(pack.assemblies.filter((a) => a.systemId === sys.id).map((a) => a.roleKey))
+      for (const k of core) expect(keys.has(k), `${sys.id} 缺少核心 roleKey ${k}`).toBe(true)
+    }
   })
 })
 

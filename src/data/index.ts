@@ -8,13 +8,28 @@ import {
   GB300_SYSTEM,
 } from './gb300-nvl72'
 import { MODELS } from './models'
+import {
+  RUBIN_ULTRA_ASSEMBLIES,
+  RUBIN_ULTRA_COMPONENTS,
+  RUBIN_ULTRA_CONNECTIONS,
+  RUBIN_ULTRA_SCENES,
+  RUBIN_ULTRA_SYSTEM,
+} from './rubin-ultra-nvl576'
 import { SHARED_COMPONENTS } from './shared'
 import { SOURCES } from './sources'
+import {
+  VERA_RUBIN_ASSEMBLIES,
+  VERA_RUBIN_COMPONENTS,
+  VERA_RUBIN_CONNECTIONS,
+  VERA_RUBIN_SCENES,
+  VERA_RUBIN_SYSTEM,
+} from './vera-rubin-nvl72'
 import type {
   AssemblyNode,
   Connection,
   FactoryContentPack,
   FactorySystem,
+  FlowEpisode,
   HardwareComponent,
   ModelSpec,
   NetworkPlane,
@@ -22,18 +37,28 @@ import type {
   SourceRef,
 } from './types'
 
-/** 全量内容包。B2 起 3D 与 UI 只读这一个对象，不直接 import 各代际文件。 */
+/**
+ * 全量内容包。B2 起 3D 与 UI 只读这一个对象，不直接 import 各代际文件。
+ *
+ * ⚠️ 顺序有意义：`systems[0]` 是默认代际（GB300，唯一 shipping 的一代），
+ * `scenes` 也按系统分组排列——`store.applyScene` 与 `TourPanel` 都按「系统内序号」取用。
+ */
 export const FACTORY_PACK: FactoryContentPack = {
-  version: '0.1.0',
+  version: '0.2.0',
   generatedAsOf: '2026-08',
   sources: SOURCES,
-  systems: [GB300_SYSTEM],
-  components: [...SHARED_COMPONENTS, ...GB300_COMPONENTS],
-  assemblies: GB300_ASSEMBLIES,
-  connections: GB300_CONNECTIONS,
+  systems: [GB300_SYSTEM, VERA_RUBIN_SYSTEM, RUBIN_ULTRA_SYSTEM],
+  components: [
+    ...SHARED_COMPONENTS,
+    ...GB300_COMPONENTS,
+    ...VERA_RUBIN_COMPONENTS,
+    ...RUBIN_ULTRA_COMPONENTS,
+  ],
+  assemblies: [...GB300_ASSEMBLIES, ...VERA_RUBIN_ASSEMBLIES, ...RUBIN_ULTRA_ASSEMBLIES],
+  connections: [...GB300_CONNECTIONS, ...VERA_RUBIN_CONNECTIONS, ...RUBIN_ULTRA_CONNECTIONS],
   flows: FLOWS,
   comparisons: COMPARISONS,
-  scenes: GB300_SCENES,
+  scenes: [...GB300_SCENES, ...VERA_RUBIN_SCENES, ...RUBIN_ULTRA_SCENES],
   models: MODELS,
 }
 
@@ -154,6 +179,27 @@ export function connectionsOfPlane(systemId: string, plane: NetworkPlane): Conne
 /** 某系统的导览场景。 */
 export function scenesOfSystem(systemId: string): ScenePreset[] {
   return FACTORY_PACK.scenes.filter((s) => s.systemId === systemId)
+}
+
+/**
+ * 某系统的数据流剧本。
+ *
+ * B4 起内容包有三个系统，而剧本目前只有 GB300 一套——`FlowBar` / `FlowLayer` /
+ * `ConnectionLayer` 都必须按当前代际取剧本，否则切到 Vera Rubin 时会拿 GB300 的
+ * 连接 ID 去当前系统里查路径（查不到 → 粒子静止），叙事与画面对不上。
+ */
+export function flowsOfSystem(systemId: string): FlowEpisode[] {
+  return FACTORY_PACK.flows.filter((f) => f.systemId === systemId)
+}
+
+/** 当前代际的第 idx 个剧本；越界或该代际没有剧本时返回 undefined。 */
+export function episodeOf(systemId: string, idx: number): FlowEpisode | undefined {
+  return flowsOfSystem(systemId)[idx]
+}
+
+/** 该系统的机架装配节点（roleKey === 'rack'）。产能与比较的「每机架」口径都以它为参照系。 */
+export function rackAssemblyOf(systemId: string): AssemblyNode | undefined {
+  return FACTORY_PACK.assemblies.find((a) => a.systemId === systemId && a.roleKey === 'rack')
 }
 
 /** 引用了某组件的全部装配节点（详情面板「它在哪出现」用）。 */
