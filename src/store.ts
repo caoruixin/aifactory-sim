@@ -26,6 +26,22 @@ export type GlStatus = 'unknown' | 'webgl2' | 'webgl' | 'none' | 'failed'
 export type ExplorerMode = 'explore' | 'compare' | 'tour'
 
 export const DEFAULT_SYSTEM_ID = FACTORY_PACK.systems[0]?.id ?? 'sys.gb300-nvl72'
+/** 比较模式的默认右侧代际：内容包里的第二个系统（没有第二个就退回默认）。 */
+export const DEFAULT_COMPARE_RIGHT_ID = FACTORY_PACK.systems[1]?.id ?? DEFAULT_SYSTEM_ID
+
+/** 比较模式状态。**不落盘**：它是一次会话内的临时视角，不是用户偏好。 */
+export interface CompareState {
+  /** 右侧视口的系统 id（左侧恒为 `generation`）。 */
+  right: string
+  /** 只看有变化的部件：未变化的降为 ghost，DOM 列表也只留变化行。 */
+  showDiffOnly: boolean
+}
+
+/** 换代际时给右侧挑一个「不等于左侧」的系统，避免左右同代看不出差异。 */
+function otherSystemThan(systemId: string, preferred: string): string {
+  if (preferred !== systemId) return preferred
+  return FACTORY_PACK.systems.find((s) => s.id !== systemId)?.id ?? systemId
+}
 
 /** 默认全开：先让用户看到「六个平面同时存在」，再靠开关做减法。 */
 export function defaultPlanes(): PlaneFlags {
@@ -41,6 +57,7 @@ export interface FactoryState extends DrillState {
   hoveredId: string | null
   planes: PlaneFlags
   mode: ExplorerMode
+  compare: CompareState
   /**
    * 数据流播放状态。`episodeIdx` = 当前播放哪个 `FlowEpisode`（索引进
    * `FACTORY_PACK.flows`；本批内容只有一条剧本，恒为 0，留给未来多剧本切换）；
@@ -64,6 +81,9 @@ export interface FactoryState extends DrillState {
   togglePlane: (plane: NetworkPlane) => void
   setPlanes: (planes: Partial<PlaneFlags>) => void
   setMode: (mode: ExplorerMode) => void
+  /** 切换代际：换系统 = 换整棵装配树，因此下钻状态必须重置到该系统的根。 */
+  setGeneration: (systemId: string) => void
+  setCompare: (patch: Partial<CompareState>) => void
   setFlow: (patch: Partial<FactoryState['flow']>) => void
   setReducedMotion: (v: boolean) => void
   setGlStatus: (s: GlStatus) => void
@@ -147,6 +167,7 @@ export const useFactoryStore = create<FactoryState>()(
       hoveredId: null,
       planes: defaultPlanes(),
       mode: 'explore',
+      compare: { right: DEFAULT_COMPARE_RIGHT_ID, showDiffOnly: false },
       flow: { episodeIdx: 0, stepIdx: 0, playing: false, speed: 1 },
       tourStopIdx: -1,
       reducedMotion: prefersReducedMotion(),
@@ -163,7 +184,11 @@ export const useFactoryStore = create<FactoryState>()(
       applyScene: (sceneId) => {
         const scene = sceneById(sceneId)
         if (!scene) return
-        const idx = FACTORY_PACK.scenes.findIndex((s) => s.id === sceneId)
+        // ★ 序号按**该系统内**的次序，不是全包的全局次序——三代并存后
+        // TourPanel 列的是 scenesOfSystem(generation)，用全局序号会串代际高亮错行。
+        const idx = FACTORY_PACK.scenes
+          .filter((s) => s.systemId === scene.systemId)
+          .findIndex((s) => s.id === sceneId)
         const planes = defaultPlanes()
         for (const key of PLANE_ORDER) planes[key] = scene.planes.includes(key)
         set((s) => ({
@@ -172,6 +197,7 @@ export const useFactoryStore = create<FactoryState>()(
             level: scene.lodLevel,
             focusAssemblyId: scene.focusAssemblyId,
           }),
+          generation: scene.systemId,
           planes,
           tourStopIdx: idx,
           mode: 'tour',
@@ -182,6 +208,24 @@ export const useFactoryStore = create<FactoryState>()(
       togglePlane: (plane) => set((s) => ({ planes: { ...s.planes, [plane]: !s.planes[plane] } })),
       setPlanes: (patch) => set((s) => ({ planes: { ...s.planes, ...patch } })),
       setMode: (mode) => set({ mode }),
+
+      setGeneration: (systemId) =>
+        set((s) => {
+          if (s.generation === systemId) return s
+          if (!FACTORY_PACK.systems.some((x) => x.id === systemId)) return s
+          // 换代际 = 换一棵完全不同的装配树：旧的 focusPath/selectedId 在新系统里
+          // 根本不存在，必须整体重置，否则详情面板与相机会指向一个不存在的节点。
+          return {
+            ...initialDrillState(systemId),
+            generation: systemId,
+            hoveredId: null,
+            tourStopIdx: -1,
+            flow: { ...s.flow, stepIdx: 0, playing: false },
+            compare: { ...s.compare, right: otherSystemThan(systemId, s.compare.right) },
+          }
+        }),
+
+      setCompare: (patch) => set((s) => ({ compare: { ...s.compare, ...patch } })),
       setFlow: (patch) => set((s) => ({ flow: { ...s.flow, ...patch } })),
       setReducedMotion: (reducedMotion) => set({ reducedMotion }),
       setGlStatus: (glStatus) => set({ glStatus }),
@@ -204,7 +248,17 @@ export const useFactoryStore = create<FactoryState>()(
         reducedMotion: s.reducedMotion,
         generation: s.generation,
       }),
-      merge: (persisted, current) => ({ ...current, ...sanitizePersisted(persisted) }),
+      // rehydrate 出来的 generation 可能不是默认代际，而 create() 里的初始下钻状态
+      // 是按默认代际算的 —— 必须按落盘的代际重建，否则刷新后 focusPath 指向另一棵树的根。
+      merge: (persisted, current) => {
+        const slice = sanitizePersisted(persisted)
+        return {
+          ...current,
+          ...slice,
+          ...initialDrillState(slice.generation),
+          compare: { right: otherSystemThan(slice.generation, DEFAULT_COMPARE_RIGHT_ID), showDiffOnly: false },
+        }
+      },
     },
   ),
 )

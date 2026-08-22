@@ -16,7 +16,7 @@
 import { invalidate, useFrame } from '@react-three/fiber'
 import { useEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
-import { ancestorsOf, componentById, FACTORY_PACK } from '../../data'
+import { ancestorsOf, componentById, episodeOf, FACTORY_PACK } from '../../data'
 import type { LodLevel } from '../../data/types'
 import { levelIndex } from '../../lib/drill'
 import { buildTimeline } from '../../lib/flowTimeline'
@@ -45,7 +45,9 @@ export default function FlowLayer({ systemId, layout, depth }: FlowLayerProps) {
   const episodeIdx = useFactoryStore((s) => s.flow.episodeIdx)
   const stepIdx = useFactoryStore((s) => s.flow.stepIdx)
 
-  const episode = FACTORY_PACK.flows[episodeIdx]
+  // 剧本按代际取：只有 GB300 有剧本，切到其它代际时 segments 为空、粒子自然隐藏
+  // （FlowBar 会在 DOM 侧解释「该代际暂无剧本」）。
+  const episode = episodeOf(systemId, episodeIdx)
 
   const segments = useMemo<TimelineSegment[]>(() => {
     if (!episode) return []

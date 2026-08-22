@@ -228,6 +228,13 @@ const PLACEMENTS: Record<string, Placement> = {
     explode: { lift: 0.17, spread: 1 },
   },
 
+  // ── 跨机架光互连（Rubin Ultra NVL576 新增的一层） ──
+  // 画在机架列后上方：它在物理上就是「机架之间」的东西，放地面上会跟机架抢位置。
+  'interrack-scaleup-fabric': {
+    size: [3.2, 0.28, 0.7],
+    slots: () => [[0, 2.65, -2.6]],
+  },
+
   // ── 交换托盘内部 ──
   'nvswitch-asic': {
     size: [0.08, 0.012, 0.08],
@@ -238,6 +245,22 @@ const PLACEMENTS: Record<string, Placement> = {
     size: [0.46, 0.006, 0.34],
     slots: () => [[0, 0.0135, 0]],
     explode: { lift: 0.17, spread: 1 },
+  },
+  // NPO 光模块：交换托架上每颗交换芯片旁 4 个，按 4×4 网格摆在托架前半部。
+  'scaleup-optics': {
+    size: [0.028, 0.009, 0.03],
+    slots: (count) => {
+      const perRow = 4
+      const out: Vec3[] = []
+      for (let i = 0; i < count; i += 1) {
+        const col = i % perRow
+        const rowIdx = Math.floor(i / perRow)
+        const rows = Math.max(1, Math.ceil(count / perRow))
+        out.push([(col - (perRow - 1) / 2) * 0.09, 0.006, (rowIdx - (rows - 1) / 2) * 0.075 + 0.22])
+      }
+      return out
+    },
+    explode: { lift: 0.03, spread: 1.25 },
   },
 }
 

@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { FACTORY_PACK } from './data'
 import {
+  DEFAULT_COMPARE_RIGHT_ID,
   DEFAULT_SYSTEM_ID,
   defaultPlanes,
   detailIdOf,
@@ -47,8 +48,15 @@ describe('sanitizePersisted（rehydrate 清洗）', () => {
 
 describe('store 转移', () => {
   beforeEach(() => {
+    // 代际也要复位：setGeneration 会重建整棵下钻状态，跨用例残留会让断言互相污染。
+    useFactoryStore.getState().setGeneration(DEFAULT_SYSTEM_ID)
     useFactoryStore.getState().reset()
-    useFactoryStore.setState({ planes: defaultPlanes(), glStatus: 'unknown', ready: false })
+    useFactoryStore.setState({
+      planes: defaultPlanes(),
+      glStatus: 'unknown',
+      ready: false,
+      compare: { right: DEFAULT_COMPARE_RIGHT_ID, showDiffOnly: false },
+    })
   })
 
   it('初始状态：cluster 级、焦点为机房、六平面全开', () => {
@@ -133,6 +141,54 @@ describe('store 转移', () => {
     expect(s.hoveredId).toBeNull()
     expect(s.mode).toBe('explore')
     expect(s.tourStopIdx).toBe(-1)
+  })
+
+  it('★ 切换代际：换整棵装配树，下钻状态回到新系统的根', () => {
+    useFactoryStore.getState().drillTo(GPU)
+    useFactoryStore.getState().setGeneration('sys.vera-rubin-nvl72')
+    const s = useFactoryStore.getState()
+    expect(s.generation).toBe('sys.vera-rubin-nvl72')
+    expect(s.level).toBe('cluster')
+    expect(focusIdOf(s)).toBe('asm.rubin.facility')
+    expect(s.selectedId).toBeNull()
+    expect(s.tourStopIdx).toBe(-1)
+    expect(s.flow.playing).toBe(false)
+    // 焦点必须真的属于新系统（不能残留上一代的 ID）
+    expect(FACTORY_PACK.assemblies.find((a) => a.id === focusIdOf(s))!.systemId).toBe(
+      'sys.vera-rubin-nvl72',
+    )
+  })
+
+  it('切换代际时右侧比较对象自动避开与左侧同代', () => {
+    useFactoryStore.getState().setCompare({ right: 'sys.vera-rubin-nvl72' })
+    useFactoryStore.getState().setGeneration('sys.vera-rubin-nvl72')
+    expect(useFactoryStore.getState().compare.right).not.toBe('sys.vera-rubin-nvl72')
+  })
+
+  it('未知代际 / 同代际不改变状态', () => {
+    const before = useFactoryStore.getState()
+    useFactoryStore.getState().setGeneration('sys.nope')
+    expect(useFactoryStore.getState()).toBe(before)
+    useFactoryStore.getState().setGeneration(before.generation)
+    expect(useFactoryStore.getState()).toBe(before)
+  })
+
+  it('compare 状态：右侧代际与 showDiffOnly 可独立设置', () => {
+    useFactoryStore.getState().setMode('compare')
+    useFactoryStore.getState().setCompare({ right: 'sys.rubin-ultra-nvl576' })
+    useFactoryStore.getState().setCompare({ showDiffOnly: true })
+    const s = useFactoryStore.getState()
+    expect(s.mode).toBe('compare')
+    expect(s.compare).toEqual({ right: 'sys.rubin-ultra-nvl576', showDiffOnly: true })
+  })
+
+  it('applyScene 会把代际切到该场景所属的系统', () => {
+    useFactoryStore.getState().applyScene('scene.rubin.tray-teardown')
+    const s = useFactoryStore.getState()
+    expect(s.generation).toBe('sys.vera-rubin-nvl72')
+    expect(focusIdOf(s)).toBe('asm.rubin.compute-tray')
+    // 序号是「该系统内」的次序，不是全包全局次序
+    expect(s.tourStopIdx).toBe(1)
   })
 
   it('glStatus / ready 可被 3D 层回写', () => {

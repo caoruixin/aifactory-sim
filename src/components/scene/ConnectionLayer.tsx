@@ -15,7 +15,7 @@
 import { Line } from '@react-three/drei'
 import { invalidate } from '@react-three/fiber'
 import { useEffect, useMemo } from 'react'
-import { FACTORY_PACK } from '../../data'
+import { episodeOf } from '../../data'
 import type { LodLevel, NetworkPlane } from '../../data/types'
 import type { ResolvedLayout } from '../../lib/layout'
 import { planeColor } from '../../lib/palette'
@@ -27,9 +27,11 @@ export interface ConnectionLayerProps {
   systemId: string
   layout: ResolvedLayout
   depth: LodLevel
+  /** 额外收窄可见平面（比较模式只留 nvlink + scaleout 降噪）；与 store 的平面开关取交集。 */
+  planeFilter?: readonly NetworkPlane[]
 }
 
-export default function ConnectionLayer({ systemId, layout, depth }: ConnectionLayerProps) {
+export default function ConnectionLayer({ systemId, layout, depth, planeFilter }: ConnectionLayerProps) {
   const planes = useFactoryStore((s) => s.planes)
   const flow = useFactoryStore((s) => s.flow)
 
@@ -38,23 +40,30 @@ export default function ConnectionLayer({ systemId, layout, depth }: ConnectionL
     [systemId, layout, depth],
   )
 
+  // 当前步骤的高亮只对**该系统自己的**剧本有意义：换代际后 GB300 的连接 ID
+  // 在这个系统里根本不存在，硬查会一条都点不亮（还会误导人以为数据错了）。
   const activeConnectionIds = useMemo(() => {
-    const episode = FACTORY_PACK.flows[flow.episodeIdx]
+    const episode = episodeOf(systemId, flow.episodeIdx)
     const step = episode?.steps[flow.stepIdx]
     return new Set(step ? step.connectionIds : [])
-  }, [flow.episodeIdx, flow.stepIdx])
+  }, [systemId, flow.episodeIdx, flow.stepIdx])
 
   const byPlane = useMemo(() => {
     const clusterView = depth === 'cluster'
+    const allowed = planeFilter ? new Set(planeFilter) : null
     const map = new Map<NetworkPlane, RoutedConnection[]>()
     for (const r of routes) {
-      if (clusterView && r.plane !== 'scaleout') continue
+      if (allowed && !allowed.has(r.plane)) continue
+      // 集群级只保留天然适合鸟瞰的两个平面：scale-out 主干，以及**跨机架**的 scale-up
+      // （NVL576 的机架间光互连就属于后者）。机架内的 nvlink 边在这一级两端会收缩到
+      // 同一个机架盒子，已被 routing.ts 当退化边滤掉，因此不会有多余的线。
+      if (clusterView && r.plane !== 'scaleout' && r.plane !== 'nvlink') continue
       const list = map.get(r.plane)
       if (list) list.push(r)
       else map.set(r.plane, [r])
     }
     return map
-  }, [routes, depth])
+  }, [routes, depth, planeFilter])
 
   // demand 帧循环下，store 驱动的重渲染（平面开关、步骤切换）不会自动触发 WebGL 重绘。
   useEffect(() => {

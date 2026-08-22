@@ -20,7 +20,7 @@ import { useMemo } from 'react'
 import * as THREE from 'three'
 import type { HardwareComponent, VisualShape } from '../../data/types'
 import type { Vec3 } from '../../lib/layout'
-import { SURFACE, color as paletteColor } from '../../lib/palette'
+import { STATUS_MATERIALS, SURFACE, color as paletteColor, mixHex } from '../../lib/palette'
 
 // ─────────────────────────── 共享几何体 ───────────────────────────
 
@@ -96,6 +96,40 @@ const SHAPE_OPACITY: Partial<Record<VisualShape, number>> = {
 export function opacityForComponent(component: HardwareComponent | undefined): number {
   if (!component) return 1
   return SHAPE_OPACITY[component.visual.shape] ?? 1
+}
+
+// ─────────────────────────── 产品状态 → 材质 ───────────────────────────
+
+export interface SurfaceStyle {
+  color: string
+  opacity: number
+  wireframe: boolean
+  roughness: number
+  metalness: number
+}
+
+/**
+ * 部件的最终材质：本色（palette token 或外形默认色）叠上**产品状态**的语义色调。
+ *
+ * 这是三代同屏时最重要的一条视觉约定：
+ *   shipping  = 实体原色（GB300：这是能买到的东西）
+ *   announced = 蓝调实体（Vera Rubin：已发布但还没到你机房）
+ *   forecast  = 琥珀线框（Rubin Ultra：连规格都还是分析师推的）
+ * 用户不用看徽章，光凭材质就知道「这一屏的东西有多实」。
+ */
+export function surfaceStyleFor(component: HardwareComponent | undefined): SurfaceStyle {
+  const base = colorForComponent(component)
+  const status = component?.status ?? 'shipping'
+  const mat = STATUS_MATERIALS[status]
+  const tint = mat.tintToken ? paletteColor(mat.tintToken, 'dim') : null
+  return {
+    color: tint ? mixHex(base, tint, mat.tintAmount) : base,
+    // 组件自己声明的 wireframe 优先，其次看状态
+    wireframe: component?.visual.wireframe === true || mat.wireframe,
+    opacity: opacityForComponent(component) * mat.opacity,
+    roughness: mat.roughness,
+    metalness: mat.metalness,
+  }
 }
 
 // ─────────────────────────── ShapeMesh ───────────────────────────

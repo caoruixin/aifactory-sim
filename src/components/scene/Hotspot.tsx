@@ -17,7 +17,7 @@ import type { AssemblyNode } from '../../data/types'
 import type { Vec3 } from '../../lib/layout'
 import { HIGHLIGHT, palette } from '../../lib/palette'
 import { useFactoryStore } from '../../store'
-import { ShapeMesh, colorForComponent, opacityForComponent } from './GenericShapes'
+import { ShapeMesh, surfaceStyleFor } from './GenericShapes'
 
 /** 光标计数：多个热点交替进出时不会把 cursor 卡在 pointer 上。 */
 let hoverCount = 0
@@ -57,7 +57,10 @@ export function Hotspot({
   const isHovered = useFactoryStore((s) => s.hoveredId === node.id)
 
   const component = componentById(node.componentId)
-  const base = colorOverride ?? colorForComponent(component)
+  // 材质随产品状态变化（shipping 实体 / announced 蓝调 / forecast 琥珀线框），
+  // 因此换代际不需要改这里——颜色是从内容包的 status 推出来的。
+  const style = surfaceStyleFor(component)
+  const base = colorOverride ?? style.color
   const p = palette()
 
   const onPointerOver = useCallback(
@@ -112,8 +115,10 @@ export function Hotspot({
       size={size}
       position={position}
       color={base}
-      opacity={opacity ?? opacityForComponent(component)}
-      wireframe={component?.visual.wireframe === true}
+      opacity={opacity ?? style.opacity}
+      wireframe={style.wireframe}
+      roughness={style.roughness}
+      metalness={style.metalness}
       emissive={emissive}
       emissiveIntensity={emissiveIntensity}
       edgeColor={isSelected ? p[HIGHLIGHT.selectedToken] : undefined}

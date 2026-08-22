@@ -18,7 +18,7 @@ import { LEVEL_ORDER } from '../lib/drill'
 import { PLANE_ORDER } from '../lib/palette'
 import { detectWebGL } from '../lib/webgl'
 import { useFactoryStore } from '../store'
-import type { PlaneFlags } from '../store'
+import type { ExplorerMode, PlaneFlags } from '../store'
 
 export interface ShotParams {
   level: LodLevel | null
@@ -26,7 +26,15 @@ export interface ShotParams {
   planes: NetworkPlane[] | null
   motionOff: boolean
   glOff: boolean
+  /** `?gen=sys.vera-rubin-nvl72`：直接落到某一代际。 */
+  generation: string | null
+  /** `?mode=compare`：直接进比较模式。 */
+  mode: ExplorerMode | null
+  /** `?right=sys.rubin-ultra-nvl576`：比较模式的右侧代际。 */
+  compareRight: string | null
 }
+
+const MODES: readonly ExplorerMode[] = ['explore', 'compare', 'tour']
 
 /** 纯解析，不碰 store。 */
 export function parseShotParams(search: string): ShotParams {
@@ -44,12 +52,18 @@ export function parseShotParams(search: string): ShotParams {
         .filter((s): s is NetworkPlane => (PLANE_ORDER as readonly string[]).includes(s))
     : null
 
+  const rawMode = q.get('mode')
+  const mode = rawMode && (MODES as readonly string[]).includes(rawMode) ? (rawMode as ExplorerMode) : null
+
   return {
     level,
     focus: q.get('focus'),
     planes,
     motionOff: q.get('motion') === 'off',
     glOff: q.get('gl') === 'off',
+    generation: q.get('gen'),
+    mode,
+    compareRight: q.get('right'),
   }
 }
 
@@ -77,6 +91,11 @@ export function useShotParams(): void {
       }, {} as PlaneFlags)
       store.setPlanes(flags)
     }
+
+    // 代际最先：它会重建整棵下钻状态，放在 focus/level 之后会把它们冲掉。
+    if (params.generation) store.setGeneration(params.generation)
+    if (params.compareRight) store.setCompare({ right: params.compareRight })
+    if (params.mode) store.setMode(params.mode)
 
     // 焦点先于层级：层级由焦点的结构位置推导，显式 level 再覆盖一次。
     if (params.focus && assemblyById(params.focus)) store.drillTo(params.focus)

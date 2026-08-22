@@ -64,6 +64,26 @@ export function resetPaletteCache(): void {
   cached = null
 }
 
+/**
+ * 两个 `#rrggbb` 之间线性插值（t=0 取 a，t=1 取 b）。
+ * 用途：把产品状态的色调（announced 蓝 / forecast 琥珀）叠在部件本色上。
+ * 解析失败（例如 CSS 变量是 rgb()/oklch() 形式）时原样返回 a，不抛异常。
+ */
+export function mixHex(a: string, b: string, t: number): string {
+  const parse = (hex: string): [number, number, number] | null => {
+    const m = /^#([0-9a-f]{6})$/i.exec(hex.trim())
+    if (!m) return null
+    const n = parseInt(m[1]!, 16)
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255]
+  }
+  const ca = parse(a)
+  const cb = parse(b)
+  if (!ca || !cb) return a
+  const k = Math.min(Math.max(t, 0), 1)
+  const out = ca.map((v, i) => Math.round(v + (cb[i]! - v) * k))
+  return `#${out.map((v) => v.toString(16).padStart(2, '0')).join('')}`
+}
+
 /** 取单个 token 的颜色；未知 token 返回 `fallbackToken` 的颜色。 */
 export function color(token: string | null, fallbackToken: PaletteToken = 'dim'): string {
   const p = palette()

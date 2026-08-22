@@ -13,7 +13,7 @@
  * - `reducedMotion` 时给一行提示：没有移动的粒子是预期行为，不是 bug。
  */
 
-import { FACTORY_PACK } from '../../data'
+import { episodeOf, systemById } from '../../data'
 import { buildTimeline, FLOW_PHASE_LABEL } from '../../lib/flowTimeline'
 import { useFactoryStore } from '../../store'
 
@@ -24,13 +24,18 @@ export default function FlowBar() {
   const flow = useFactoryStore((s) => s.flow)
   const setFlow = useFactoryStore((s) => s.setFlow)
   const reducedMotion = useFactoryStore((s) => s.reducedMotion)
+  const generation = useFactoryStore((s) => s.generation)
 
-  const episode = FACTORY_PACK.flows[flow.episodeIdx]
+  // 剧本按当前代际取：内容包里只有 GB300 有推理数据流剧本，
+  // 切到 Vera Rubin / Rubin Ultra 时如实说明「这一代还没有剧本」，
+  // 而不是拿上一代的步骤文案配着另一代的画面播（那会讲错架构）。
+  const episode = episodeOf(generation, flow.episodeIdx)
 
   if (!episode || episode.steps.length === 0) {
     return (
       <footer className="border-t border-line bg-panel px-4 py-2 text-xs text-dim">
-        内容包中暂无可播放的推理数据流剧本。
+        {systemById(generation)?.name ?? generation} 这一代暂无推理数据流剧本
+        （目前只为 GB300 NVL72 编写了完整剧本）。切回 GB300 即可播放。
       </footer>
     )
   }

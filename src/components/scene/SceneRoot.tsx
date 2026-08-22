@@ -16,20 +16,35 @@
  * tray/board 到 'board'。深度截断由 `RENDER_DEPTH` 一处控制。
  */
 
-import { Grid, Instance, Instances } from '@react-three/drei'
+import { Edges, Grid, Instance, Instances } from '@react-three/drei'
 import { invalidate } from '@react-three/fiber'
 import { useCallback, useMemo, useState } from 'react'
 import { ancestorsOf, assemblyById, childrenOf, componentById } from '../../data'
-import type { AssemblyNode, LodLevel } from '../../data/types'
+import type { AssemblyNode, LodLevel, NetworkPlane } from '../../data/types'
+import type { DiffKind } from '../../lib/compare'
+import { DIFF_TOKEN } from '../../lib/compare'
 import { levelIndex, sceneAnchorOf } from '../../lib/drill'
 import { layoutOf, worldPositionOf } from '../../lib/layout'
 import type { ResolvedLayout } from '../../lib/layout'
-import { HIGHLIGHT, SURFACE, palette } from '../../lib/palette'
+import { HIGHLIGHT, SURFACE, color as paletteColor, palette } from '../../lib/palette'
 import { useFactoryStore } from '../../store'
 import ConnectionLayer from './ConnectionLayer'
 import FlowLayer from './FlowLayer'
-import { ShapeMesh, ShellMesh } from './GenericShapes'
+import { ShapeMesh, ShellMesh, surfaceStyleFor } from './GenericShapes'
 import { Hotspot } from './Hotspot'
+
+/**
+ * 比较模式的渲染上下文。`null` = 普通探索模式（可交互、无 diff 着色）。
+ *
+ * ⚠️ 比较模式下**刻意不挂 Hotspot**：drei `<View>` 的事件层同一时刻只能连到一个
+ * tracked 元素（见 View 源码里的 `rootState.setEvents({connected: track.current})`），
+ * 两个视口都挂交互会出现「只有一边能点」的诡异行为。比较是「看差异」，
+ * 点选交给右栏的 DOM 列表，这样两边行为一致且可预期。
+ */
+export interface DiffContext {
+  index: ReadonlyMap<string, DiffKind>
+  showDiffOnly: boolean
+}
 
 /** 每级最深渲染到哪一层 lodLevel。 */
 const RENDER_DEPTH: Record<LodLevel, LodLevel> = {
@@ -55,9 +70,54 @@ interface BranchProps {
   asShell?: boolean
   /** 只渲染第几个实例；省略则全部渲染。 */
   onlyInstance?: number
+  diff?: DiffContext | null
 }
 
-function AssemblyBranch({ node, layout, depth, exploded, asShell = false, onlyInstance }: BranchProps) {
+/** 比较模式下的静态部件：不可交互，用描边颜色表达 diff 类别。 */
+function DiffMesh({
+  node,
+  size,
+  diff,
+}: {
+  node: AssemblyNode
+  size: [number, number, number]
+  diff: DiffContext
+}) {
+  const component = componentById(node.componentId)
+  const style = surfaceStyleFor(component)
+  const kind = diff.index.get(node.id) ?? 'unchanged'
+  const token = DIFF_TOKEN[kind]
+  const ghost = diff.showDiffOnly && kind === 'unchanged'
+
+  return (
+    <ShapeMesh
+      shape={component?.visual.shape ?? 'tray-slab'}
+      size={size}
+      color={style.color}
+      opacity={ghost ? HIGHLIGHT.ghostOpacity : style.opacity}
+      wireframe={style.wireframe}
+      roughness={style.roughness}
+      metalness={style.metalness}
+      depthWrite={ghost ? false : undefined}
+      edges={!ghost}
+      edgeColor={token ? paletteColor(token, 'dim') : SURFACE.edge}
+      raycast={() => null}
+    >
+      {/* 变化的部件再叠一圈更粗的语义色描边，远看也能一眼扫到 */}
+      {token && !ghost ? <Edges color={paletteColor(token, 'dim')} lineWidth={2} threshold={15} /> : null}
+    </ShapeMesh>
+  )
+}
+
+function AssemblyBranch({
+  node,
+  layout,
+  depth,
+  exploded,
+  asShell = false,
+  onlyInstance,
+  diff = null,
+}: BranchProps) {
   const item = layout.get(node.id)
   const kids = childrenOf(node.id)
   const maxDepth = levelIndex(depth)
@@ -83,6 +143,8 @@ function AssemblyBranch({ node, layout, depth, exploded, asShell = false, onlyIn
                 size={item.size}
                 color={SURFACE.rack}
               />
+            ) : diff ? (
+              <DiffMesh node={node} size={item.size} diff={diff} />
             ) : (
               <Hotspot node={node} instanceIndex={i} position={[0, 0, 0]} size={item.size} drillable={drillable} />
             )}
@@ -93,6 +155,7 @@ function AssemblyBranch({ node, layout, depth, exploded, asShell = false, onlyIn
                 layout={layout}
                 depth={depth}
                 exploded={exploded}
+                diff={diff}
               />
             ))}
           </group>
@@ -167,7 +230,53 @@ function RackInstances({ node, layout }: { node: AssemblyNode; layout: ResolvedL
   )
 }
 
-function ClusterScene({ layout, rootId }: { layout: ResolvedLayout; rootId: string }) {
+/** 比较模式下的机架阵列：同样走 `<Instances>`（一次 draw call），但不可交互。 */
+function StaticRackInstances({
+  node,
+  layout,
+  diff,
+}: {
+  node: AssemblyNode
+  layout: ResolvedLayout
+  diff: DiffContext
+}) {
+  const item = layout.get(node.id)
+  if (!item) return null
+  const component = componentById(node.componentId)
+  const style = surfaceStyleFor(component)
+  const kind = diff.index.get(node.id) ?? 'unchanged'
+  const token = DIFF_TOKEN[kind]
+  const ghost = diff.showDiffOnly && kind === 'unchanged'
+  return (
+    <Instances limit={item.slots.length} range={item.slots.length} frustumCulled={false}>
+      <boxGeometry args={[item.size[0], item.size[1], item.size[2]]} />
+      <meshStandardMaterial
+        color={style.color}
+        roughness={style.roughness}
+        metalness={style.metalness}
+        wireframe={style.wireframe}
+        transparent={ghost}
+        opacity={ghost ? HIGHLIGHT.ghostOpacity : 1}
+        depthWrite={!ghost}
+      />
+      {item.slots.map((pos, i) => (
+        <Instance key={i} position={pos} raycast={() => null}>
+          {token && !ghost ? <Edges color={paletteColor(token, 'dim')} lineWidth={1.5} threshold={15} /> : null}
+        </Instance>
+      ))}
+    </Instances>
+  )
+}
+
+function ClusterScene({
+  layout,
+  rootId,
+  diff = null,
+}: {
+  layout: ResolvedLayout
+  rootId: string
+  diff?: DiffContext | null
+}) {
   const root = assemblyById(rootId)
   if (!root) return null
   const clusterKids = childrenOf(rootId).filter((k) => k.lodLevel === 'cluster')
@@ -180,12 +289,25 @@ function ClusterScene({ layout, rootId }: { layout: ResolvedLayout; rootId: stri
           const rack = childrenOf(kid.id).find((r) => r.roleKey === 'rack')
           return (
             <group key={kid.id} position={rowItem?.slots[0] ?? [0, 0, 0]}>
-              {rack ? <RackInstances node={rack} layout={layout} /> : null}
+              {rack ? (
+                diff ? (
+                  <StaticRackInstances node={rack} layout={layout} diff={diff} />
+                ) : (
+                  <RackInstances node={rack} layout={layout} />
+                )
+              ) : null}
             </group>
           )
         }
         return (
-          <AssemblyBranch key={kid.id} node={kid} layout={layout} depth="cluster" exploded={false} />
+          <AssemblyBranch
+            key={kid.id}
+            node={kid}
+            layout={layout}
+            depth="cluster"
+            exploded={false}
+            diff={diff}
+          />
         )
       })}
     </group>
@@ -223,10 +345,12 @@ function RackScene({
   layout,
   rackId,
   depth,
+  diff = null,
 }: {
   layout: ResolvedLayout
   rackId: string
   depth: LodLevel
+  diff?: DiffContext | null
 }) {
   const rack = assemblyById(rackId)
   const chain = useMemo(() => chainOf(rackId), [rackId])
@@ -236,7 +360,15 @@ function RackScene({
   return (
     <group position={parentOrigin}>
       <GhostRacks layout={layout} rackId={rackId} focusIndex={0} />
-      <AssemblyBranch node={rack} layout={layout} depth={depth} exploded={false} asShell onlyInstance={0} />
+      <AssemblyBranch
+        node={rack}
+        layout={layout}
+        depth={depth}
+        exploded={false}
+        asShell
+        onlyInstance={0}
+        diff={diff}
+      />
     </group>
   )
 }
@@ -248,11 +380,13 @@ function TrayScene({
   trayId,
   exploded,
   depth,
+  diff = null,
 }: {
   layout: ResolvedLayout
   trayId: string
   exploded: boolean
   depth: LodLevel
+  diff?: DiffContext | null
 }) {
   const tray = assemblyById(trayId)
   const chain = useMemo(() => chainOf(trayId), [trayId])
@@ -286,6 +420,7 @@ function TrayScene({
         exploded={exploded}
         asShell
         onlyInstance={0}
+        diff={diff}
       />
     </group>
   )
@@ -315,14 +450,40 @@ function GroundGrid({ visible }: { visible: boolean }) {
 
 // ─────────────────────────── 根 ───────────────────────────
 
-export default function SceneRoot() {
-  const generation = useFactoryStore((s) => s.generation)
-  const level = useFactoryStore((s) => s.level)
-  const focusPath = useFactoryStore((s) => s.focusPath)
+export interface SceneRootProps {
+  /** 省略则用 store 的当前代际（探索模式）。比较模式下两个视口各传一个。 */
+  systemId?: string
+  /** 省略则用 store 的当前层级。 */
+  level?: LodLevel
+  /** 省略则用 store 的当前 focusPath；比较模式的右视口按 roleKey 换算出等价路径。 */
+  focusPath?: readonly string[]
+  /** 传入则进入「比较渲染」：静态部件 + diff 描边，且不挂数据流层。 */
+  diff?: DiffContext | null
+  /** 只画这几个平面（比较模式收窄到 nvlink + scaleout 降噪）；省略则用 store 的平面开关。 */
+  planeFilter?: readonly NetworkPlane[]
+  /** 地面网格（比较模式的两个小视口里网格纯属噪音）。 */
+  showGround?: boolean
+}
+
+export default function SceneRoot({
+  systemId,
+  level: levelProp,
+  focusPath: focusPathProp,
+  diff = null,
+  planeFilter,
+  showGround = true,
+}: SceneRootProps = {}) {
+  const storeGeneration = useFactoryStore((s) => s.generation)
+  const storeLevel = useFactoryStore((s) => s.level)
+  const storeFocusPath = useFactoryStore((s) => s.focusPath)
+
+  const generation = systemId ?? storeGeneration
+  const level = levelProp ?? storeLevel
+  const focusPath = focusPathProp ?? storeFocusPath
 
   const layout = useMemo(() => layoutOf(generation), [generation])
   const anchor = useMemo(
-    () => sceneAnchorOf({ level, focusPath, selectedId: null }),
+    () => sceneAnchorOf({ level, focusPath: [...focusPath], selectedId: null }),
     [level, focusPath],
   )
   const rootId = focusPath[0]
@@ -330,12 +491,12 @@ export default function SceneRoot() {
 
   return (
     <>
-      <GroundGrid visible={anchor.kind === 'cluster'} />
+      <GroundGrid visible={showGround && anchor.kind === 'cluster'} />
       {anchor.kind === 'cluster' && rootId ? (
-        <ClusterScene layout={layout} rootId={rootId} />
+        <ClusterScene layout={layout} rootId={rootId} diff={diff} />
       ) : null}
       {anchor.kind === 'rack' ? (
-        <RackScene layout={layout} rackId={anchor.rackAssemblyId} depth={depth} />
+        <RackScene layout={layout} rackId={anchor.rackAssemblyId} depth={depth} diff={diff} />
       ) : null}
       {anchor.kind === 'tray' ? (
         <TrayScene
@@ -343,13 +504,16 @@ export default function SceneRoot() {
           trayId={anchor.trayAssemblyId}
           exploded={anchor.exploded}
           depth={depth}
+          diff={diff}
         />
       ) : null}
       {/* 六平面连线 + 推理数据流粒子：挂在 SceneRoot 顶层（不嵌进任何一级子场景的 group），
           全部用 worldPositionOf 直接出世界坐标最省事，也不必跟着 Cluster/Rack/Tray 三选一
           的挂载/卸载重新走一遍坐标换算。 */}
-      <ConnectionLayer systemId={generation} layout={layout} depth={depth} />
-      <FlowLayer systemId={generation} layout={layout} depth={depth} />
+      <ConnectionLayer systemId={generation} layout={layout} depth={depth} planeFilter={planeFilter} />
+      {/* ★ 比较模式绝不挂 FlowLayer：它在 useFrame 里 getState() 推进 stepIdx，
+          挂两个会让步骤条以双倍速度跳。数据流是探索模式的功能。 */}
+      {diff === null ? <FlowLayer systemId={generation} layout={layout} depth={depth} /> : null}
     </>
   )
 }
