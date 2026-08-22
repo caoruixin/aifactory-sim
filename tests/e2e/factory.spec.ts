@@ -30,6 +30,47 @@ function onlyOn(testInfo: TestInfo, project: 'desktop' | 'mobile') {
   test.skip(testInfo.project.name !== project, `仅在 ${project} project 下有意义`)
 }
 
+/**
+ * 两张截图的「明显不同像素」占比。
+ *
+ * ★ 为什么要自己算而不是只靠 `toHaveScreenshot` 基线：ghost 那个 bug 的表现是
+ *   **截图基线照样绿**（基线记录的就是「没生效」的画面），只有拿开关前后两张图对比
+ *   才能证明「切换真的改变了画面」。解码放在浏览器里做（`drawImage` + `getImageData`），
+ *   这样不必为测试引入 pngjs/pixelmatch 这类图像依赖。
+ */
+async function changedPixelRatio(page: Page, base64A: string, base64B: string): Promise<number> {
+  return page.evaluate(
+    async ([base64A, base64B]) => {
+      const load = (b64: string) =>
+        new Promise<HTMLImageElement>((resolve, reject) => {
+          const img = new Image()
+          img.onload = () => resolve(img)
+          img.onerror = reject
+          img.src = `data:image/png;base64,${b64}`
+        })
+      const [imgA, imgB] = await Promise.all([load(base64A), load(base64B)])
+      const canvas = document.createElement('canvas')
+      canvas.width = Math.min(imgA.width, imgB.width)
+      canvas.height = Math.min(imgA.height, imgB.height)
+      const ctx = canvas.getContext('2d')
+      if (!ctx) return 0
+      ctx.drawImage(imgA, 0, 0)
+      const da = ctx.getImageData(0, 0, canvas.width, canvas.height).data
+      ctx.clearRect(0, 0, canvas.width, canvas.height)
+      ctx.drawImage(imgB, 0, 0)
+      const db = ctx.getImageData(0, 0, canvas.width, canvas.height).data
+      let changed = 0
+      for (let i = 0; i < da.length; i += 4) {
+        const delta =
+          Math.abs(da[i]! - db[i]!) + Math.abs(da[i + 1]! - db[i + 1]!) + Math.abs(da[i + 2]! - db[i + 2]!)
+        if (delta > 12) changed += 1
+      }
+      return changed / (da.length / 4)
+    },
+    [base64A, base64B] as const,
+  )
+}
+
 /** 深链种子播种是一次性的（`useShotParams`），因此每条用例都从一次干净的 `goto` 开始。 */
 async function gotoAndSettle(page: Page, path: string, settleMs = 500): Promise<void> {
   await page.goto(path)
@@ -89,11 +130,22 @@ test('桌面·比较模式（GB300 vs Vera Rubin）：截图 + diff 计数 + sho
     await expect(page.locator(`[data-diff-kind="${kind}"]`)).toHaveCount(result.counts[kind])
   }
 
-  // 问题②：showDiffOnly 开启后 3D 里未变化的部件应降为 ghost（8% 透明）——
-  // 之前只有代码注释声明这个行为，从未用截图确认过。
+  // 问题②：showDiffOnly 开启后 3D 里未变化的部件应降为 ghost（12% 不透明度）。
+  // ⚠️ 只截图是**不够的**：这个功能曾经整整一批处于「材质对、画面不动」的状态，
+  //    而截图基线照样绿（基线记录的就是坏画面）。因此这里同时做「开关前后画面必须
+  //    明显不同」的像素断言——它才是 ghost 的真正回归锁。
+  //    根因见 GenericShapes.tsx 的 `useTransparencyProgramSync`（运行期翻转
+  //    material.transparent 必须 needsUpdate，否则 `#define OPAQUE` 把 alpha 写回 1）。
+  const viewport = page.locator('[data-compare-view]')
+  const solidShot = (await viewport.screenshot()).toString('base64')
   await page.click('[data-diff-only-toggle="1"]')
   // ComparisonView 的 FramePump 补帧窗口是 900ms，这里多留一点余量再截图。
   await page.waitForTimeout(1300)
+  const ghostShot = (await viewport.screenshot()).toString('base64')
+  // 未变化的部件（facility / CDU / 外部存储 / 水路 / 母排 …）占了相当一片像素；
+  // ghost 真的生效时这一片会整体变淡。1% 是「远高于坏状态（0.4%，只有描边消失）、
+  // 又远低于实测值（约 4%）」的分界线。
+  expect(await changedPixelRatio(page, solidShot, ghostShot)).toBeGreaterThan(0.01)
   await expect(page).toHaveScreenshot('compare-gb300-vera-diffonly.png')
 })
 

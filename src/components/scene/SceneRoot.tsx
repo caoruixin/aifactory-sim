@@ -18,7 +18,8 @@
 
 import { Edges, Grid, Instance, Instances } from '@react-three/drei'
 import { invalidate } from '@react-three/fiber'
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
+import type * as THREE from 'three'
 import { ancestorsOf, assemblyById, childrenOf, componentById } from '../../data'
 import type { AssemblyNode, LodLevel, NetworkPlane } from '../../data/types'
 import type { DiffKind } from '../../lib/compare'
@@ -30,7 +31,7 @@ import { HIGHLIGHT, SURFACE, color as paletteColor, palette } from '../../lib/pa
 import { useFactoryStore } from '../../store'
 import ConnectionLayer from './ConnectionLayer'
 import FlowLayer from './FlowLayer'
-import { ShapeMesh, ShellMesh, surfaceStyleFor } from './GenericShapes'
+import { ShapeMesh, ShellMesh, surfaceStyleFor, useTransparencyProgramSync } from './GenericShapes'
 import { Hotspot } from './Hotspot'
 
 /**
@@ -249,16 +250,21 @@ function StaticRackInstances({
   diff: DiffContext
 }) {
   const item = layout.get(node.id)
+  const materialRef = useRef<THREE.MeshStandardMaterial>(null)
+  const kind = diff.index.get(node.id) ?? 'unchanged'
+  const ghost = diff.showDiffOnly && kind === 'unchanged'
+  // ★ 与 ShapeMesh 同一个理由：运行期翻 transparent 必须重编着色器，
+  //   否则 `#define OPAQUE` 会把 ghost 的 alpha 强行写回 1。见 GenericShapes 里的长注释。
+  useTransparencyProgramSync(materialRef, ghost)
   if (!item) return null
   const component = componentById(node.componentId)
   const style = surfaceStyleFor(component)
-  const kind = diff.index.get(node.id) ?? 'unchanged'
   const token = DIFF_TOKEN[kind]
-  const ghost = diff.showDiffOnly && kind === 'unchanged'
   return (
     <Instances limit={item.slots.length} range={item.slots.length} frustumCulled={false}>
       <boxGeometry args={[item.size[0], item.size[1], item.size[2]]} />
       <meshStandardMaterial
+        ref={materialRef}
         color={style.color}
         roughness={style.roughness}
         metalness={style.metalness}

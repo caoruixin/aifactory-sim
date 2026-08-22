@@ -15,8 +15,8 @@
  */
 
 import { Edges } from '@react-three/drei'
-import type { ThreeElements } from '@react-three/fiber'
-import { useMemo } from 'react'
+import { invalidate, type ThreeElements } from '@react-three/fiber'
+import { useLayoutEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
 import type { HardwareComponent, VisualShape } from '../../data/types'
 import type { Vec3 } from '../../lib/layout'
@@ -132,6 +132,41 @@ export function surfaceStyleFor(component: HardwareComponent | undefined): Surfa
   }
 }
 
+// ─────────────────────── 运行期翻转透明度的必要仪式 ───────────────────────
+
+/**
+ * **运行期把 `transparent` 从 false 翻成 true（或反过来）必须显式 `needsUpdate`。**
+ *
+ * three 把「这个材质是不是不透明」编进了**着色器 define**，不只是渲染状态：
+ *   `WebGLPrograms.getParameters()`：
+ *     `opaque: material.transparent === false && blending === NormalBlending && !alphaToCoverage`
+ *   → `parameters.opaque ? '#define OPAQUE' : ''`
+ *   → `opaque_fragment` 里 `#ifdef OPAQUE  diffuseColor.a = 1.0;  #endif`
+ * 而程序**只在 `material.version` 变化时才重编**（`needsUpdate` 的 setter 负责自增）。
+ *
+ * 于是只改 `material.transparent`/`opacity` 属性会得到一个自相矛盾的状态：
+ * 混合确实被打开了（`WebGLState.setMaterial` 每帧现读 `material.transparent`），
+ * 但片元着色器仍然把 alpha 强行写成 1.0 —— **src alpha=1 的混合等价于不混合**，
+ * 画面逐位不变。这正是 B5 记录、当时误判成 drei `<View>` scissor 路径的那个
+ * 「材质明明是 0.12/true、像素却和不透明时一模一样，连 ghostOpacity 改成 0 都没反应」：
+ * 与 `<View>` 毫无关系，任何在运行期翻转 `transparent` 的材质都会中招。
+ *
+ * `<Edges>` 之所以「看起来生效了」，是因为它是被 React 整个卸载掉的组件，
+ * 走的根本不是材质属性这条路——两者的表现差异正是这个根因的指纹。
+ */
+export function useTransparencyProgramSync(
+  ref: React.RefObject<THREE.Material | null>,
+  transparent: boolean,
+): void {
+  useLayoutEffect(() => {
+    const material = ref.current
+    if (!material) return
+    material.needsUpdate = true
+    // frameloop 是 demand：重编了也要有人请求一帧才画得出来。
+    invalidate()
+  }, [ref, transparent])
+}
+
 // ─────────────────────────── ShapeMesh ───────────────────────────
 
 export interface ShapeMeshProps extends Omit<ThreeElements['mesh'], 'scale' | 'geometry' | 'ref'> {
@@ -176,6 +211,8 @@ export function ShapeMesh({
     return { scale: o.scale, rotation: o.rotation }
   }, [size, shape])
   const transparent = opacity < 1
+  const materialRef = useRef<THREE.MeshStandardMaterial>(null)
+  useTransparencyProgramSync(materialRef, transparent)
 
   return (
     <mesh
@@ -187,6 +224,7 @@ export function ShapeMesh({
       receiveShadow={false}
     >
       <meshStandardMaterial
+        ref={materialRef}
         color={color}
         emissive={emissive ?? '#000000'}
         emissiveIntensity={emissive ? emissiveIntensity : 0}
