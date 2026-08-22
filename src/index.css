@@ -1,0 +1,63 @@
+@import 'tailwindcss';
+
+/* 主题 tokens：浅色「工程图纸」风格 + CJK 字体栈。
+   ⚠️ 3D 侧（Canvas 内）Tailwind class 不生效，B2 起颜色统一由 lib/palette.ts 读这里的
+   CSS 变量，因此变量名一旦定下即为 DOM 与 3D 的共同契约。 */
+@theme {
+  --color-ink: #eef1f5; /* 页面底色（图纸灰蓝） */
+  --color-panel: #ffffff; /* 面板 */
+  --color-panel-2: #f4f6fa; /* 次级面板 / 表头 */
+  --color-line: #d8dee8; /* 分隔线 / 边框 */
+  --color-fg: #16202b; /* 正文 */
+  --color-dim: #5f6b7a; /* 弱化文字 / 注释 */
+  --color-accent: #0f766e; /* 主强调（青绿：交互与选中） */
+  --color-accent-2: #6d28d9; /* 次强调（紫：scale-out 平面） */
+  --color-ok: #166534; /* 已量产 / 官方实证 */
+  --color-warn: #92400e; /* 已发布未量产 / 需注意 */
+  --color-bad: #d92d20; /* 预测 / 移除项 */
+  --color-amber: #d97706; /* 供电平面 */
+
+  /* 六平面配色：DOM 图例、降级表与 3D 连线 1:1 复用同一组值 */
+  --color-plane-nvlink: #76b900;
+  --color-plane-scaleout: #6d28d9;
+  --color-plane-business: #1d4ed8;
+  --color-plane-mgmt: #64748b;
+  --color-plane-power: #d97706;
+  --color-plane-cooling: #0891b2;
+
+  --font-sans:
+    'PingFang SC', 'Hiragino Sans GB', 'Noto Sans CJK SC', 'Microsoft YaHei', system-ui,
+    -apple-system, sans-serif;
+  --font-mono: 'SF Mono', ui-monospace, 'JetBrains Mono', Menlo, Consolas, monospace;
+}
+
+html {
+  background: var(--color-ink);
+  color: var(--color-fg);
+  color-scheme: light;
+  accent-color: var(--color-accent);
+  font-family: var(--font-sans);
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--color-accent) 22%, transparent);
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-thumb {
+  background: #b9c2ce;
+  border-radius: 4px;
+}
