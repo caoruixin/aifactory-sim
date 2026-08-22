@@ -18,7 +18,7 @@ export default function ComponentTree() {
   const root = rootAssemblyOf(generation)
   if (!root) return <p className="p-4 text-sm text-dim">内容包中找不到该系统的装配树。</p>
   return (
-    <div className="h-full overflow-auto px-4 py-3">
+    <div className="h-full overflow-auto px-4 py-3" data-component-tree="1">
       <TreeNode node={root} depth={0} />
     </div>
   )

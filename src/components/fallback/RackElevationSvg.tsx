@@ -20,9 +20,29 @@ export interface RackElevationSvgProps {
   width?: number
   /** 每 U 的像素高度。 */
   uHeight?: number
+  /**
+   * B5 新增（Fallback2D 复用）：点击某一档位 = 选中该装配节点，与 3D/组件树同一动作。
+   * 省略则退回 `/report` 的原始纯展示行为（不可点）。
+   */
+  onSelectAssembly?: (assemblyId: string) => void
+  /** 当前选中的装配节点：描边加粗，呼应 3D 里的选中高亮。 */
+  selectedId?: string | null
+  /**
+   * 数据流当前步骤引用的装配节点（含连接两端 + `highlightAssemblyIds`）：
+   * 对应档位加一圈强调色描边，替代 3D 里粒子经过时的高亮——降级路径下没有粒子，
+   * 「哪个部件正在参与这一步」只能靠这种静态强调表达。
+   */
+  highlightAssemblyIds?: ReadonlySet<string>
 }
 
-export default function RackElevationSvg({ systemId, width = 260, uHeight = 9 }: RackElevationSvgProps) {
+export default function RackElevationSvg({
+  systemId,
+  width = 260,
+  uHeight = 9,
+  onSelectAssembly,
+  selectedId = null,
+  highlightAssemblyIds,
+}: RackElevationSvgProps) {
   const system = systemById(systemId)
   const units = system?.rackUnitsForLayout ?? DEFAULT_RACK_UNITS
   const rows = assembliesOfSystem(systemId)
@@ -85,8 +105,23 @@ export default function RackElevationSvg({ systemId, width = 260, uHeight = 9 }:
           const component = componentById(node.componentId)
           const fill = paletteColor(component?.visual.colorToken ?? null, 'dim')
           const forecast = component?.status === 'forecast'
+          const selected = selectedId === node.id
+          const flowActive = highlightAssemblyIds?.has(node.id) ?? false
+          const clickable = typeof onSelectAssembly === 'function'
+          const strokeColor = selected
+            ? paletteColor('accent', 'accent')
+            : flowActive
+              ? paletteColor('accent-2', 'accent-2')
+              : fill
           return (
-            <g key={node.id}>
+            <g
+              key={node.id}
+              data-rack-elevation-row={node.id}
+              data-selected={selected ? '1' : '0'}
+              data-flow-active={flowActive ? '1' : '0'}
+              onClick={clickable ? () => onSelectAssembly!(node.id) : undefined}
+              style={clickable ? { cursor: 'pointer' } : undefined}
+            >
               {Array.from({ length: node.count }, (_, i) => {
                 const start = span.start + i * slotU
                 const y = yOf(start + slotU)
@@ -99,8 +134,8 @@ export default function RackElevationSvg({ systemId, width = 260, uHeight = 9 }:
                     height={Math.max(slotU * uHeight - 1.2, 1.4)}
                     fill={fill}
                     fillOpacity={forecast ? 0.18 : 0.32}
-                    stroke={fill}
-                    strokeWidth={0.8}
+                    stroke={strokeColor}
+                    strokeWidth={selected || flowActive ? 1.8 : 0.8}
                     strokeDasharray={forecast ? '3 2' : undefined}
                   >
                     <title>{`${node.label} #${i + 1}（U${start.toFixed(2).replace(/\.?0+$/, '')} 起，${slotU}U，示意）`}</title>

@@ -24,7 +24,12 @@ import { ErrorBoundary } from '../ErrorBoundary'
 import CameraRig from './CameraRig'
 import SceneRoot from './SceneRoot'
 
-export default function FactoryCanvas() {
+export interface FactoryCanvasProps {
+  /** false = 移动端用：禁用手动 orbit，相机只走导览按钮的程序化机位。默认 true。 */
+  interactive?: boolean
+}
+
+export default function FactoryCanvas({ interactive = true }: FactoryCanvasProps = {}) {
   const setGlStatus = useFactoryStore((s) => s.setGlStatus)
   const setReady = useFactoryStore((s) => s.setReady)
   const playing = useFactoryStore((s) => s.flow.playing)
@@ -83,7 +88,7 @@ export default function FactoryCanvas() {
         <directionalLight position={[8, 14, 7]} intensity={1.3} />
         <directionalLight position={[-7, 6, -9]} intensity={0.32} />
         <SceneRoot />
-        <CameraRig />
+        <CameraRig interactive={interactive} />
       </Canvas>
     </ErrorBoundary>
   )
