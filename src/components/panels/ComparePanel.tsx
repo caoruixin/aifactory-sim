@@ -71,6 +71,7 @@ export default function ComparePanel() {
         <label className="mt-2 flex items-center gap-1.5 text-xs text-dim">
           <input
             type="checkbox"
+            data-diff-only-toggle="1"
             checked={compare.showDiffOnly}
             onChange={(e) => setCompare({ showDiffOnly: e.target.checked })}
           />

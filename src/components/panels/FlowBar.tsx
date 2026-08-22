@@ -48,7 +48,12 @@ export default function FlowBar() {
   const togglePlay = () => setFlow({ playing: !flow.playing })
 
   return (
-    <footer className="border-t border-line bg-panel">
+    <footer
+      className="border-t border-line bg-panel"
+      data-flow-step={stepIdx}
+      data-flow-total={segments.length}
+      data-flow-playing={flow.playing ? '1' : '0'}
+    >
       {/* 播放控制行 */}
       <div className="flex flex-wrap items-center gap-2 border-b border-line px-4 py-1.5 text-xs">
         <span className="rounded border border-line bg-panel-2 px-1.5 py-px text-[11px] font-medium">
@@ -119,6 +124,7 @@ export default function FlowBar() {
             <li key={seg.stepId} className="shrink-0">
               <button
                 type="button"
+                data-flow-step-button={i}
                 onClick={() => goTo(i)}
                 className={`flex h-full min-w-28 flex-col items-start gap-0.5 rounded-lg border px-2.5 py-1.5 text-left transition-colors ${
                   state === 'active'
@@ -148,6 +154,7 @@ export default function FlowBar() {
             {FLOW_PHASE_LABEL[current.phase]}
           </span>
           <span
+            data-flow-logical={current.logicalOnly ? '1' : '0'}
             className={`rounded border px-1.5 py-px text-[11px] font-medium ${
               current.logicalOnly
                 ? 'border-accent-2/35 bg-accent-2/10 text-accent-2'

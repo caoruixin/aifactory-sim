@@ -20,6 +20,21 @@
  * ⚠️ 已知限制（刻意接受）：drei 的 View 在挂载时会把事件层 `connected` 指到自己的
  *   tracked 元素，两个 View 同时存在时只有后挂的那个能收到指针事件。因此比较模式下
  *   **两侧都不挂 Hotspot**（见 SceneRoot 的 DiffContext 注释），点选统一走右栏 DOM 列表。
+ *
+ * ⚠️ **B5 实测确认的已知问题（P1，未修复）**：`showDiffOnly` 开启后，`DiffMesh`
+ *   （见 `SceneRoot.tsx`）里未变化部件的半透明 ghost 效果在这个 View 双视口渲染路径下
+ *   **视觉上不生效**——用 Playwright 截图 + 直接读取 THREE.js 材质状态核实过：
+ *     - `material.opacity`/`transparent` 确实被正确设为 0.12/true（React 侧逻辑完全正确）；
+ *     - `<Edges>` 默认描边正确随 ghost 一起消失（证明这部分确实经过了重绘）；
+ *     - 但**部件填充色的像素在开关前后完全不变**（就算把 `HIGHLIGHT.ghostOpacity` 临时
+ *       改成 0 全透明也不变）——即渲染管线没有把新的透明度真正合成到画面上。
+ *   排除过的假设：帧数不够（用 `pumpFrames`/拖拽相机强制多轮重绘，无效）；`gl.autoClear`
+ *   状态遗留导致画布没清（在两个 `<View>` 的 `useFrame` 之前插一帧优先级更低的
+ *   `gl.clear(true,true,true)` 全屏清屏，无效）。根因大概率在 drei `View` 的
+ *   scissor+`autoClear=false` 渲染路径本身，与本文件顶部「Plan B」设想的场景一致——
+ *   下一步排查应直接换成 Plan B 的手写双 scissor 渲染，而不是继续在 View 内部打补丁。
+ *   截图基线里的 `compare-gb300-vera-diffonly.png` 如实记录了这个「未生效」的当前状态，
+ *   不是错误的基线。
  */
 
 import { CameraControls, View } from '@react-three/drei'

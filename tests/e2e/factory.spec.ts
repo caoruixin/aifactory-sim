@@ -1,0 +1,228 @@
+/**
+ * 端到端验收（Playwright，headless 跑，见 `playwright.config.ts` 顶部注释里
+ * 「为什么必须 headless」的说明）。
+ *
+ * 覆盖范围对应 B5 实施计划里点名的 8 类场景：桌面集群/机架/板级三张结构截图、
+ * 比较模式（含 showDiffOnly ghost）、`/report`、`?gl=off` 降级、移动导览、
+ * 数据流步骤条的 DOM 断言，以及「motion 开启时 useFrame 是否真的推进」这条
+ * B3 一直没能实测、B4 交接下来的验证点。
+ *
+ * 两个 project（`desktop` 1440×900 / `mobile` 390×844）默认会把同一个 `test()`
+ * 跑两遍——本文件绝大多数用例只对其中一个 viewport 有意义（例如比较双视口只在
+ * 桌面渲染、移动导览只在 `MobileFactoryView` 里存在），因此每条用例开头用
+ * `onlyOn(testInfo, 'desktop' | 'mobile')` 显式限定，另一侧跑成 skipped 而不是
+ * 用一堆 viewport 判断把每条用例都写复杂。
+ *
+ * 深链统一走 `?motion=off`（`useShotParams` → `store.reducedMotion=true`）保证
+ * 像素稳定；两条数据流用例例外——它们本来就是在验证「有动画时到底动不动」。
+ */
+import { expect, test, type Page, type TestInfo } from '@playwright/test'
+import { FACTORY_PACK } from '../../src/data'
+import { compareSystems } from '../../src/lib/compare'
+
+const GB300 = 'sys.gb300-nvl72'
+const VERA_RUBIN = 'sys.vera-rubin-nvl72'
+const NVL576 = 'sys.rubin-ultra-nvl576'
+
+const DIFF_KINDS = ['added', 'removed', 'qty-changed', 'spec-changed', 'unchanged'] as const
+
+function onlyOn(testInfo: TestInfo, project: 'desktop' | 'mobile') {
+  test.skip(testInfo.project.name !== project, `仅在 ${project} project 下有意义`)
+}
+
+/** 深链种子播种是一次性的（`useShotParams`），因此每条用例都从一次干净的 `goto` 开始。 */
+async function gotoAndSettle(page: Page, path: string, settleMs = 500): Promise<void> {
+  await page.goto(path)
+  await page.waitForSelector('main[data-ready="1"]', { timeout: 20_000 })
+  // 首帧回调（`onCreated`）说明 WebGL 上下文已建好，但真正的像素落地还要再等
+  // 至少一次 rAF；`ComparisonView` 的 `showDiffOnly` 切换更是要等 ghost 材质的
+  // FramePump 补帧窗口过完（见下面比较模式用例里单独加长的等待）。这里给个
+  // 统一的保守 settle，避免每条截图用例各自摸索时间常数。
+  await page.waitForTimeout(settleMs)
+}
+
+// ─────────────────────────── 1~3：桌面结构截图 ───────────────────────────
+
+test('桌面·集群视图（GB300）截图——顺带确认没有多余 NVLink 线', async ({ page }, testInfo) => {
+  onlyOn(testInfo, 'desktop')
+  await gotoAndSettle(page, '/?motion=off')
+  // 走的是真 3D 路径而不是降级视图，截图才有意义。
+  await expect(page.locator('[data-fallback-2d]')).toHaveCount(0)
+  // 问题③的确定性回归覆盖见 `src/lib/routing.test.ts`
+  //（GB300 cluster 深度下 0 条非退化 nvlink 路由）；这张截图是它的视觉基线。
+  await expect(page).toHaveScreenshot('gb300-cluster.png')
+})
+
+test('桌面·机架级 + 全平面开启 截图', async ({ page }, testInfo) => {
+  onlyOn(testInfo, 'desktop')
+  await gotoAndSettle(
+    page,
+    '/?level=rack&focus=asm.gb300.rack&planes=nvlink,scaleout,business,mgmt,power,cooling&motion=off',
+  )
+  await expect(page.locator('[data-fallback-2d]')).toHaveCount(0)
+  await expect(page.locator('main')).toHaveAttribute('data-mode', 'explore')
+  await expect(page).toHaveScreenshot('gb300-rack-allplanes.png')
+})
+
+test('桌面·板级 explode 截图（计算托盘拆解）', async ({ page }, testInfo) => {
+  onlyOn(testInfo, 'desktop')
+  await gotoAndSettle(page, '/?level=board&focus=asm.gb300.compute-tray&motion=off')
+  await expect(page.locator('[data-fallback-2d]')).toHaveCount(0)
+  await expect(page).toHaveScreenshot('gb300-tray-explode.png')
+})
+
+// ─────────────────────────── 4：比较模式 ───────────────────────────
+
+test('桌面·比较模式（GB300 vs Vera Rubin）：截图 + diff 计数 + showDiffOnly ghost', async ({
+  page,
+}, testInfo) => {
+  onlyOn(testInfo, 'desktop')
+  await gotoAndSettle(page, '/?mode=compare&motion=off', 700)
+  await expect(page.locator('main')).toHaveAttribute('data-mode', 'compare')
+  await expect(page.locator('[data-compare-view]')).toHaveCount(1)
+  await expect(page).toHaveScreenshot('compare-gb300-vera.png')
+
+  // DOM 断言 diff 计数：与 `lib/compare.ts` 的纯函数结果逐位核对，不是拍脑袋数字。
+  const result = compareSystems(GB300, VERA_RUBIN)
+  await expect(page.locator('[data-diff-role]')).toHaveCount(result.rows.length)
+  for (const kind of DIFF_KINDS) {
+    await expect(page.locator(`[data-diff-kind="${kind}"]`)).toHaveCount(result.counts[kind])
+  }
+
+  // 问题②：showDiffOnly 开启后 3D 里未变化的部件应降为 ghost（8% 透明）——
+  // 之前只有代码注释声明这个行为，从未用截图确认过。
+  await page.click('[data-diff-only-toggle="1"]')
+  // ComparisonView 的 FramePump 补帧窗口是 900ms，这里多留一点余量再截图。
+  await page.waitForTimeout(1300)
+  await expect(page).toHaveScreenshot('compare-gb300-vera-diffonly.png')
+})
+
+// ─────────────────────────── 5：/report ───────────────────────────
+
+test('/report：六节标题 + 产能三态徽章 + 截图 + 不加载 three-vendor', async ({ page }, testInfo) => {
+  onlyOn(testInfo, 'desktop')
+  const requestedUrls: string[] = []
+  page.on('request', (req) => requestedUrls.push(req.url()))
+
+  await page.goto('/report')
+  await expect(page.locator('h2')).toHaveCount(6)
+
+  // 产能卡三态：GB300/Vera Rubin 能出数（估算区间），NVL576（forecast 系统）恒拒绝出数。
+  await expect(page.locator(`[data-capacity-card="${GB300}"]`)).toHaveAttribute(
+    'data-capacity-kind',
+    'estimate',
+  )
+  await expect(page.locator(`[data-capacity-card="${VERA_RUBIN}"]`)).toHaveAttribute(
+    'data-capacity-kind',
+    'estimate',
+  )
+  await expect(page.locator(`[data-capacity-card="${NVL576}"]`)).toHaveAttribute(
+    'data-capacity-kind',
+    'refused',
+  )
+
+  await page.waitForTimeout(200)
+  await expect(page).toHaveScreenshot('report-page.png')
+
+  // 硬规则复核（ReportPage.tsx 顶部注释要求的「构建后 grep 复核」，这里换成运行期网络断言）：
+  // `/report` 全程不应该有任何请求打到 three-vendor chunk。
+  expect(requestedUrls.some((u) => u.includes('three-vendor'))).toBe(false)
+})
+
+// ─────────────────────────── 6：?gl=off 完整降级 ───────────────────────────
+
+test('桌面·?gl=off 降级：三 tab 截图 + 组件树点击联动详情 + 不加载 three-vendor', async ({
+  page,
+}, testInfo) => {
+  onlyOn(testInfo, 'desktop')
+  const requestedUrls: string[] = []
+  page.on('request', (req) => requestedUrls.push(req.url()))
+
+  await gotoAndSettle(page, '/?gl=off&motion=off', 300)
+  await expect(page.locator('main')).toHaveAttribute('data-gl', 'none')
+  await expect(page.locator('[data-fallback-2d]')).toHaveCount(1)
+
+  // 结构图 tab（默认）
+  await expect(page).toHaveScreenshot('fallback-structure.png')
+
+  // 组件树 tab
+  await page.click('[data-fallback-2d] [data-tab="tree"]')
+  await page.waitForTimeout(150)
+  await expect(page).toHaveScreenshot('fallback-tree.png')
+
+  // 交互：点组件树第一个节点（装配树根）→ 右栏详情联动更新。
+  const firstNodeBtn = page.locator('[data-component-tree] button').first()
+  const label = (await firstNodeBtn.textContent())?.trim()
+  expect(label && label.length > 0).toBe(true)
+  await firstNodeBtn.click()
+  await expect(page.locator('[data-right-tab="detail"]')).toHaveAttribute('aria-pressed', 'true')
+  // 右栏（详情面板所在的那个 aside）里的 h2——左栏 TourPanel/PlaneToggles 也用 <aside><h2>，
+  // 必须用 :has([data-right-tab]) 精确定位到右栏，否则 strict mode 会因为 3 个 h2 都命中而报错。
+  await expect(page.locator('aside:has([data-right-tab]) h2')).toContainText(label!)
+
+  // 连接列表 tab
+  await page.click('[data-fallback-2d] [data-tab="connections"]')
+  await page.waitForTimeout(150)
+  await expect(page).toHaveScreenshot('fallback-connections.png')
+
+  expect(requestedUrls.some((u) => u.includes('three-vendor'))).toBe(false)
+})
+
+// ─────────────────────────── 7：移动导览 ───────────────────────────
+
+test('移动·390×844：导览第 1 站截图 + 下一站按钮推进', async ({ page }, testInfo) => {
+  onlyOn(testInfo, 'mobile')
+  await gotoAndSettle(page, '/?motion=off', 500)
+  await expect(page.locator('[data-mobile-view]')).toHaveCount(1)
+  await expect(page.locator('[data-tour-stop]')).toHaveAttribute('data-tour-stop', '0')
+  await expect(page).toHaveScreenshot('mobile-tour-stop1.png')
+
+  await page.click('[data-tour-next]')
+  await expect(page.locator('[data-tour-stop]')).toHaveAttribute('data-tour-stop', '1')
+})
+
+// ─────────────────────────── 8：数据流步骤条 DOM 断言 ───────────────────────────
+
+test('桌面·数据流步骤条：10 步走完 + 逻辑/物理徽章按内容包切换', async ({ page }, testInfo) => {
+  onlyOn(testInfo, 'desktop')
+  await gotoAndSettle(page, '/?motion=off')
+
+  const episode = FACTORY_PACK.flows.find((f) => f.systemId === GB300)
+  expect(episode).toBeTruthy()
+  const steps = episode!.steps
+  expect(steps.length).toBe(10)
+
+  for (let i = 0; i < steps.length; i += 1) {
+    await page.click(`[data-flow-step-button="${i}"]`)
+    await expect(page.locator('footer[data-flow-step]')).toHaveAttribute('data-flow-step', String(i))
+    const expectedLogical = steps[i]!.logicalOnly ? '1' : '0'
+    await expect(page.locator('footer [data-flow-logical]')).toHaveAttribute(
+      'data-flow-logical',
+      expectedLogical,
+    )
+  }
+})
+
+// ─────────────────────────── 9：motion 开启——useFrame 自动推进 ───────────────────────────
+
+test('桌面·数据流自动播放：motion 开启时 useFrame 真的推进 stepIdx（B3 遗留验证点）', async ({
+  page,
+}, testInfo) => {
+  onlyOn(testInfo, 'desktop')
+  // ⚠️ 这条用例故意不带 `motion=off`——就是要验证真实动画时序，
+  //   因此必须 headless 跑（见 playwright.config.ts 顶部注释）：
+  //   非 headless 的未聚焦标签页会被浏览器节流 rAF，播放会卡在原地，
+  //   之前 B3/B4 一直没能在浏览器里实测到这一步就是因为踩了这个坑。
+  await page.goto('/')
+  await page.waitForSelector('main[data-ready="1"]', { timeout: 20_000 })
+  await expect(page.locator('[data-fallback-2d]')).toHaveCount(0)
+
+  await expect(page.locator('footer[data-flow-step]')).toHaveAttribute('data-flow-step', '0')
+  await page.click('footer button:has-text("播放")')
+  await expect(page.locator('footer[data-flow-playing]')).toHaveAttribute('data-flow-playing', '1')
+
+  // 第 0 步（gateway）的 durationHint 是 3（教学节奏，按“基准秒数”使用，speed=1 时
+  // 约等于 3 个真实秒），等 4 秒足够确定性地跨过这个边界。
+  await page.waitForTimeout(4000)
+  await expect(page.locator('footer[data-flow-step]')).not.toHaveAttribute('data-flow-step', '0')
+})
