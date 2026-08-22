@@ -1,114 +1,116 @@
-import { Link } from 'react-router-dom'
-import {
-  FACTORY_PACK,
-  connectionsOfPlane,
-  packStats,
-  totalInstances,
-} from '../data'
-import type { NetworkPlane } from '../data/types'
-
 /**
- * 主工作台占位页。
- * 批次 1 只做一件事：把内容包真正加载出来并把统计摘要显示到页面上，
- * 证明数据层可用。批次 2 起这里会被替换成「顶面包屑 / 左导览 / 中 Canvas / 右详情 / 底步骤条」布局。
+ * 主工作台。四区布局：
+ *   顶  BreadcrumbBar（物理层级 + 产品状态）
+ *   左  TourPanel（场景导览 + 六平面开关）
+ *   中  FactoryCanvas（3D）或 ComponentTree（降级）
+ *   右  DetailPanel
+ *   底  步骤条（B3 的数据流播放控件占位）
+ *
+ * 布局原则：**除中央格外全部是 DOM**。这样 WebGL 不可用时只要换掉中央那一格，
+ * 面包屑/导览/详情/步骤条全部照常工作——降级路径不是另写一套界面。
+ *
+ * 桌面三栏 grid；移动端先纵向堆叠保证可用，专门的移动视图（禁 orbit、自动导览、
+ * 热点列表 + Drawer）留到 B5。
  */
 
-const PLANE_LABELS: Record<NetworkPlane, string> = {
-  nvlink: 'NVLink（机架内 scale-up）',
-  scaleout: 'Scale-out（East/West 计算网）',
-  business: '业务与存储（North/South）',
-  mgmt: '管理（带外/带内）',
-  power: '供电',
-  cooling: '液冷',
-}
+import { Suspense, lazy } from 'react'
+import { Link } from 'react-router-dom'
+import BreadcrumbBar from '../components/panels/BreadcrumbBar'
+import DetailPanel from '../components/panels/DetailPanel'
+import TourPanel from '../components/panels/TourPanel'
+import ComponentTree from '../components/fallback/ComponentTree'
+import { ErrorBoundary } from '../components/ErrorBoundary'
+import { useFactoryStore } from '../store'
+import { useShotParams } from './useShotParams'
 
-const PLANE_TOKENS: Record<NetworkPlane, string> = {
-  nvlink: 'var(--color-plane-nvlink)',
-  scaleout: 'var(--color-plane-scaleout)',
-  business: 'var(--color-plane-business)',
-  mgmt: 'var(--color-plane-mgmt)',
-  power: 'var(--color-plane-power)',
-  cooling: 'var(--color-plane-cooling)',
-}
+// three 体量不小，且降级路径根本不需要它 → 懒加载，让 `?gl=off` 首屏不必下载 3D 代码。
+const FactoryCanvas = lazy(() => import('../components/scene/FactoryCanvas'))
 
 export default function FactoryPage() {
-  const stats = packStats()
-  const system = FACTORY_PACK.systems[0]!
-  const gpusPerRack = totalInstances('asm.gb300.b300-gpu', 'asm.gb300.rack')
-  const cpusPerRack = totalInstances('asm.gb300.grace-cpu', 'asm.gb300.rack')
-  const nvswitchPerRack = totalInstances('asm.gb300.nvswitch-asic', 'asm.gb300.rack')
+  useShotParams()
+  const glStatus = useFactoryStore((s) => s.glStatus)
+  const ready = useFactoryStore((s) => s.ready)
+  const degraded = glStatus === 'none' || glStatus === 'failed'
 
   return (
-    <main data-ready="1" className="mx-auto max-w-4xl px-6 py-10">
-      <header className="border-b border-line pb-6">
-        <p className="text-xs tracking-widest text-dim uppercase">AI Factory 数字孪生模拟器</p>
-        <h1 className="mt-2 text-3xl font-semibold">{system.name}</h1>
-        <p className="mt-3 leading-relaxed text-dim">{system.summary}</p>
-      </header>
+    <main
+      data-ready={ready ? '1' : '0'}
+      data-gl={glStatus}
+      className="grid h-screen grid-rows-[auto_1fr_auto] bg-ink text-fg"
+    >
+      <BreadcrumbBar />
 
-      <section className="mt-8">
-        <h2 className="text-sm font-semibold tracking-wide text-dim">内容包统计</h2>
-        <dl className="mt-3 grid grid-cols-3 gap-3 sm:grid-cols-5">
-          <Stat label="数据源" value={stats.sources} />
-          <Stat label="系统" value={stats.systems} />
-          <Stat label="组件" value={stats.components} />
-          <Stat label="装配节点" value={stats.assemblies} />
-          <Stat label="连接" value={stats.connections} />
-          <Stat label="导览场景" value={stats.scenes} />
-          <Stat label="参考模型" value={stats.models} />
-          <Stat label="数据流剧本" value={stats.flows} hint="批次 3" />
-          <Stat label="代际比较" value={stats.comparisons} hint="批次 4" />
-        </dl>
-      </section>
+      <div className="grid min-h-0 grid-cols-1 lg:grid-cols-[248px_1fr_360px]">
+        <aside className="min-h-0 border-line bg-panel lg:border-r">
+          <TourPanel />
+        </aside>
 
-      <section className="mt-8">
-        <h2 className="text-sm font-semibold tracking-wide text-dim">单机架关键数量（由装配树连乘得出）</h2>
-        <dl className="mt-3 grid grid-cols-3 gap-3">
-          <Stat label="B300 GPU" value={gpusPerRack} />
-          <Stat label="Grace CPU" value={cpusPerRack} />
-          <Stat label="NVSwitch ASIC" value={nvswitchPerRack} />
-        </dl>
-      </section>
+        {/* flex 列而不是让子元素 h-full：降级提示条要占掉自己的高度，
+            剩下的才归中央视图，否则结构树会撑出容器、被底部步骤条盖住。 */}
+        <section className="relative flex min-h-[52vh] min-w-0 flex-col bg-ink lg:min-h-0">
+          {degraded ? <DegradedNotice status={glStatus} /> : null}
+          <div className="relative min-h-0 flex-1">
+            {degraded ? (
+              <ComponentTree />
+            ) : (
+              <ErrorBoundary
+                fallback={<ComponentTree />}
+                onError={() => useFactoryStore.getState().setGlStatus('failed')}
+              >
+                <Suspense fallback={<CanvasSkeleton />}>
+                  <FactoryCanvas />
+                </Suspense>
+              </ErrorBoundary>
+            )}
+          </div>
+          {!degraded ? <ViewHint /> : null}
+        </section>
 
-      <section className="mt-8">
-        <h2 className="text-sm font-semibold tracking-wide text-dim">六平面连接数</h2>
-        <ul className="mt-3 space-y-1.5">
-          {(Object.keys(PLANE_LABELS) as NetworkPlane[]).map((plane) => (
-            <li key={plane} className="flex items-center gap-2.5 text-sm">
-              <span
-                aria-hidden
-                className="inline-block h-2.5 w-2.5 rounded-full"
-                style={{ background: PLANE_TOKENS[plane] }}
-              />
-              <span className="flex-1">{PLANE_LABELS[plane]}</span>
-              <span className="font-mono text-dim">
-                {connectionsOfPlane(system.id, plane).length} 条
-              </span>
-            </li>
-          ))}
-        </ul>
-      </section>
+        <aside className="min-h-0 border-line bg-panel lg:border-l">
+          <DetailPanel />
+        </aside>
+      </div>
 
-      <footer className="mt-10 border-t border-line pt-6 text-sm text-dim">
-        <p>
-          批次 1 占位页：数据层与 roofline 引擎已就绪，3D 下钻查看器将在批次 2 接入。
-        </p>
-        <Link to="/report" className="mt-3 inline-block text-accent underline">
-          打印报告（占位）→
-        </Link>
-      </footer>
+      <FlowBarPlaceholder />
     </main>
   )
 }
 
-function Stat({ label, value, hint }: { label: string; value: number; hint?: string }) {
+function DegradedNotice({ status }: { status: string }) {
   return (
-    <div className="rounded-md border border-line bg-panel px-3 py-2.5">
-      <dt className="text-xs text-dim">
-        {label}
-        {hint ? <span className="ml-1 opacity-70">（{hint}）</span> : null}
-      </dt>
-      <dd className="mt-0.5 font-mono text-xl">{value}</dd>
+    <div className="border-b border-warn/30 bg-warn/10 px-4 py-2 text-xs leading-relaxed text-warn">
+      3D 不可用（{status === 'none' ? '未检测到 WebGL 或已用 ?gl=off 关闭' : 'WebGL 上下文丢失'}
+      ），已切换结构视图。层级、选中与详情面板功能不受影响。
     </div>
+  )
+}
+
+function CanvasSkeleton() {
+  return (
+    <div className="flex h-full items-center justify-center text-sm text-dim">3D 场景加载中…</div>
+  )
+}
+
+/** 3D 视图的操作提示：第一次用的人不知道双击能下钻。 */
+function ViewHint() {
+  return (
+    <p className="pointer-events-none absolute bottom-2 left-1/2 -translate-x-1/2 rounded-full border border-line bg-panel/85 px-3 py-1 text-[11px] text-dim">
+      单击选中 · 双击下钻 · 拖拽旋转 · 滚轮缩放
+    </p>
+  )
+}
+
+/** 底部步骤条占位。B3 会把它换成真正的数据流播放控件（播放/暂停/步进/速度）。 */
+function FlowBarPlaceholder() {
+  const flows = useFactoryStore((s) => s.flow)
+  return (
+    <footer className="flex items-center gap-3 border-t border-line bg-panel px-4 py-2 text-xs text-dim">
+      <span className="rounded border border-line bg-panel-2 px-1.5 py-px text-[11px]">批次 3</span>
+      <span>推理数据流播放（七阶段 ingress → egress）将在下一批接入此处。</span>
+      <span className="font-mono opacity-60">episode {flows.episodeIdx}</span>
+      <Link to="/report" className="ml-auto text-accent underline">
+        打印报告 →
+      </Link>
+    </footer>
   )
 }
