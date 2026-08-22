@@ -41,8 +41,13 @@ export interface FactoryState extends DrillState {
   hoveredId: string | null
   planes: PlaneFlags
   mode: ExplorerMode
-  /** B3 的数据流播放状态，本批只占位存态。 */
-  flow: { episodeIdx: number; playing: boolean; speed: number }
+  /**
+   * 数据流播放状态。`episodeIdx` = 当前播放哪个 `FlowEpisode`（索引进
+   * `FACTORY_PACK.flows`；本批内容只有一条剧本，恒为 0，留给未来多剧本切换）；
+   * `stepIdx` = 该 episode 内当前播放到第几个 `FlowStep`（批次 3 新增字段，
+   * `FlowBar`/`FlowLayer` 的步骤条与粒子播放共同读写它）。
+   */
+  flow: { episodeIdx: number; stepIdx: number; playing: boolean; speed: number }
   tourStopIdx: number
   reducedMotion: boolean
   glStatus: GlStatus
@@ -142,7 +147,7 @@ export const useFactoryStore = create<FactoryState>()(
       hoveredId: null,
       planes: defaultPlanes(),
       mode: 'explore',
-      flow: { episodeIdx: 0, playing: false, speed: 1 },
+      flow: { episodeIdx: 0, stepIdx: 0, playing: false, speed: 1 },
       tourStopIdx: -1,
       reducedMotion: prefersReducedMotion(),
       glStatus: 'unknown',

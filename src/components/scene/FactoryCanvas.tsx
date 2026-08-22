@@ -1,8 +1,11 @@
 /**
  * Canvas 宿主：帧循环策略、灯光、颜色与 WebGL 失效处理都集中在这一处。
  *
- * - `frameloop="demand"`：空闲时零连续帧（B3 播放数据流时会切成 'always'）。
- *   任何改变画面的动作都必须显式 `invalidate()`——约定见 Hotspot / CameraRig。
+ * - `frameloop={playing ? 'always' : 'demand'}`：数据流播放时才连续出帧，其余时间空闲
+ *   零连续帧。任何改变画面的动作都必须显式 `invalidate()`——约定见 Hotspot / CameraRig /
+ *   ConnectionLayer / FlowLayer。
+ * - 标签页切到后台（`visibilitychange`）时强制暂停播放：一是不留一个后台还在读 store、
+ *   写 instance matrix 的定时器；二是 `always` 帧循环在不可见标签页里没有意义。
  * - `dpr`：桌面 [1, 1.75]，移动 [1, 1.5]。不用 devicePixelRatio 原值，
  *   高分屏上 3x 渲染对这种示意场景是纯浪费。
  * - 灯光只有一盏环境光 + 一盏平行光（外加一盏很弱的补光），无阴影：
@@ -24,6 +27,8 @@ import SceneRoot from './SceneRoot'
 export default function FactoryCanvas() {
   const setGlStatus = useFactoryStore((s) => s.setGlStatus)
   const setReady = useFactoryStore((s) => s.setReady)
+  const playing = useFactoryStore((s) => s.flow.playing)
+  const setFlow = useFactoryStore((s) => s.setFlow)
   const cleanupRef = useRef<(() => void) | null>(null)
 
   const p = palette()
@@ -34,6 +39,16 @@ export default function FactoryCanvas() {
 
   useEffect(() => () => cleanupRef.current?.(), [])
 
+  // 后台标签页不该继续播放数据流动画：既没有观众，`always` 帧循环也纯粹浪费电量。
+  useEffect(() => {
+    if (typeof document === 'undefined') return
+    const onVisibility = () => {
+      if (document.hidden) setFlow({ playing: false })
+    }
+    document.addEventListener('visibilitychange', onVisibility)
+    return () => document.removeEventListener('visibilitychange', onVisibility)
+  }, [setFlow])
+
   return (
     <ErrorBoundary
       onError={() => {
@@ -43,7 +58,7 @@ export default function FactoryCanvas() {
       fallback={null}
     >
       <Canvas
-        frameloop="demand"
+        frameloop={playing ? 'always' : 'demand'}
         dpr={dpr}
         shadows={false}
         flat

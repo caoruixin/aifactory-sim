@@ -6,10 +6,9 @@
  */
 
 import { scenesOfSystem } from '../../data'
-import type { NetworkPlane } from '../../data/types'
 import { LEVEL_LABEL } from '../../lib/drill'
-import { PLANE_LABEL, PLANE_ORDER, planeColor } from '../../lib/palette'
 import { useFactoryStore } from '../../store'
+import PlaneToggles from './PlaneToggles'
 
 export default function TourPanel() {
   const generation = useFactoryStore((s) => s.generation)
@@ -69,60 +68,5 @@ export default function TourPanel() {
 
       <PlaneToggles />
     </div>
-  )
-}
-
-/**
- * 六平面开关。B2 只维护开关状态与图例（连线本体在 B3 的 ConnectionLayer 里接上），
- * 但配色与文案在这里就定死，DOM 图例与 3D 连线共用 `lib/palette.ts` 的同一组值。
- */
-function PlaneToggles() {
-  const planes = useFactoryStore((s) => s.planes)
-  const togglePlane = useFactoryStore((s) => s.togglePlane)
-  const setPlanes = useFactoryStore((s) => s.setPlanes)
-
-  const setAll = (on: boolean) => {
-    setPlanes(PLANE_ORDER.reduce((acc, p) => ({ ...acc, [p]: on }), {} as Record<NetworkPlane, boolean>))
-  }
-
-  return (
-    <section className="px-3 py-3">
-      <div className="flex items-baseline justify-between">
-        <h2 className="text-[11px] font-semibold tracking-widest text-dim uppercase">网络与设施平面</h2>
-        <div className="flex gap-2 text-[11px]">
-          <button type="button" onClick={() => setAll(true)} className="text-dim hover:text-accent">
-            全开
-          </button>
-          <button type="button" onClick={() => setAll(false)} className="text-dim hover:text-accent">
-            全关
-          </button>
-        </div>
-      </div>
-      <ul className="mt-2 space-y-1">
-        {PLANE_ORDER.map((plane) => (
-          <li key={plane}>
-            <label className="flex cursor-pointer items-center gap-2 rounded px-1 py-1 text-xs hover:bg-panel-2">
-              <input
-                type="checkbox"
-                checked={planes[plane]}
-                onChange={() => togglePlane(plane)}
-                className="h-3.5 w-3.5"
-              />
-              <span
-                aria-hidden
-                className="inline-block h-2.5 w-2.5 shrink-0 rounded-full"
-                style={{ background: planeColor(plane) }}
-              />
-              <span className={planes[plane] ? '' : 'text-dim line-through'}>
-                {PLANE_LABEL[plane]}
-              </span>
-            </label>
-          </li>
-        ))}
-      </ul>
-      <p className="mt-2 text-[11px] leading-snug text-dim">
-        平面连线将在批次 3 接入 3D 视图；当前开关只保存状态，配色即最终配色。
-      </p>
-    </section>
   )
 }

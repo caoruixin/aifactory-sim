@@ -4,7 +4,7 @@
  *   左  TourPanel（场景导览 + 六平面开关）
  *   中  FactoryCanvas（3D）或 ComponentTree（降级）
  *   右  DetailPanel
- *   底  步骤条（B3 的数据流播放控件占位）
+ *   底  FlowBar（推理数据流播放控件：步骤条 + 播放/暂停/步进/速度）
  *
  * 布局原则：**除中央格外全部是 DOM**。这样 WebGL 不可用时只要换掉中央那一格，
  * 面包屑/导览/详情/步骤条全部照常工作——降级路径不是另写一套界面。
@@ -14,9 +14,9 @@
  */
 
 import { Suspense, lazy } from 'react'
-import { Link } from 'react-router-dom'
 import BreadcrumbBar from '../components/panels/BreadcrumbBar'
 import DetailPanel from '../components/panels/DetailPanel'
+import FlowBar from '../components/panels/FlowBar'
 import TourPanel from '../components/panels/TourPanel'
 import ComponentTree from '../components/fallback/ComponentTree'
 import { ErrorBoundary } from '../components/ErrorBoundary'
@@ -71,7 +71,7 @@ export default function FactoryPage() {
         </aside>
       </div>
 
-      <FlowBarPlaceholder />
+      <FlowBar />
     </main>
   )
 }
@@ -97,20 +97,5 @@ function ViewHint() {
     <p className="pointer-events-none absolute bottom-2 left-1/2 -translate-x-1/2 rounded-full border border-line bg-panel/85 px-3 py-1 text-[11px] text-dim">
       单击选中 · 双击下钻 · 拖拽旋转 · 滚轮缩放
     </p>
-  )
-}
-
-/** 底部步骤条占位。B3 会把它换成真正的数据流播放控件（播放/暂停/步进/速度）。 */
-function FlowBarPlaceholder() {
-  const flows = useFactoryStore((s) => s.flow)
-  return (
-    <footer className="flex items-center gap-3 border-t border-line bg-panel px-4 py-2 text-xs text-dim">
-      <span className="rounded border border-line bg-panel-2 px-1.5 py-px text-[11px]">批次 3</span>
-      <span>推理数据流播放（七阶段 ingress → egress）将在下一批接入此处。</span>
-      <span className="font-mono opacity-60">episode {flows.episodeIdx}</span>
-      <Link to="/report" className="ml-auto text-accent underline">
-        打印报告 →
-      </Link>
-    </footer>
   )
 }

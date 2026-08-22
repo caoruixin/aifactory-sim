@@ -5,6 +5,7 @@
  * （汇报时最忌讳把 forecast 的东西讲成已量产）。
  */
 
+import { Link } from 'react-router-dom'
 import { systemById } from '../../data'
 import { LEVEL_LABEL, crumbsOf } from '../../lib/drill'
 import { focusIdOf, useFactoryStore } from '../../store'
@@ -66,6 +67,9 @@ export default function BreadcrumbBar() {
         >
           ↑ 上一层
         </button>
+        <Link to="/report" className="text-xs text-accent underline">
+          打印报告 →
+        </Link>
       </div>
 
       {/* 深链与 E2E 用：当前焦点写进 DOM，不依赖 3D */}

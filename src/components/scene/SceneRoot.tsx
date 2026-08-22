@@ -26,6 +26,8 @@ import { layoutOf, worldPositionOf } from '../../lib/layout'
 import type { ResolvedLayout } from '../../lib/layout'
 import { HIGHLIGHT, SURFACE, palette } from '../../lib/palette'
 import { useFactoryStore } from '../../store'
+import ConnectionLayer from './ConnectionLayer'
+import FlowLayer from './FlowLayer'
 import { ShapeMesh, ShellMesh } from './GenericShapes'
 import { Hotspot } from './Hotspot'
 
@@ -343,6 +345,11 @@ export default function SceneRoot() {
           depth={depth}
         />
       ) : null}
+      {/* 六平面连线 + 推理数据流粒子：挂在 SceneRoot 顶层（不嵌进任何一级子场景的 group），
+          全部用 worldPositionOf 直接出世界坐标最省事，也不必跟着 Cluster/Rack/Tray 三选一
+          的挂载/卸载重新走一遍坐标换算。 */}
+      <ConnectionLayer systemId={generation} layout={layout} depth={depth} />
+      <FlowLayer systemId={generation} layout={layout} depth={depth} />
     </>
   )
 }
