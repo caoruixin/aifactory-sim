@@ -25,13 +25,14 @@
 import { CameraControls, View } from '@react-three/drei'
 import { Canvas, invalidate, useThree } from '@react-three/fiber'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { ancestorsOf, assemblyById, rootAssemblyOf, systemById } from '../../data'
+import { systemById } from '../../data'
 import type { LodLevel, NetworkPlane } from '../../data/types'
 import { CAMERA_FOV, cameraPresetFor } from '../../lib/cameraPresets'
-import { assembliesByRoleKey, compareSystems, diffIndexOf } from '../../lib/compare'
+import { compareSystems, diffIndexOf, mirrorFocusPath } from '../../lib/compare'
 import { layoutOf } from '../../lib/layout'
 import { useFactoryStore } from '../../store'
 import { ErrorBoundary } from '../ErrorBoundary'
+import { pumpFrames } from './pump'
 import SceneRoot from './SceneRoot'
 import type { DiffContext } from './SceneRoot'
 
@@ -39,26 +40,10 @@ import type { DiffContext } from './SceneRoot'
 const COMPARE_PLANES: readonly NetworkPlane[] = ['nvlink', 'scaleout']
 
 /**
- * 把左侧的焦点按 **roleKey** 换算到右侧系统的等价节点。
- * 这样「左边在看计算托盘」时右边也自动在看它的计算托盘，而不是各看各的。
- * 右侧没有同名 roleKey（例如左边在看 GB300 的本地缓存盘）时退回右侧的树根。
- */
-function mirrorFocusPath(leftFocusId: string | undefined, rightSystemId: string): string[] {
-  const fallback = rootAssemblyOf(rightSystemId)
-  const fallbackPath = fallback ? [fallback.id] : []
-  if (!leftFocusId) return fallbackPath
-  const leftNode = assemblyById(leftFocusId)
-  if (!leftNode) return fallbackPath
-  const mirrored = assembliesByRoleKey(rightSystemId).get(leftNode.roleKey)
-  if (!mirrored) return fallbackPath
-  return ancestorsOf(mirrored.id).map((n) => n.id)
-}
-
-/**
  * 每个视口自带的灯光。
  *
- * ★ 必须放在 `<View>` 内部：drei 的 View 把 children портal 到一个**独立的虚拟 Scene**，
- * 渲染的是那个虚拟场景（`gl.render(state.scene /* = virtualScene *&#47;, state.camera)`）。
+ * ★ 必须放在 `<View>` 内部：drei 的 View 把 children portal 到一个**独立的虚拟 Scene**，
+ * 渲染的是那个虚拟场景（`gl.render(virtualScene, state.camera)`）。
  * 挂在 Canvas 根上的灯光属于根 Scene，两个视口一盏都照不到——那样 MeshStandardMaterial
  * 会全黑。同理，背景色也不能用根 Scene 的 `<color attach="background">`：
  * 这里改成 canvas 透明 + 下层 DOM 铺底色（见容器上的 bg-ink）。
@@ -101,10 +86,18 @@ export default function ComparisonView() {
     [focusPath, compare.right],
   )
 
-  // 视口尺寸/内容变化后必须显式请求一帧：frameloop 是 demand。
-  useEffect(() => {
-    invalidate()
-  }, [generation, compare.right, compare.showDiffOnly, level, focusPath])
+  /**
+   * ★ 必须「补一小段帧」而不是只 invalidate 一次。
+   *
+   * drei 的 `View` 要等一轮 effect 才拿到 tracked 元素的 rect 并建立 portal；
+   * 挂载瞬间那次 invalidate 发生在它就绪之前，之后 demand 循环再没人请求帧——
+   * 表现就是**两个视口全白，直到随手拖一下相机才突然出现**（已在浏览器里复现过）。
+   * 这里在 700 ms 内持续补帧，覆盖 View 就绪 + 布局稳定的那段窗口，然后自动停。
+   */
+  useEffect(
+    () => pumpFrames(invalidate, 700),
+    [generation, compare.right, compare.showDiffOnly, level, focusPath],
+  )
 
   return (
     <div ref={setContainer} className="relative h-full w-full bg-ink" data-compare-view="1">
@@ -176,10 +169,24 @@ export default function ComparisonView() {
             focusPath={focusPath}
             domElement={container}
           />
+          {/* ★ 必须放在两个 View **之后**：React 先跑子组件的 effect，
+              轮到它时 View 的 portal 已经建好、useFrame 已经订阅，这时补的帧才真的画得出东西。
+              放在 Canvas 外面（组件树更上层）会赶在 View 就绪之前补完，然后一片空白。 */}
+          <FramePump ms={900} token={`${generation}|${compare.right}|${compare.showDiffOnly}|${level}`} />
         </Canvas>
       </ErrorBoundary>
     </div>
   )
+}
+
+/**
+ * 在 Canvas 内部补一小段帧。放在 View 之后挂载，保证补帧发生在 portal 就绪之后。
+ * `token` 变化时重新补一轮（换代际 / 换对比对象 / 切 showDiffOnly / 换层级）。
+ */
+function FramePump({ ms, token }: { ms: number; token: string }) {
+  const invalidateFrame = useThree((s) => s.invalidate)
+  useEffect(() => pumpFrames(invalidateFrame, ms), [invalidateFrame, ms, token])
+  return null
 }
 
 /** 视口标题栏（DOM，不进 3D）。 */
@@ -243,7 +250,7 @@ function CompareCameraRig({
       preset.target[2],
       false, // 比较模式不做飞行动画：两个视口同时动只会让人晕
     )
-    invalidateFrame()
+    return pumpFrames(invalidateFrame, 400)
   }, [systemId, level, focusPath, width, height, invalidateFrame])
 
   return (

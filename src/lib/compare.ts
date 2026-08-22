@@ -410,3 +410,35 @@ export function diffIndexOf(result: ComparisonResult): {
 export function changedRows(rows: DiffRow[]): DiffRow[] {
   return rows.filter((r) => r.kind !== 'unchanged')
 }
+
+/**
+ * 把左侧的焦点按 **roleKey** 换算成右侧系统的等价 focusPath。
+ *
+ * 比较视图的两个视口靠它保持「看的是同一层东西」：左边在看计算托盘，右边也自动
+ * 在看它的计算托盘。右侧没有同名 roleKey（例如左边在看 GB300 的本地缓存盘，
+ * 而 Vera Rubin 没建模这一层）时退回右侧的树根，绝不把左侧的 ID 直接塞给右侧。
+ */
+export function mirrorFocusPath(
+  leftFocusId: string | undefined,
+  rightSystemId: string,
+  pack: FactoryContentPack = FACTORY_PACK,
+): string[] {
+  const byId = new Map(pack.assemblies.map((a) => [a.id, a]))
+  const root = pack.assemblies.find((a) => a.systemId === rightSystemId && a.parentId === null)
+  const fallback = root ? [root.id] : []
+  if (!leftFocusId) return fallback
+  const leftNode = byId.get(leftFocusId)
+  if (!leftNode) return fallback
+  const mirrored = assembliesByRoleKey(rightSystemId, pack).get(leftNode.roleKey)
+  if (!mirrored) return fallback
+
+  const chain: string[] = []
+  const seen = new Set<string>()
+  let cur: AssemblyNode | undefined = mirrored
+  while (cur && !seen.has(cur.id)) {
+    seen.add(cur.id)
+    chain.unshift(cur.id)
+    cur = cur.parentId === null ? undefined : byId.get(cur.parentId)
+  }
+  return chain
+}

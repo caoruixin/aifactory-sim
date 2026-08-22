@@ -9,6 +9,7 @@ import {
   comparisonFor,
   diffIndexOf,
   diffSystems,
+  mirrorFocusPath,
   specDeltasOf,
 } from './compare'
 
@@ -231,6 +232,37 @@ describe('比较定义与 3D 索引', () => {
     const changed = changedRows(rows)
     expect(changed.length).toBeLessThan(rows.length)
     expect(changed.every((r) => r.kind !== 'unchanged')).toBe(true)
+  })
+})
+
+describe('mirrorFocusPath：把左侧焦点按 roleKey 映到右侧', () => {
+  it('同名 roleKey → 右侧对应节点的完整路径', () => {
+    expect(mirrorFocusPath('asm.gb300.compute-tray', VERA_RUBIN)).toEqual([
+      'asm.rubin.facility',
+      'asm.rubin.row',
+      'asm.rubin.rack',
+      'asm.rubin.compute-tray',
+    ])
+    expect(mirrorFocusPath('asm.gb300.b300-gpu', VERA_RUBIN).at(-1)).toBe('asm.rubin.rubin-gpu')
+  })
+
+  it('右侧没有该 roleKey（左侧独有的层）→ 退回右侧树根，绝不把左侧 ID 塞过去', () => {
+    const path = mirrorFocusPath('asm.gb300.cache-nvme', VERA_RUBIN)
+    expect(path).toEqual(['asm.rubin.facility'])
+  })
+
+  it('未知 / 空焦点 → 右侧树根', () => {
+    expect(mirrorFocusPath(undefined, NVL576)).toEqual(['asm.ru.facility'])
+    expect(mirrorFocusPath('asm.nope', NVL576)).toEqual(['asm.ru.facility'])
+  })
+
+  it('映射结果始终属于右侧系统', () => {
+    const byId = new Map(FACTORY_PACK.assemblies.map((a) => [a.id, a]))
+    for (const node of FACTORY_PACK.assemblies.filter((a) => a.systemId === GB300)) {
+      for (const id of mirrorFocusPath(node.id, NVL576)) {
+        expect(byId.get(id)!.systemId, `${node.id} → ${id}`).toBe(NVL576)
+      }
+    }
   })
 })
 

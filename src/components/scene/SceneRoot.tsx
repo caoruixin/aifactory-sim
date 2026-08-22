@@ -174,6 +174,9 @@ function AssemblyBranch({
  */
 function RackInstances({ node, layout }: { node: AssemblyNode; layout: ResolvedLayout }) {
   const item = layout.get(node.id)
+  // 机架壳的底色同样跟产品状态走：集群总览一眼就能看出这是哪一代
+  // （shipping 原色 / announced 蓝调 / forecast 琥珀线框）。
+  const style = surfaceStyleFor(componentById(node.componentId))
   const select = useFactoryStore((s) => s.select)
   const drillTo = useFactoryStore((s) => s.drillTo)
   const hover = useFactoryStore((s) => s.hover)
@@ -198,14 +201,19 @@ function RackInstances({ node, layout }: { node: AssemblyNode; layout: ResolvedL
   }, [hover])
 
   if (!item) return null
-  const base = SURFACE.rack
+  const base = style.color
 
   return (
     <Instances limit={item.slots.length} range={item.slots.length} frustumCulled={false}>
       <boxGeometry args={[item.size[0], item.size[1], item.size[2]]} />
       {/* ⚠️ InstancedMesh 的 per-instance color 是**乘**在材质色上的，
           所以材质必须留白，否则 base × base 会把机架压成一块黑。 */}
-      <meshStandardMaterial color="#ffffff" roughness={0.55} metalness={0.2} />
+      <meshStandardMaterial
+        color="#ffffff"
+        roughness={style.roughness}
+        metalness={style.metalness}
+        wireframe={style.wireframe}
+      />
       {item.slots.map((pos, i) => (
         <Instance
           key={i}

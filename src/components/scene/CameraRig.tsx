@@ -15,23 +15,7 @@ import { useLayoutEffect, useRef } from 'react'
 import { cameraPresetFor } from '../../lib/cameraPresets'
 import { layoutOf } from '../../lib/layout'
 import { useFactoryStore } from '../../store'
-
-/** 过渡期间持续请求帧；返回取消函数。 */
-function pumpFrames(invalidate: () => void, ms: number): () => void {
-  if (ms <= 0) {
-    invalidate()
-    return () => {}
-  }
-  let raf = 0
-  const t0 = typeof performance !== 'undefined' ? performance.now() : Date.now()
-  const step = () => {
-    invalidate()
-    const now = typeof performance !== 'undefined' ? performance.now() : Date.now()
-    if (now - t0 < ms) raf = requestAnimationFrame(step)
-  }
-  raf = requestAnimationFrame(step)
-  return () => cancelAnimationFrame(raf)
-}
+import { pumpFrames } from './pump'
 
 export default function CameraRig() {
   const controls = useRef<CameraControls | null>(null)
