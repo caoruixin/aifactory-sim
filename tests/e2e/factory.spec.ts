@@ -196,6 +196,23 @@ test('/report：六节标题 + 产能三态徽章 + 截图 + 不加载 three-ven
   expect(requestedUrls.some((u) => u.includes('three-vendor'))).toBe(false)
 })
 
+test('未知路由：给 404 页而不是白屏，且不加载 three-vendor', async ({ page }, testInfo) => {
+  onlyOn(testInfo, 'desktop')
+  const requestedUrls: string[] = []
+  page.on('request', (req) => requestedUrls.push(req.url()))
+
+  // SPA 托管会把未知路径回落到 index.html，没有兜底路由时 `<Routes>` 一个都不匹配 → 纯白屏。
+  await page.goto('/no-such-page')
+  await expect(page.locator('[data-not-found]')).toHaveCount(1)
+  await expect(page.locator('h1')).toContainText('这个地址不存在')
+  // 404 页只用 DOM：无 WebGL 环境同样能打开。（断言必须在点回工作台之前——
+  // 工作台本来就会去拉 three-vendor。）
+  expect(requestedUrls.some((u) => u.includes('three-vendor'))).toBe(false)
+
+  await page.click('[data-not-found] a[href="/"]')
+  await expect(page.locator('main[data-mode]')).toHaveCount(1)
+})
+
 // ─────────────────────────── 6：?gl=off 完整降级 ───────────────────────────
 
 test('桌面·?gl=off 降级：三 tab 截图 + 组件树点击联动详情 + 不加载 three-vendor', async ({
