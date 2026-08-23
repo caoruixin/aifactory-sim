@@ -28,7 +28,17 @@ import { levelIndex, sceneAnchorOf } from '../../lib/drill'
 import { flowStepFocus, isLocalPhysicalStep } from '../../lib/flowTimeline'
 import { layoutOf, worldPositionOf } from '../../lib/layout'
 import type { ResolvedLayout } from '../../lib/layout'
-import { HIGHLIGHT, SURFACE, color as paletteColor, palette } from '../../lib/palette'
+import {
+  HIGHLIGHT,
+  HIGHLIGHT_SCENE_INSTANCE_TINT,
+  HIGHLIGHT_TOKEN,
+  SURFACE,
+  highlightKindOf,
+  mixHex,
+  color as paletteColor,
+  palette,
+} from '../../lib/palette'
+import { sceneHighlightSet } from '../../lib/sceneHighlight'
 import type { ContainmentOptions } from '../../lib/routing'
 import { useFactoryStore } from '../../store'
 import ConnectionLayer from './ConnectionLayer'
@@ -103,6 +113,11 @@ interface BranchProps {
   flowHighlight?: ReadonlySet<string> | null
   /** 当前步骤是「本地物理动作」：高亮部件再叠一层呼吸脉冲（v1.2 F2）。 */
   flowPulse?: boolean
+  /**
+   * 当前导览站点名的硬件（已折叠到当前深度，v1.3 W2）。与 `flowHighlight` **分通道**：
+   * 优先级低一档、且永不脉冲。
+   */
+  sceneHighlight?: ReadonlySet<string> | null
 }
 
 /** 比较模式下的静态部件：不可交互，用描边颜色表达 diff 类别。 */
@@ -151,6 +166,7 @@ function AssemblyBranch({
   diff = null,
   flowHighlight = null,
   flowPulse = false,
+  sceneHighlight = null,
 }: BranchProps) {
   const item = layout.get(node.id)
   const kids = childrenOf(node.id)
@@ -188,6 +204,7 @@ function AssemblyBranch({
                 drillable={drillable}
                 flowActive={flowHighlight?.has(node.id) ?? false}
                 flowPulse={flowPulse}
+                sceneActive={sceneHighlight?.has(node.id) ?? false}
               />
             )}
             {visibleKids.map((kid) => (
@@ -200,6 +217,7 @@ function AssemblyBranch({
                 diff={diff}
                 flowHighlight={flowHighlight}
                 flowPulse={flowPulse}
+                sceneHighlight={sceneHighlight}
               />
             ))}
           </group>
@@ -220,11 +238,14 @@ function RackInstances({
   node,
   layout,
   flowActive = false,
+  sceneActive = false,
 }: {
   node: AssemblyNode
   layout: ResolvedLayout
   /** 数据流当前步骤折叠到「机架」时，整排机架都换成流高亮色（instanced 不支持 emissive）。 */
   flowActive?: boolean
+  /** 当前导览站点名到「机架」时同理（v1.3 W2，优先级低于 flow）。 */
+  sceneActive?: boolean
   // ⚠️ 刻意**不接** flowPulse：`<Instances>` 走的是 per-instance color，整组共用一份材质，
   //    没有 per-instance emissive 可脉冲；真要做只能整排一起呼吸，那在集群总览里是纯干扰。
   //    「本地物理动作」本来也只在能看见托盘的深度（rack 及以下）才有意义。
@@ -270,35 +291,48 @@ function RackInstances({
         metalness={style.metalness}
         wireframe={style.wireframe}
       />
-      {item.slots.map((pos, i) => (
-        <Instance
-          key={i}
-          position={pos}
-          // 选中时高亮第 0 架（相机也飞向它），悬停时高亮鼠标下的那一架；
-          // 数据流当前步骤折叠到机架时整排点亮（集群级也要有「这一步发生在哪」的反馈）
-          color={
-            hoveredIdx === i
-              ? p[HIGHLIGHT.hoveredToken]
-              : isSelected && i === 0
-                ? p[HIGHLIGHT.selectedToken]
-                : flowActive
-                  ? p[HIGHLIGHT.flowToken]
-                  : base
-          }
-          onPointerOver={onOver(i)}
-          onPointerOut={onOut}
-          onClick={(e) => {
-            e.stopPropagation()
-            select(node.id)
-            invalidate()
-          }}
-          onDoubleClick={(e) => {
-            e.stopPropagation()
-            drillTo(node.id)
-            invalidate()
-          }}
-        />
-      ))}
+      {item.slots.map((pos, i) => {
+        // 选中时高亮第 0 架（相机也飞向它），悬停时高亮鼠标下的那一架；
+        // 数据流当前步骤 / 导览当前站折叠到机架时整排点亮（集群级也要有「这一步/这一站
+        // 发生在哪」的反馈）。
+        //
+        // ★ v1.3 W2 顺带矫正的倒置：这里过去把「悬停」排在「选中」前面，与 Hotspot
+        //   的 `selected > hovered` 正好相反——同一个 palette 常量表、两条渲染路径两种
+        //   优先级。现在两边都走 `highlightKindOf`，不可能再分叉。
+        const kind = highlightKindOf({
+          selected: isSelected && i === 0,
+          hovered: hoveredIdx === i,
+          flow: flowActive,
+          scene: sceneActive,
+        })
+        // 场景高亮在这条路径上走**混色**而不是整片换色：instanced 没有 emissive 可调，
+        // 「比选中淡一档」只能靠 tint 比例表达（见 HIGHLIGHT_SCENE_INSTANCE_TINT 注释）。
+        const instanceColor =
+          kind === 'scene'
+            ? mixHex(base, p[HIGHLIGHT_TOKEN.scene], HIGHLIGHT_SCENE_INSTANCE_TINT)
+            : kind
+              ? p[HIGHLIGHT_TOKEN[kind]]
+              : base
+        return (
+          <Instance
+            key={i}
+            position={pos}
+            color={instanceColor}
+            onPointerOver={onOver(i)}
+            onPointerOut={onOut}
+            onClick={(e) => {
+              e.stopPropagation()
+              select(node.id)
+              invalidate()
+            }}
+            onDoubleClick={(e) => {
+              e.stopPropagation()
+              drillTo(node.id)
+              invalidate()
+            }}
+          />
+        )
+      })}
     </Instances>
   )
 }
@@ -352,12 +386,14 @@ function ClusterScene({
   diff = null,
   flowHighlight = null,
   flowPulse = false,
+  sceneHighlight = null,
 }: {
   layout: ResolvedLayout
   rootId: string
   diff?: DiffContext | null
   flowHighlight?: ReadonlySet<string> | null
   flowPulse?: boolean
+  sceneHighlight?: ReadonlySet<string> | null
 }) {
   const root = assemblyById(rootId)
   if (!root) return null
@@ -379,6 +415,7 @@ function ClusterScene({
                     node={rack}
                     layout={layout}
                     flowActive={flowHighlight?.has(rack.id) ?? false}
+                    sceneActive={sceneHighlight?.has(rack.id) ?? false}
                   />
                 )
               ) : null}
@@ -395,6 +432,7 @@ function ClusterScene({
             diff={diff}
             flowHighlight={flowHighlight}
             flowPulse={flowPulse}
+            sceneHighlight={sceneHighlight}
           />
         )
       })}
@@ -436,6 +474,7 @@ function RackScene({
   diff = null,
   flowHighlight = null,
   flowPulse = false,
+  sceneHighlight = null,
 }: {
   layout: ResolvedLayout
   rackId: string
@@ -443,6 +482,7 @@ function RackScene({
   diff?: DiffContext | null
   flowHighlight?: ReadonlySet<string> | null
   flowPulse?: boolean
+  sceneHighlight?: ReadonlySet<string> | null
 }) {
   const rack = assemblyById(rackId)
   const chain = useMemo(() => chainOf(rackId), [rackId])
@@ -462,6 +502,7 @@ function RackScene({
         diff={diff}
         flowHighlight={flowHighlight}
         flowPulse={flowPulse}
+        sceneHighlight={sceneHighlight}
       />
     </group>
   )
@@ -477,6 +518,7 @@ function TrayScene({
   diff = null,
   flowHighlight = null,
   flowPulse = false,
+  sceneHighlight = null,
 }: {
   layout: ResolvedLayout
   trayId: string
@@ -485,6 +527,7 @@ function TrayScene({
   diff?: DiffContext | null
   flowHighlight?: ReadonlySet<string> | null
   flowPulse?: boolean
+  sceneHighlight?: ReadonlySet<string> | null
 }) {
   const tray = assemblyById(trayId)
   const chain = useMemo(() => chainOf(trayId), [trayId])
@@ -521,6 +564,7 @@ function TrayScene({
         diff={diff}
         flowHighlight={flowHighlight}
         flowPulse={flowPulse}
+        sceneHighlight={sceneHighlight}
       />
     </group>
   )
@@ -580,6 +624,8 @@ export default function SceneRoot({
   const flowStepIdx = useFactoryStore((s) => s.flow.stepIdx)
   const flowPlaying = useFactoryStore((s) => s.flow.playing)
   const reducedMotion = useFactoryStore((s) => s.reducedMotion)
+  const mode = useFactoryStore((s) => s.mode)
+  const tourStopIdx = useFactoryStore((s) => s.tourStopIdx)
 
   const generation = systemId ?? storeGeneration
   const level = levelProp ?? storeLevel
@@ -647,6 +693,22 @@ export default function SceneRoot({
   const flowPulse =
     diff === null && flowPlaying && !reducedMotion && isLocalPhysicalStep(currentStep)
 
+  /**
+   * 导览当前站点名的硬件（v1.3 W2）。与 `flowHighlight` 同一个模式：派生值现算不入 store。
+   *
+   * ★ 生效条件（`mode === 'tour'` + 当前站有 highlightAssemblyIds）折在
+   *   `sceneHighlightSet` 里，`Fallback2D` 走同一个入口——「?gl=off 与移动端降级路径
+   *   也要有场景高亮」这条要求靠共用纯函数保证，而不是两处各写一遍判断。
+   *
+   * ★ 比较模式（diff !== null）恒为 null：那边不挂导览、也不该有讲解高亮。
+   *   比较双视口的右侧 systemId 也不是 store 的 generation，场景序号对不上。
+   */
+  const sceneHighlight = useMemo(() => {
+    if (diff !== null) return null
+    if (systemId !== undefined && systemId !== storeGeneration) return null
+    return sceneHighlightSet(mode, generation, tourStopIdx, depth)
+  }, [diff, systemId, storeGeneration, mode, generation, tourStopIdx, depth])
+
   return (
     <>
       <GroundGrid visible={showGround && anchor.kind === 'cluster'} />
@@ -657,6 +719,7 @@ export default function SceneRoot({
           diff={diff}
           flowHighlight={flowHighlight}
           flowPulse={flowPulse}
+          sceneHighlight={sceneHighlight}
         />
       ) : null}
       {anchor.kind === 'rack' ? (
@@ -667,6 +730,7 @@ export default function SceneRoot({
           diff={diff}
           flowHighlight={flowHighlight}
           flowPulse={flowPulse}
+          sceneHighlight={sceneHighlight}
         />
       ) : null}
       {anchor.kind === 'tray' ? (
@@ -678,6 +742,7 @@ export default function SceneRoot({
           diff={diff}
           flowHighlight={flowHighlight}
           flowPulse={flowPulse}
+          sceneHighlight={sceneHighlight}
         />
       ) : null}
       {/* 六平面连线 + 推理数据流粒子：挂在 SceneRoot 顶层（不嵌进任何一级子场景的 group），

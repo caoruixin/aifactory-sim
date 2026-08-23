@@ -184,11 +184,69 @@ export const HIGHLIGHT = {
   hoveredToken: 'accent-2' as PaletteToken,
   /** 数据流当前步骤「参与的硬件」——与选中同一套 emissive 机制，换个语义色区分。 */
   flowToken: 'accent-2' as PaletteToken,
+  /**
+   * 导览场景 `highlightAssemblyIds` 点亮的硬件（v1.3 W2）。
+   * 复用 `accent`（不新造 hex，硬规则：颜色只从 palette 出），靠**更低的自发光强度**
+   * 与「选中」拉开层次：选中是用户此刻点的那一件（亮），场景高亮是这一站的讲解对象（淡）。
+   */
+  sceneToken: 'accent' as PaletteToken,
   selectedEmissive: 0.55,
   hoveredEmissive: 0.28,
   flowEmissive: 0.5,
+  // 0.4 是目视定的：低于选中（0.55）从而不抢用户点选的那一件，但要足够让「这一站讲的是
+  // 这几件」在机架级一眼看出来——0.3 时与未高亮部件的差别在会议投屏上基本看不见。
+  sceneEmissive: 0.4,
   ghostOpacity: 0.12,
 } as const
+
+/**
+ * 高亮通道。四个通道可以同时命中同一个节点（用户点了一件正好也是本站讲解对象的部件），
+ * 因此必须有唯一裁决者——`highlightKindOf`。
+ *
+ * ★ 优先级 `selected > hovered > flow > scene` 是语义排序，不是随手写的顺序：
+ *   前两者是「用户此刻的意图」，后两者是背景叙事（数据流当前步 / 导览当前站），
+ *   背景叙事不该盖掉用户自己点的那一件。
+ */
+export type HighlightKind = 'selected' | 'hovered' | 'flow' | 'scene'
+
+export const HIGHLIGHT_PRIORITY: readonly HighlightKind[] = ['selected', 'hovered', 'flow', 'scene']
+
+export type HighlightChannels = Partial<Record<HighlightKind, boolean>>
+
+/**
+ * 裁决当前该按哪一档高亮渲染；全部未命中返回 null（用部件本色）。
+ *
+ * ★ 纯函数、零 three：`Hotspot`（emissive）与 `RackInstances`（per-instance color）
+ *   两条渲染路径**共用**它，从而不可能再出现「一处是选中优先、另一处是悬停优先」
+ *   这种两边不一致（v1.3 之前 RackInstances 就是倒置的）。
+ */
+export function highlightKindOf(active: HighlightChannels): HighlightKind | null {
+  for (const kind of HIGHLIGHT_PRIORITY) if (active[kind]) return kind
+  return null
+}
+
+export const HIGHLIGHT_TOKEN: Record<HighlightKind, PaletteToken> = {
+  selected: HIGHLIGHT.selectedToken,
+  hovered: HIGHLIGHT.hoveredToken,
+  flow: HIGHLIGHT.flowToken,
+  scene: HIGHLIGHT.sceneToken,
+}
+
+/**
+ * instanced 渲染路径（`<Instances>` 的 per-instance color）上「场景高亮」的表达强度。
+ *
+ * 那条路径**没有 per-instance emissive**，Hotspot 靠 `sceneEmissive`（0.3 vs 选中 0.55）
+ * 拉开的「淡一档」在这里只能换成混色比例来表达：0 = 完全本色，1 = 完全 accent。
+ * 不这么做的话，集群总览里「导览点名的机架」与「用户选中的机架」会是一模一样的纯 accent。
+ */
+export const HIGHLIGHT_SCENE_INSTANCE_TINT = 0.6
+
+export const HIGHLIGHT_EMISSIVE: Record<HighlightKind, number> = {
+  selected: HIGHLIGHT.selectedEmissive,
+  hovered: HIGHLIGHT.hoveredEmissive,
+  flow: HIGHLIGHT.flowEmissive,
+  scene: HIGHLIGHT.sceneEmissive,
+}
 
 /**
  * 数据流播放时的连线强调（v1.1 B3）。

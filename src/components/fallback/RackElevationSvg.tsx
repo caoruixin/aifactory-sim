@@ -33,6 +33,12 @@ export interface RackElevationSvgProps {
    * 「哪个部件正在参与这一步」只能靠这种静态强调表达。
    */
   highlightAssemblyIds?: ReadonlySet<string>
+  /**
+   * 导览当前站点名的装配节点（v1.3 W2，已折叠到机架粒度）：优先级**低于**选中与
+   * 数据流高亮，用较细的 accent 描边 + `data-scene-active` 标记表达
+   * ——与 3D 那边 `selected > hovered > flow > scene` 的排序一致。
+   */
+  sceneAssemblyIds?: ReadonlySet<string> | null
 }
 
 export default function RackElevationSvg({
@@ -42,6 +48,7 @@ export default function RackElevationSvg({
   onSelectAssembly,
   selectedId = null,
   highlightAssemblyIds,
+  sceneAssemblyIds = null,
 }: RackElevationSvgProps) {
   const system = systemById(systemId)
   const units = system?.rackUnitsForLayout ?? DEFAULT_RACK_UNITS
@@ -107,18 +114,24 @@ export default function RackElevationSvg({
           const forecast = component?.status === 'forecast'
           const selected = selectedId === node.id
           const flowActive = highlightAssemblyIds?.has(node.id) ?? false
+          const sceneActive = sceneAssemblyIds?.has(node.id) ?? false
           const clickable = typeof onSelectAssembly === 'function'
+          // 优先级与 3D 同序：选中 > 数据流 > 场景导览（立面图没有悬停态）。
           const strokeColor = selected
             ? paletteColor('accent', 'accent')
             : flowActive
               ? paletteColor('accent-2', 'accent-2')
-              : fill
+              : sceneActive
+                ? paletteColor('accent', 'accent')
+                : fill
+          const emphasized = selected || flowActive
           return (
             <g
               key={node.id}
               data-rack-elevation-row={node.id}
               data-selected={selected ? '1' : '0'}
               data-flow-active={flowActive ? '1' : '0'}
+              data-scene-active={sceneActive ? '1' : '0'}
               onClick={clickable ? () => onSelectAssembly!(node.id) : undefined}
               style={clickable ? { cursor: 'pointer' } : undefined}
             >
@@ -135,7 +148,7 @@ export default function RackElevationSvg({
                     fill={fill}
                     fillOpacity={forecast ? 0.18 : 0.32}
                     stroke={strokeColor}
-                    strokeWidth={selected || flowActive ? 1.8 : 0.8}
+                    strokeWidth={emphasized ? 1.8 : sceneActive ? 1.4 : 0.8}
                     strokeDasharray={forecast ? '3 2' : undefined}
                   >
                     <title>{`${node.label} #${i + 1}（U${start.toFixed(2).replace(/\.?0+$/, '')} 起，${slotU}U，示意）`}</title>

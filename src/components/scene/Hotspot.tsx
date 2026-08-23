@@ -15,7 +15,7 @@ import { useCallback } from 'react'
 import { componentById } from '../../data'
 import type { AssemblyNode } from '../../data/types'
 import type { Vec3 } from '../../lib/layout'
-import { HIGHLIGHT, palette } from '../../lib/palette'
+import { HIGHLIGHT, HIGHLIGHT_EMISSIVE, HIGHLIGHT_TOKEN, highlightKindOf, palette } from '../../lib/palette'
 import { useFactoryStore } from '../../store'
 import { ShapeMesh, surfaceStyleFor } from './GenericShapes'
 
@@ -49,6 +49,13 @@ export interface HotspotProps {
    * 让 kv-write 这种不走网络链路的步骤也有动态反馈。由 `SceneRoot` 统一算好下传。
    */
   flowPulse?: boolean
+  /**
+   * 当前导览站点名的硬件（v1.3 W2，`ScenePreset.highlightAssemblyIds` 折叠到当前深度）。
+   *
+   * ★ 与 `flowActive` **分属两个通道**，不共用一个布尔：脉冲只认 flow（导览是静态讲解），
+   *   而且两者同时命中时颜色档位要能分辨——裁决交给 `highlightKindOf`。
+   */
+  sceneActive?: boolean
 }
 
 export function Hotspot({
@@ -61,6 +68,7 @@ export function Hotspot({
   drillable = true,
   flowActive = false,
   flowPulse = false,
+  sceneActive = false,
 }: HotspotProps) {
   const select = useFactoryStore((s) => s.select)
   const drillTo = useFactoryStore((s) => s.drillTo)
@@ -114,20 +122,17 @@ export function Hotspot({
     [drillTo, select, node.id, drillable],
   )
 
-  // 优先级：选中 > 悬停 > 数据流当前步骤。前两者是「用户此刻的意图」，
-  // 数据流高亮是背景叙事，不该盖掉用户自己点的那一件。
-  const emissive = isSelected
-    ? p[HIGHLIGHT.selectedToken]
-    : isHovered
-      ? p[HIGHLIGHT.hoveredToken]
-      : flowActive
-        ? p[HIGHLIGHT.flowToken]
-        : null
-  const emissiveIntensity = isSelected
-    ? HIGHLIGHT.selectedEmissive
-    : isHovered
-      ? HIGHLIGHT.hoveredEmissive
-      : HIGHLIGHT.flowEmissive
+  // 优先级链交给 palette 的 `highlightKindOf` 唯一裁决（selected > hovered > flow > scene）：
+  // 前两者是「用户此刻的意图」，后两者是背景叙事（数据流当前步 / 导览当前站），
+  // 背景叙事不该盖掉用户自己点的那一件。RackInstances 走同一个函数，两条渲染路径不会再分叉。
+  const kind = highlightKindOf({
+    selected: isSelected,
+    hovered: isHovered,
+    flow: flowActive,
+    scene: sceneActive,
+  })
+  const emissive = kind ? p[HIGHLIGHT_TOKEN[kind]] : null
+  const emissiveIntensity = kind ? HIGHLIGHT_EMISSIVE[kind] : 0
 
   return (
     <ShapeMesh
@@ -141,9 +146,9 @@ export function Hotspot({
       metalness={style.metalness}
       emissive={emissive}
       emissiveIntensity={emissiveIntensity}
-      // 只有「数据流点亮的、且用户没在选/悬停的」部件才脉冲：选中/悬停是用户此刻的
-      // 意图，不该被背景叙事的呼吸盖掉（与上面 emissive 的优先级一致）。
-      emissivePulse={flowActive && flowPulse && !isSelected && !isHovered}
+      // 脉冲**只认 flow 通道**：`kind === 'flow'` 已经蕴含「没被选中/悬停盖掉」，
+      // 而场景高亮（kind === 'scene'）是静态讲解，永远不呼吸。
+      emissivePulse={kind === 'flow' && flowPulse}
       edgeColor={isSelected ? p[HIGHLIGHT.selectedToken] : undefined}
       onPointerOver={onPointerOver}
       onPointerOut={onPointerOut}

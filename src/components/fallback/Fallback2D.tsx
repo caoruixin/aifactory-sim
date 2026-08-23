@@ -14,6 +14,7 @@
 
 import { useMemo, useState } from 'react'
 import { connectionById, episodeOf } from '../../data'
+import { sceneHighlightSet } from '../../lib/sceneHighlight'
 import { useFactoryStore } from '../../store'
 import SegmentedTabs from '../ui/SegmentedTabs'
 import ComponentTree from './ComponentTree'
@@ -36,6 +37,7 @@ export default function Fallback2D() {
   const selectedId = useFactoryStore((s) => s.selectedId)
   const select = useFactoryStore((s) => s.select)
   const flow = useFactoryStore((s) => s.flow)
+  const tourStopIdx = useFactoryStore((s) => s.tourStopIdx)
 
   const episode = episodeOf(generation, flow.episodeIdx)
   const step = episode?.steps[flow.stepIdx]
@@ -57,6 +59,21 @@ export default function Fallback2D() {
     return out
   }, [activeConnectionIds, step])
 
+  /**
+   * 导览当前站点名的硬件（v1.3 W2）——与 3D 的 `SceneRoot` **共用同一个纯函数**，
+   * 于是 `?gl=off`、探测不到 WebGL、移动端降级这三条路径下导览站同样有高亮，
+   * 而不是像 v1.2 那样降级视图只认数据流。
+   *
+   * ★ 折叠深度固定取 `'rack'`：结构图画的就是机架立面（只有带 rackU 的档位），
+   *   因此把「板级件」折叠到它所在的托盘正好对上图上的粒度。集群级件
+   *   （Leaf/Spine/汇聚交换层）在机架立面上本来就没有对应档位，折叠后落回自身、
+   *   自然不产生标记——这是正确行为，不是漏标。
+   */
+  const sceneAssemblyIds = useMemo(
+    () => sceneHighlightSet(mode, generation, tourStopIdx, 'rack'),
+    [mode, generation, tourStopIdx],
+  )
+
   const compareMode = mode === 'compare'
 
   return (
@@ -71,6 +88,7 @@ export default function Fallback2D() {
               systemId={generation}
               selectedId={selectedId}
               highlightAssemblyIds={activeAssemblyIds}
+              sceneAssemblyIds={sceneAssemblyIds}
               onSelectAssembly={select}
             />
             {compareMode ? (
