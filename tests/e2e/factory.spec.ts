@@ -19,10 +19,22 @@
 import { expect, test, type Page, type TestInfo } from '@playwright/test'
 import { FACTORY_PACK } from '../../src/data'
 import { compareSystems } from '../../src/lib/compare'
+import { layoutOf } from '../../src/lib/layout'
+import { routeConnections } from '../../src/lib/routing'
 
 const GB300 = 'sys.gb300-nvl72'
 const VERA_RUBIN = 'sys.vera-rubin-nvl72'
 const NVL576 = 'sys.rubin-ultra-nvl576'
+
+/** `PlaneToggles` 的复选框次序 = `PLANE_ORDER`（1 起算，给 `li:nth-child` 用）。 */
+const PLANE_ROW = {
+  nvlink: 1,
+  scaleout: 2,
+  business: 3,
+  mgmt: 4,
+  power: 5,
+  cooling: 6,
+} as const
 
 const DIFF_KINDS = ['added', 'removed', 'qty-changed', 'spec-changed', 'unchanged'] as const
 
@@ -69,6 +81,29 @@ async function changedPixelRatio(page: Page, base64A: string, base64B: string): 
     },
     [base64A, base64B] as const,
   )
+}
+
+/**
+ * 相机位姿遥测（v1.1 C1）：`useCameraRig` 每次 controls 变化都把
+ * `position,target` 六个数写进 canvas 的 `data-camera-pose`。
+ *
+ * ★ 「相机保持」必须用它断言，**不能用截图差异**：数据流高亮本身就会改像素，
+ *   「与默认基线不同」在相机已经被打回默认机位时也能假通过。
+ */
+async function cameraPose(page: Page): Promise<string | null> {
+  return page.locator('canvas').first().getAttribute('data-camera-pose')
+}
+
+/** 在画布上真拖一把（触发 camera-controls 的 controlstart）。 */
+async function dragOn(page: Page, selector: string, dx: number, dy: number): Promise<void> {
+  const box = await page.locator(selector).first().boundingBox()
+  if (!box) throw new Error(`${selector} 没有 bounding box`)
+  const cx = box.x + box.width / 2
+  const cy = box.y + box.height / 2
+  await page.mouse.move(cx, cy)
+  await page.mouse.down()
+  await page.mouse.move(cx + dx, cy + dy, { steps: 10 })
+  await page.mouse.up()
 }
 
 /** 深链种子播种是一次性的（`useShotParams`），因此每条用例都从一次干净的 `goto` 开始。 */
@@ -344,4 +379,192 @@ test('桌面·数据流粒子必须真的画得出来（InstancedMesh 视锥剔�
   await expect(page.locator('footer[data-flow-step]')).toHaveAttribute('data-flow-step', '2')
   // 坏状态恒为 0.0000%；修复后实测约 0.04%（粒子本来就只有几十个像素）。
   expect(await changedPixelRatio(page, t0, t1)).toBeGreaterThan(0.0001)
+})
+
+// ═════════════════════ 10~15：v1.1（A 机房级连接 / B 数据流关联 / C 视角） ═════════════════════
+
+test('桌面·A1 集群级开启供电+液冷后画面必须真的变化（机房级干线不再被硬过滤掉）', async ({
+  page,
+}, testInfo) => {
+  onlyOn(testInfo, 'desktop')
+  // v1.1 之前 ConnectionLayer 在 cluster 深度硬过滤成「只画 scaleout + nvlink」，
+  // 供电/液冷/业务/管理四个平面即使勾上也一条线都不画 —— 坏状态下这个比值恒为 0。
+  await gotoAndSettle(page, '/?motion=off&planes=scaleout', 900)
+  const canvas = page.locator('canvas').first()
+  const scaleoutOnly = (await canvas.screenshot()).toString('base64')
+
+  await page.locator(`section ul li:nth-child(${PLANE_ROW.power}) input`).check()
+  await page.locator(`section ul li:nth-child(${PLANE_ROW.cooling}) input`).check()
+  await page.waitForTimeout(800)
+  const withFacility = (await canvas.screenshot()).toString('base64')
+
+  // 修复后实测约 1.86%（配电→8 机架 + 歧管→CDU→一次侧水，都是长干线）。
+  expect(await changedPixelRatio(page, scaleoutOnly, withFacility)).toBeGreaterThan(0.005)
+  await expect(page).toHaveScreenshot('gb300-cluster-facility-planes.png')
+})
+
+test('桌面·A2+A3 集群级供电平面：配电→机架扇出到全部 8 台（像素 + 结构双断言）', async ({
+  page,
+}, testInfo) => {
+  onlyOn(testInfo, 'desktop')
+
+  // ① 结构：cluster 深度下这条边确实从「机房配电」出发，并扇出 8 条几何路径。
+  //    （v1.1 之前 from 端是从不渲染的装配树根，且只连第 0 台机架。）
+  const route = routeConnections(GB300, layoutOf(GB300), 'cluster').find(
+    (r) => r.connectionId === 'con.gb300.facility-power-shelf',
+  )
+  expect(route).toBeTruthy()
+  expect(route!.fromAssemblyId).toBe('asm.gb300.facility-power')
+  expect(route!.toAssemblyId).toBe('asm.gb300.rack')
+  expect(route!.instancePaths).toHaveLength(8)
+
+  // ② 像素：集群级只开供电平面时，画面上就只有这 8 条线；关掉它画面变化必须够大。
+  //    8 条实测约 0.89%；不扇出（只画第 0 台）时只剩约 1/8 ≈ 0.11%，
+  //    因此 0.004 这条线足以把「扇出」与「只连第一台」区分开。
+  await gotoAndSettle(page, '/?motion=off&planes=power', 900)
+  const canvas = page.locator('canvas').first()
+  const on = (await canvas.screenshot()).toString('base64')
+  await page.locator(`section ul li:nth-child(${PLANE_ROW.power}) input`).uncheck()
+  await page.waitForTimeout(800)
+  const off = (await canvas.screenshot()).toString('base64')
+  expect(await changedPixelRatio(page, on, off)).toBeGreaterThan(0.004)
+})
+
+test('桌面·B2 KV 写入步：chips 出现 HBM 与 B300 GPU，点击后右栏切到部件详情', async ({
+  page,
+}, testInfo) => {
+  onlyOn(testInfo, 'desktop')
+  await gotoAndSettle(page, '/?motion=off', 400)
+
+  // ★ 从「产能粗估」tab 出发：只 select 不切 tab 的话用户根本看不到详情，
+  //   这正是 B2 要求「chip 点击同时激活部件详情 tab」的原因。
+  await page.click('[data-right-tab="capacity"]')
+  await expect(page.locator('[data-right-tab="capacity"]')).toHaveAttribute('aria-pressed', 'true')
+
+  const kvIdx = FACTORY_PACK.flows
+    .find((f) => f.systemId === GB300)!
+    .steps.findIndex((s) => s.id === 'flow.gb300.moe-inference.kv-write')
+  expect(kvIdx).toBeGreaterThanOrEqual(0)
+
+  await page.click(`[data-flow-step-button="${kvIdx}"]`)
+  const chips = page.locator('[data-flow-chip]')
+  await expect(chips).toHaveCount(3) // B300 GPU / HBM3e 显存堆栈 / Grace CPU
+  const chipText = (await chips.allTextContents()).join(' | ')
+  expect(chipText).toContain('HBM')
+  expect(chipText).toContain('B300 GPU')
+
+  // 点 B300 GPU chip → 选中它 + 右栏自动切到部件详情
+  await page.click('[data-flow-chip="asm.gb300.b300-gpu"]')
+  await expect(page.locator('[data-right-tab="detail"]')).toHaveAttribute('aria-pressed', 'true')
+  await expect(page.locator('aside:has([data-right-tab]) h2')).toContainText('B300 GPU')
+})
+
+test('桌面·B4 板级 ingress：出界线截断成传送门 stub，没有横穿全屏的长斜线', async ({
+  page,
+}, testInfo) => {
+  onlyOn(testInfo, 'desktop')
+  await gotoAndSettle(page, '/?level=board&focus=asm.gb300.compute-tray&motion=off', 900)
+  await expect(page.locator('[data-fallback-2d]')).toHaveCount(0)
+
+  // 通往托盘外的连接（NVSwitch / 汇聚交换机 / 母排 / 歧管 …）都应该带上传送门标签；
+  // 两端都在托盘外的连接（如 机房配电→电源架）应当整条消失。
+  const stubs = page.locator('[data-stub-label]')
+  await expect(stubs.first()).toBeVisible()
+  expect(await stubs.count()).toBeGreaterThanOrEqual(4)
+  await expect(page.locator('[data-stub-label="asm.gb300.nvswitch-asic"]')).toHaveCount(1)
+  await expect(page.locator('[data-stub-label="asm.gb300.facility-power"]')).toHaveCount(0)
+
+  // ingress 步（请求经业务网络进入计算托盘）——截图基线
+  await page.click('[data-flow-step-button="1"]')
+  await page.waitForTimeout(600)
+  await expect(page).toHaveScreenshot('gb300-board-ingress.png')
+
+  // 传送门标签可点击：选中远端部件，但**不移动相机**
+  const poseBefore = await cameraPose(page)
+  await page.click('[data-stub-label="asm.gb300.nvswitch-asic"]')
+  await expect(page.locator('aside:has([data-right-tab]) h2')).toContainText('NVSwitch ASIC')
+  await page.waitForTimeout(300)
+  expect(await cameraPose(page)).toBe(poseBefore)
+})
+
+test('桌面·C1 视角保持：拖拽后点数据流步骤 / 调窗口，位姿逐位不变', async ({ page }, testInfo) => {
+  onlyOn(testInfo, 'desktop')
+  await gotoAndSettle(page, '/?motion=off', 700)
+
+  const initial = await cameraPose(page)
+  expect(initial).toBeTruthy()
+
+  await dragOn(page, 'canvas', 140, 60)
+  await page.waitForTimeout(500)
+  const dragged = await cameraPose(page)
+  expect(dragged).not.toBe(initial) // 拖拽确实改了位姿（否则后面的断言毫无意义）
+
+  // ① 点数据流步骤（v1.1 之前：底栏高度跳变 → canvas resize → 相机被打回默认机位）
+  await page.click('[data-flow-step-button="3"]')
+  await page.waitForTimeout(600)
+  expect(await cameraPose(page)).toBe(dragged)
+
+  // ② 直接调窗口
+  await page.setViewportSize({ width: 1200, height: 780 })
+  await page.waitForTimeout(700)
+  expect(await cameraPose(page)).toBe(dragged)
+
+  // ③ 但导航（下钻）仍然必须飞过去——userMoved 不能把程序化机位也吃掉
+  await page.click('[data-flow-step-button="0"]')
+  await page.locator('aside button', { hasText: '拆开一个机架' }).first().click()
+  await page.waitForTimeout(900)
+  expect(await cameraPose(page)).not.toBe(dragged)
+})
+
+test('桌面·C1 视角保持：只用滚轮缩放过（wheel 不触发 controlstart）→ 调窗口，位姿不变', async ({
+  page,
+}, testInfo) => {
+  onlyOn(testInfo, 'desktop')
+  // camera-controls 文档明确：滚轮缩放**不触发** controlstart。只靠 controlstart 判定
+  // 「用户动过相机」的话，这条路径会漏 —— 于是「只滚过轮」的用户照样被打回默认机位。
+  await gotoAndSettle(page, '/?motion=off', 700)
+  const initial = await cameraPose(page)
+
+  const box = await page.locator('canvas').first().boundingBox()
+  await page.mouse.move(box!.x + box!.width / 2, box!.y + box!.height / 2)
+  await page.mouse.wheel(0, -400)
+  await page.waitForTimeout(700)
+  const zoomed = await cameraPose(page)
+  expect(zoomed).not.toBe(initial)
+
+  await page.setViewportSize({ width: 1180, height: 820 })
+  await page.waitForTimeout(700)
+  expect(await cameraPose(page)).toBe(zoomed)
+})
+
+test('桌面·C1 视角保持：比较模式拖拽后调窗口，位姿不变', async ({ page }, testInfo) => {
+  onlyOn(testInfo, 'desktop')
+  // CompareCameraRig 此前是同样的坏结构（一个效果、依赖含 width/height、无条件 setLookAt）。
+  await gotoAndSettle(page, '/?mode=compare&motion=off', 1200)
+  await expect(page.locator('[data-compare-view]')).toHaveCount(1)
+
+  const initial = await cameraPose(page)
+  await dragOn(page, '[data-compare-view]', 120, 40)
+  await page.waitForTimeout(600)
+  const dragged = await cameraPose(page)
+  expect(dragged).not.toBe(initial)
+
+  await page.setViewportSize({ width: 1240, height: 840 })
+  await page.waitForTimeout(800)
+  expect(await cameraPose(page)).toBe(dragged)
+})
+
+test('桌面·C2 步骤切换前后画布高度恒定（底栏不再抖）', async ({ page }, testInfo) => {
+  onlyOn(testInfo, 'desktop')
+  // 底栏高度跳变正是相机被没收的源头：C1 从相机侧堵，C2 从源头消。
+  await gotoAndSettle(page, '/?motion=off', 600)
+  const canvas = page.locator('canvas').first()
+  const heights: number[] = []
+  for (const i of [0, 3, 6, 9, 2]) {
+    await page.click(`[data-flow-step-button="${i}"]`)
+    await page.waitForTimeout(300)
+    const box = await canvas.boundingBox()
+    heights.push(Math.round(box!.height))
+  }
+  expect(new Set(heights).size, `画布高度随步骤变化：${heights.join(',')}`).toBe(1)
 })
