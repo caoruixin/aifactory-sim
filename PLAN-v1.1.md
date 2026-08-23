@@ -1,5 +1,7 @@
 # v1.1 真实性与可读性修复：机房级全连接 + 数据流↔硬件关联
 
+> ✅ 已于 2026-08-23 实施完成（提交 b05a334 / f12af3a / 4aa7e04 / afec143）
+
 ## Context
 
 模拟器 v1.0 已交付并部署（https://caoruixin.github.io/aifactory-sim/ ，仓库 ~/projects/aifactory）。用户实际使用后提出两个成立的问题：
