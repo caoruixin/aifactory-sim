@@ -9,7 +9,7 @@
  */
 
 import { connectionById } from '../data'
-import type { FlowEpisode, FlowPhase, LodLevel, ParticleDirection } from '../data/types'
+import type { FlowEpisode, FlowPhase, FlowStep, LodLevel, ParticleDirection } from '../data/types'
 import { sampleAtFraction, visibleAncestorAt } from './routing'
 import type { RoutedConnection } from './routing'
 import type { Vec3 } from './layout'
@@ -193,6 +193,20 @@ export function segmentIndexAtT(segments: readonly TimelineSegment[], t: number)
 /** 整个 episode 的播放总时长（秒，按 speed=1 计），供 UI 显示总时长参考。 */
 export function totalDurationSeconds(episode: FlowEpisode): number {
   return episode.steps.reduce((sum, s) => sum + s.durationHint, 0)
+}
+
+/**
+ * 「本地物理动作」：确实有硬件在动，却不经过任何一条网络链路（本 episode 里就是
+ * kv-write —— GPU 把 KV 写进它自己的 HBM）。
+ *
+ * 这类步骤过去只有静态高亮、没有任何动态，读起来跟「什么都没发生」一样；
+ * `SceneRoot` 拿它决定要不要给高亮部件加自发光脉冲。
+ *
+ * ★ 空值一律 false，且不用非空断言：Vera Rubin / NVL576 根本没有 episode
+ *   （`episodeOf` 返回 undefined），比较模式的右视口也查不到「当前步」。
+ */
+export function isLocalPhysicalStep(step: FlowStep | null | undefined): boolean {
+  return step !== null && step !== undefined && !step.logicalOnly && step.connectionIds.length === 0
 }
 
 // ─────────────────────── 当前步骤 ↔ 参与硬件（v1.1 B1） ───────────────────────

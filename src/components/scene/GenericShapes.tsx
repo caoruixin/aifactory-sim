@@ -15,8 +15,8 @@
  */
 
 import { Edges } from '@react-three/drei'
-import { invalidate, type ThreeElements } from '@react-three/fiber'
-import { useLayoutEffect, useMemo, useRef } from 'react'
+import { invalidate, useFrame, type ThreeElements } from '@react-three/fiber'
+import { useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
 import type { HardwareComponent, VisualShape } from '../../data/types'
 import type { Vec3 } from '../../lib/layout'
@@ -167,6 +167,56 @@ export function useTransparencyProgramSync(
   }, [ref, transparent])
 }
 
+// ─────────────────────── 自发光脉冲（v1.2 F2） ───────────────────────
+
+/**
+ * 脉冲周期（秒）。E2E 的采样间隔按它推：半周期 0.7 s 时两次采样必然处在相反相位。
+ * 1.4 s 是「看得出在呼吸、又不至于闪得烦人」的教学节奏。
+ */
+export const PULSE_PERIOD_SEC = 1.4
+
+/**
+ * 给已有的静态 emissive 高亮加一层缓慢呼吸，用来表达「本地物理动作」
+ * （kv-write 那一步：18 个计算托盘已经在发光，但读不出「此刻正在写」）。
+ *
+ * ★ **复位必须放 effect，不能放 useFrame 的 else 分支。**
+ *   `FactoryCanvas` 的 frameloop 是 `playing ? 'always' : 'demand'`：一暂停就切回
+ *   demand，useFrame 可能**永远不再执行**，材质会永久冻结在按下暂停那一刻的脉冲值上
+ *   （屏幕上表现为「暂停后这些托盘莫名其妙比平时暗/亮」）。effect 在 enabled 翻转时
+ *   必然重跑，把 emissiveIntensity 写回 base 并请求一帧。
+ *
+ * ★ 常驻挂载、靠 `enabled` 切换，而不是按需挂载/卸载：卸载时机同样在 demand 下不可靠。
+ *   相位从 enabled 置位那一刻起累加，因此每次开始播放的起始相位是确定的（E2E 可复现）。
+ */
+function EmissivePulseDriver({
+  materialRef,
+  base,
+  enabled,
+}: {
+  materialRef: React.RefObject<THREE.MeshStandardMaterial | null>
+  base: number
+  enabled: boolean
+}) {
+  const phaseRef = useRef(0)
+
+  useEffect(() => {
+    phaseRef.current = 0
+    const m = materialRef.current
+    if (m) m.emissiveIntensity = base
+    invalidate()
+  }, [materialRef, enabled, base])
+
+  useFrame((_, delta) => {
+    if (!enabled) return
+    const m = materialRef.current
+    if (!m) return
+    phaseRef.current += delta
+    m.emissiveIntensity = base * (0.7 + 0.5 * Math.sin((phaseRef.current * Math.PI * 2) / PULSE_PERIOD_SEC))
+  })
+
+  return null
+}
+
 // ─────────────────────────── ShapeMesh ───────────────────────────
 
 export interface ShapeMeshProps extends Omit<ThreeElements['mesh'], 'scale' | 'geometry' | 'ref'> {
@@ -185,6 +235,11 @@ export interface ShapeMeshProps extends Omit<ThreeElements['mesh'], 'scale' | 'g
   metalness?: number
   /** 半透明外壳（机架/托盘的「玻璃罩」）需要关掉深度写入，否则内部件会被裁掉。 */
   depthWrite?: boolean
+  /**
+   * 自发光脉冲开关（v1.2 F2）。**不传 = 完全不挂 driver**（DiffMesh / ShellMesh /
+   * 托盘参照物走的就是这条路，比较模式零影响）；传了就常驻挂载，靠布尔值切换。
+   */
+  emissivePulse?: boolean
 }
 
 export function ShapeMesh({
@@ -200,6 +255,7 @@ export function ShapeMesh({
   roughness = 0.58,
   metalness = 0.16,
   depthWrite,
+  emissivePulse,
   children,
   ...meshProps
 }: ShapeMeshProps) {
@@ -235,6 +291,14 @@ export function ShapeMesh({
         opacity={opacity}
         depthWrite={depthWrite ?? !transparent}
       />
+      {/* base 与上面材质的 emissiveIntensity 表达式同源，避免 React 与 driver 抢着写。 */}
+      {emissivePulse === undefined ? null : (
+        <EmissivePulseDriver
+          materialRef={materialRef}
+          base={emissive ? emissiveIntensity : 0}
+          enabled={emissivePulse}
+        />
+      )}
       {edges ? <Edges color={edgeColor ?? SURFACE.edge} threshold={20} /> : null}
       {children}
     </mesh>

@@ -5,6 +5,7 @@ import {
   endpointsOf,
   fadeAlpha,
   flowStepFocus,
+  isLocalPhysicalStep,
   particleFraction,
   PARTICLE_FADE_RAMP_SEC,
   PARTICLE_TRAIL_OFFSET,
@@ -211,9 +212,32 @@ describe('flowStepFocus：当前步骤 ↔ 参与硬件（v1.1 B1）', () => {
     expect(new Set(focus.sceneHighlightIds).size).toBe(focus.sceneHighlightIds.length)
   })
 
-  it('logicalOnly / 越界 / 无剧本一律安静返回空集合，不抛错', () => {
-    const logicalIdx = episode.steps.findIndex((s) => s.logicalOnly)
-    expect(flowStepFocus(episode, logicalIdx, 'rack')).toEqual({ chipIds: [], sceneHighlightIds: [] })
+  /**
+   * ⚠️ 本条是**非锁定测试**，v1.2 F2 按新数据更新过。
+   *
+   * 原来写的是 `findIndex(s => s.logicalOnly)` —— 一个隐式的「第一个逻辑层步骤」。
+   * F2 之后 moe-router（同样 logicalOnly）开始高亮 B300 GPU，而 gateway 仍然是空的，
+   * 所以这条其实照样绿；但「逻辑层 ⇒ 必然空高亮」这个隐含前提已经不成立了，
+   * 继续靠 findIndex 只会在下次有人给 gateway 加高亮时莫名其妙地红。改成逐个点名。
+   */
+  it('逻辑层步骤的高亮按内容包实际数据逐个点名（不再假设「逻辑层 = 空高亮」）', () => {
+    const GATEWAY = idxOf('flow.gb300.moe-inference.gateway')
+    const BILLING = idxOf('flow.gb300.moe-inference.billing')
+    const ROUTER = idxOf('flow.gb300.moe-inference.moe-router')
+
+    // 网关鉴权 / 计费日志：真的发生在机架之外，不该标注任何机架内硬件
+    expect(flowStepFocus(episode, GATEWAY, 'rack')).toEqual({ chipIds: [], sceneHighlightIds: [] })
+    expect(flowStepFocus(episode, BILLING, 'rack')).toEqual({ chipIds: [], sceneHighlightIds: [] })
+
+    // Router：逻辑层步骤，但 description 原文说它「发生在 Token 所在的那张 GPU 上」
+    expect(episode.steps[ROUTER]!.logicalOnly).toBe(true)
+    expect(flowStepFocus(episode, ROUTER, 'board').chipIds).toEqual(['asm.gb300.b300-gpu'])
+    expect(flowStepFocus(episode, ROUTER, 'rack').sceneHighlightIds).toEqual([
+      'asm.gb300.compute-tray',
+    ])
+  })
+
+  it('越界 / 无剧本一律安静返回空集合，不抛错', () => {
     expect(flowStepFocus(episode, 999, 'rack').chipIds).toEqual([])
     expect(flowStepFocus(null, 0, 'rack').chipIds).toEqual([])
     expect(flowStepFocus(undefined, 0, 'rack').chipIds).toEqual([])
@@ -223,6 +247,42 @@ describe('flowStepFocus：当前步骤 ↔ 参与硬件（v1.1 B1）', () => {
     const a = flowStepFocus(episode, PREFILL, 'rack')
     const b = flowStepFocus(episode, PREFILL, 'rack')
     expect(a).toEqual(b)
+  })
+})
+
+describe('isLocalPhysicalStep：本地物理动作（v1.2 F2）', () => {
+  const stepOf = (id: string) => episode.steps.find((s) => s.id === id)
+
+  it('kv-write 命中：有硬件动作，但一条网络链路都不走', () => {
+    expect(isLocalPhysicalStep(stepOf('flow.gb300.moe-inference.kv-write'))).toBe(true)
+  })
+
+  it('带连接的物理步骤不算（它们本来就有粒子在跑）', () => {
+    expect(isLocalPhysicalStep(stepOf('flow.gb300.moe-inference.prefill'))).toBe(false)
+    expect(isLocalPhysicalStep(stepOf('flow.gb300.moe-inference.business-ingress'))).toBe(false)
+  })
+
+  it('逻辑层步骤不算（它们压根没有硬件动作，该走徽标而不是脉冲）', () => {
+    expect(isLocalPhysicalStep(stepOf('flow.gb300.moe-inference.gateway'))).toBe(false)
+    expect(isLocalPhysicalStep(stepOf('flow.gb300.moe-inference.billing'))).toBe(false)
+    // moe-router 有了高亮，但仍然是逻辑层 ⇒ 不脉冲
+    expect(isLocalPhysicalStep(stepOf('flow.gb300.moe-inference.moe-router'))).toBe(false)
+  })
+
+  it('null / undefined 一律 false，不抛错', () => {
+    expect(isLocalPhysicalStep(null)).toBe(false)
+    expect(isLocalPhysicalStep(undefined)).toBe(false)
+  })
+
+  it('★ 无剧本的代际（Vera Rubin）查不到当前步 → false，不抛错', () => {
+    const noEpisode = FACTORY_PACK.flows.find((f) => f.systemId === 'sys.vera-rubin-nvl72')
+    expect(noEpisode).toBeUndefined()
+    expect(isLocalPhysicalStep(noEpisode?.steps[0])).toBe(false)
+  })
+
+  it('全 10 步里恰好命中 1 步（kv-write），不会顺手把别的步骤也点着', () => {
+    const hits = episode.steps.filter((s) => isLocalPhysicalStep(s)).map((s) => s.id)
+    expect(hits).toEqual(['flow.gb300.moe-inference.kv-write'])
   })
 })
 

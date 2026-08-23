@@ -127,7 +127,10 @@ const STEPS: FlowStep[] = [
     description:
       'DeepSeek-V3 每层配置 256 个路由专家 + 1 个共享专家，每个 Token 由路由器选出 8 个专家。这一步是纯计算决策，发生在 Token 所在的那张 GPU 上，不产生跨卡流量——真正的挑战在下一步的 Dispatch。',
     connectionIds: [],
-    highlightAssemblyIds: [],
+    // 逻辑层步骤同样可以点亮硬件：description 原文「发生在 Token 所在的那张 GPU 上」，
+    // 高亮 B300 GPU 是有原文背书的（logicalOnly 仍为 true——它确实没有物理链路，
+    // 这两件事互不矛盾）。少了它，这一步在 3D 上是整整 3 秒的零反馈。
+    highlightAssemblyIds: ['asm.gb300.b300-gpu'],
     particleDirection: null,
     logicalOnly: true,
     durationHint: 3,

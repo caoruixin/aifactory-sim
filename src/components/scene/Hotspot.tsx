@@ -44,6 +44,11 @@ export interface HotspotProps {
    * 换 `accent-2` 区分——从而任何深度都能看出「这一步发生在哪个盒子里」。
    */
   flowActive?: boolean
+  /**
+   * 当前步骤是「本地物理动作」（v1.2 F2）：给已经在发光的部件再加一层缓慢呼吸，
+   * 让 kv-write 这种不走网络链路的步骤也有动态反馈。由 `SceneRoot` 统一算好下传。
+   */
+  flowPulse?: boolean
 }
 
 export function Hotspot({
@@ -55,6 +60,7 @@ export function Hotspot({
   opacity,
   drillable = true,
   flowActive = false,
+  flowPulse = false,
 }: HotspotProps) {
   const select = useFactoryStore((s) => s.select)
   const drillTo = useFactoryStore((s) => s.drillTo)
@@ -135,6 +141,9 @@ export function Hotspot({
       metalness={style.metalness}
       emissive={emissive}
       emissiveIntensity={emissiveIntensity}
+      // 只有「数据流点亮的、且用户没在选/悬停的」部件才脉冲：选中/悬停是用户此刻的
+      // 意图，不该被背景叙事的呼吸盖掉（与上面 emissive 的优先级一致）。
+      emissivePulse={flowActive && flowPulse && !isSelected && !isHovered}
       edgeColor={isSelected ? p[HIGHLIGHT.selectedToken] : undefined}
       onPointerOver={onPointerOver}
       onPointerOut={onPointerOut}

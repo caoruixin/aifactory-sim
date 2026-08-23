@@ -16,6 +16,7 @@
  */
 
 import { Suspense, lazy, useEffect, useState } from 'react'
+import { episodeOf } from '../data'
 import BreadcrumbBar from '../components/panels/BreadcrumbBar'
 import CapacityPanel from '../components/panels/CapacityPanel'
 import ComparePanel from '../components/panels/ComparePanel'
@@ -43,6 +44,11 @@ export default function FactoryPage() {
   const mode = useFactoryStore((s) => s.mode)
   const generation = useFactoryStore((s) => s.generation)
   const compareRight = useFactoryStore((s) => s.compare.right)
+  // 窄订阅：只取徽标真正用得上的三个字段，不整个订 `s.flow`——
+  // 那样每次 setFlow（速度、播放开关）都会把整页重渲染一遍。
+  const flowPlaying = useFactoryStore((s) => s.flow.playing)
+  const flowEpisodeIdx = useFactoryStore((s) => s.flow.episodeIdx)
+  const flowStepIdx = useFactoryStore((s) => s.flow.stepIdx)
   const setReady = useFactoryStore((s) => s.setReady)
   const [tab, setTab] = useState<RightTab>('detail')
 
@@ -60,6 +66,24 @@ export default function FactoryPage() {
   useEffect(() => {
     if (noCanvas) setReady(true)
   }, [noCanvas, setReady])
+
+  /**
+   * 逻辑层步骤的画布徽标（v1.2 F2）：网关鉴权 / Router 选专家 / 计费日志这三步加起来
+   * 约 9 秒，3D 上一度是完全的空白——用户看着步骤条在走、画面纹丝不动，只能猜是不是卡了。
+   *
+   * 放在画布容器里**绝对定位**（不是 drei `<Html>`、也不占布局高度）：
+   * C2 那条「切步骤时画布高度必须恒定」的约束还在，任何会撑开容器的写法都会把相机
+   * 重新打回默认机位。文案与配色复用 FlowBar 的「逻辑层」徽章 token。
+   *
+   * 三个不显示的场合：降级（没有画布）、比较模式（两个视口，徽标贴谁都不对）、
+   * 未播放（静止看某一步时不需要这句提示）。`episodeOf` 可能返回 undefined
+   * （Vera Rubin / NVL576 没有剧本），因此全程可选链 + null 兜底，不用非空断言。
+   */
+  const currentStep = episodeOf(generation, flowEpisodeIdx)?.steps[flowStepIdx]
+  const logicalStepLabel =
+    flowPlaying && !degraded && !compareMode && currentStep?.logicalOnly === true
+      ? currentStep.label
+      : null
 
   return (
     <main
@@ -88,6 +112,7 @@ export default function FactoryPage() {
             <section className="relative flex min-h-[52vh] min-w-0 flex-col bg-ink lg:min-h-0">
               {degraded ? <DegradedNotice status={glStatus} /> : null}
               <div className="relative min-h-0 flex-1">
+                {logicalStepLabel === null ? null : <LogicalStepOverlay label={logicalStepLabel} />}
                 {degraded ? (
                   <Fallback2D />
                 ) : (
@@ -175,6 +200,21 @@ function DegradedNotice({ status }: { status: string }) {
 function CanvasSkeleton() {
   return (
     <div className="flex h-full items-center justify-center text-sm text-dim">3D 场景加载中…</div>
+  )
+}
+
+/**
+ * 逻辑层步骤的画布徽标：告诉人「这一步本来就不该有机架内的动静」，
+ * 而不是让人以为渲染卡住了。`pointer-events-none` —— 它是提示，不是控件。
+ */
+function LogicalStepOverlay({ label }: { label: string }) {
+  return (
+    <p
+      data-flow-logical-overlay
+      className="pointer-events-none absolute top-2 left-1/2 z-10 -translate-x-1/2 rounded-full border border-accent-2/35 bg-accent-2/10 px-3 py-1 text-[11px] whitespace-nowrap text-accent-2"
+    >
+      逻辑层步骤 · 不产生机架内流量 · {label}
+    </p>
   )
 }
 

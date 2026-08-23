@@ -25,7 +25,7 @@ import type { AssemblyNode, LodLevel, NetworkPlane } from '../../data/types'
 import type { DiffKind } from '../../lib/compare'
 import { DIFF_TOKEN } from '../../lib/compare'
 import { levelIndex, sceneAnchorOf } from '../../lib/drill'
-import { flowStepFocus } from '../../lib/flowTimeline'
+import { flowStepFocus, isLocalPhysicalStep } from '../../lib/flowTimeline'
 import { layoutOf, worldPositionOf } from '../../lib/layout'
 import type { ResolvedLayout } from '../../lib/layout'
 import { HIGHLIGHT, SURFACE, color as paletteColor, palette } from '../../lib/palette'
@@ -101,6 +101,8 @@ interface BranchProps {
   diff?: DiffContext | null
   /** 数据流当前步骤参与的硬件（已折叠到当前深度）；命中的部件走 emissive 高亮。 */
   flowHighlight?: ReadonlySet<string> | null
+  /** 当前步骤是「本地物理动作」：高亮部件再叠一层呼吸脉冲（v1.2 F2）。 */
+  flowPulse?: boolean
 }
 
 /** 比较模式下的静态部件：不可交互，用描边颜色表达 diff 类别。 */
@@ -148,6 +150,7 @@ function AssemblyBranch({
   onlyInstance,
   diff = null,
   flowHighlight = null,
+  flowPulse = false,
 }: BranchProps) {
   const item = layout.get(node.id)
   const kids = childrenOf(node.id)
@@ -184,6 +187,7 @@ function AssemblyBranch({
                 size={item.size}
                 drillable={drillable}
                 flowActive={flowHighlight?.has(node.id) ?? false}
+                flowPulse={flowPulse}
               />
             )}
             {visibleKids.map((kid) => (
@@ -195,6 +199,7 @@ function AssemblyBranch({
                 exploded={exploded}
                 diff={diff}
                 flowHighlight={flowHighlight}
+                flowPulse={flowPulse}
               />
             ))}
           </group>
@@ -220,6 +225,9 @@ function RackInstances({
   layout: ResolvedLayout
   /** 数据流当前步骤折叠到「机架」时，整排机架都换成流高亮色（instanced 不支持 emissive）。 */
   flowActive?: boolean
+  // ⚠️ 刻意**不接** flowPulse：`<Instances>` 走的是 per-instance color，整组共用一份材质，
+  //    没有 per-instance emissive 可脉冲；真要做只能整排一起呼吸，那在集群总览里是纯干扰。
+  //    「本地物理动作」本来也只在能看见托盘的深度（rack 及以下）才有意义。
 }) {
   const item = layout.get(node.id)
   // 机架壳的底色同样跟产品状态走：集群总览一眼就能看出这是哪一代
@@ -343,11 +351,13 @@ function ClusterScene({
   rootId,
   diff = null,
   flowHighlight = null,
+  flowPulse = false,
 }: {
   layout: ResolvedLayout
   rootId: string
   diff?: DiffContext | null
   flowHighlight?: ReadonlySet<string> | null
+  flowPulse?: boolean
 }) {
   const root = assemblyById(rootId)
   if (!root) return null
@@ -384,6 +394,7 @@ function ClusterScene({
             exploded={false}
             diff={diff}
             flowHighlight={flowHighlight}
+            flowPulse={flowPulse}
           />
         )
       })}
@@ -424,12 +435,14 @@ function RackScene({
   depth,
   diff = null,
   flowHighlight = null,
+  flowPulse = false,
 }: {
   layout: ResolvedLayout
   rackId: string
   depth: LodLevel
   diff?: DiffContext | null
   flowHighlight?: ReadonlySet<string> | null
+  flowPulse?: boolean
 }) {
   const rack = assemblyById(rackId)
   const chain = useMemo(() => chainOf(rackId), [rackId])
@@ -448,6 +461,7 @@ function RackScene({
         onlyInstance={0}
         diff={diff}
         flowHighlight={flowHighlight}
+        flowPulse={flowPulse}
       />
     </group>
   )
@@ -462,6 +476,7 @@ function TrayScene({
   depth,
   diff = null,
   flowHighlight = null,
+  flowPulse = false,
 }: {
   layout: ResolvedLayout
   trayId: string
@@ -469,6 +484,7 @@ function TrayScene({
   depth: LodLevel
   diff?: DiffContext | null
   flowHighlight?: ReadonlySet<string> | null
+  flowPulse?: boolean
 }) {
   const tray = assemblyById(trayId)
   const chain = useMemo(() => chainOf(trayId), [trayId])
@@ -504,6 +520,7 @@ function TrayScene({
         onlyInstance={0}
         diff={diff}
         flowHighlight={flowHighlight}
+        flowPulse={flowPulse}
       />
     </group>
   )
@@ -561,6 +578,8 @@ export default function SceneRoot({
   const storeFocusPath = useFactoryStore((s) => s.focusPath)
   const flowEpisodeIdx = useFactoryStore((s) => s.flow.episodeIdx)
   const flowStepIdx = useFactoryStore((s) => s.flow.stepIdx)
+  const flowPlaying = useFactoryStore((s) => s.flow.playing)
+  const reducedMotion = useFactoryStore((s) => s.reducedMotion)
 
   const generation = systemId ?? storeGeneration
   const level = levelProp ?? storeLevel
@@ -609,11 +628,36 @@ export default function SceneRoot({
     return focus.sceneHighlightIds.length > 0 ? new Set(focus.sceneHighlightIds) : null
   }, [diff, generation, flowEpisodeIdx, flowStepIdx, depth])
 
+  /**
+   * 「本地物理动作」的呼吸脉冲开关（v1.2 F2）。
+   *
+   * ★ `playing` 与 `reducedMotion` 在**这里一处**折进来，而不是让每个 ShapeMesh 自己
+   *   订阅 store：机架级有 ~40 个 ShapeMesh，各挂一份订阅纯属浪费，而且会把
+   *   `GenericShapes` 从「零 store 耦合的纯渲染件」拖下水。
+   *   因果不变：暂停 / 减少动态 ⇒ 这里翻 false ⇒ driver 的 effect 必然重跑并把
+   *   emissiveIntensity 写回 base（frameloop 切回 demand 也冻不住材质）。
+   *
+   * ★ `episodeOf(...)?.steps[...] ?? null`：Vera Rubin / NVL576 没有 episode，
+   *   比较模式右视口也查不到当前步——一律安全退化成 false，不用非空断言。
+   */
+  const currentStep = useMemo(
+    () => episodeOf(generation, flowEpisodeIdx)?.steps[flowStepIdx] ?? null,
+    [generation, flowEpisodeIdx, flowStepIdx],
+  )
+  const flowPulse =
+    diff === null && flowPlaying && !reducedMotion && isLocalPhysicalStep(currentStep)
+
   return (
     <>
       <GroundGrid visible={showGround && anchor.kind === 'cluster'} />
       {anchor.kind === 'cluster' && rootId ? (
-        <ClusterScene layout={layout} rootId={rootId} diff={diff} flowHighlight={flowHighlight} />
+        <ClusterScene
+          layout={layout}
+          rootId={rootId}
+          diff={diff}
+          flowHighlight={flowHighlight}
+          flowPulse={flowPulse}
+        />
       ) : null}
       {anchor.kind === 'rack' ? (
         <RackScene
@@ -622,6 +666,7 @@ export default function SceneRoot({
           depth={depth}
           diff={diff}
           flowHighlight={flowHighlight}
+          flowPulse={flowPulse}
         />
       ) : null}
       {anchor.kind === 'tray' ? (
@@ -632,6 +677,7 @@ export default function SceneRoot({
           depth={depth}
           diff={diff}
           flowHighlight={flowHighlight}
+          flowPulse={flowPulse}
         />
       ) : null}
       {/* 六平面连线 + 推理数据流粒子：挂在 SceneRoot 顶层（不嵌进任何一级子场景的 group），
