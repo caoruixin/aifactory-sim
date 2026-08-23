@@ -25,6 +25,10 @@ import { routeConnections } from '../../src/lib/routing'
 const GB300 = 'sys.gb300-nvl72'
 const VERA_RUBIN = 'sys.vera-rubin-nvl72'
 const NVL576 = 'sys.rubin-ultra-nvl576'
+const LPX = 'sys.groq3-lpx'
+
+/** 四个代际（v1.3 W3）。扫查类用例按它遍历，新增代际会自动被覆盖到。 */
+const ALL_SYSTEMS = [GB300, VERA_RUBIN, NVL576, LPX] as const
 
 /** `PlaneToggles` 的复选框次序 = `PLANE_ORDER`（1 起算，给 `li:nth-child` 用）。 */
 const PLANE_ROW = {
@@ -259,36 +263,11 @@ test('桌面·比较模式（GB300 vs Vera Rubin）：截图 + diff 计数 + sho
 })
 
 // ─────────────────────────── 5：/report ───────────────────────────
-
-test('/report：六节标题 + 产能三态徽章 + 截图 + 不加载 three-vendor', async ({ page }, testInfo) => {
-  onlyOn(testInfo, 'desktop')
-  const requestedUrls: string[] = []
-  page.on('request', (req) => requestedUrls.push(req.url()))
-
-  await page.goto('/report')
-  await expect(page.locator('h2')).toHaveCount(6)
-
-  // 产能卡三态：GB300/Vera Rubin 能出数（估算区间），NVL576（forecast 系统）恒拒绝出数。
-  await expect(page.locator(`[data-capacity-card="${GB300}"]`)).toHaveAttribute(
-    'data-capacity-kind',
-    'estimate',
-  )
-  await expect(page.locator(`[data-capacity-card="${VERA_RUBIN}"]`)).toHaveAttribute(
-    'data-capacity-kind',
-    'estimate',
-  )
-  await expect(page.locator(`[data-capacity-card="${NVL576}"]`)).toHaveAttribute(
-    'data-capacity-kind',
-    'refused',
-  )
-
-  await page.waitForTimeout(200)
-  await expect(page).toHaveScreenshot('report-page.png')
-
-  // 硬规则复核（ReportPage.tsx 顶部注释要求的「构建后 grep 复核」，这里换成运行期网络断言）：
-  // `/report` 全程不应该有任何请求打到 three-vendor chunk。
-  expect(requestedUrls.some((u) => u.includes('three-vendor'))).toBe(false)
-})
+//
+// ⚠️ `/report` 的用例在 v1.3 W3 被**替换**成下面「四系统动态渲染 + 配对段 + LPX 拒绝卡」
+//    那一条（同一张 `report-page.png` 基线）：原用例硬编码三个系统 ID 与「产能三态」，
+//    第四代加进来后既漏检新内容、命名也不再准确。新用例是它的超集
+//    （六节标题 / 产能态 / 截图 / 不加载 three-vendor 四项断言全部保留）。
 
 test('未知路由：给 404 页而不是白屏，且不加载 three-vendor', async ({ page }, testInfo) => {
   onlyOn(testInfo, 'desktop')
@@ -858,4 +837,262 @@ test('桌面·F2 逻辑层徽标：比较模式与 ?gl=off 下都不出现', asy
   await page.click('footer button:has-text("播放")')
   await page.waitForTimeout(400)
   await expect(page.locator('[data-flow-logical-overlay]')).toHaveCount(0)
+})
+
+// ═════════════════════ 30~36：v1.3 W3（Groq 3 LPX 第四系统全链路） ═════════════════════
+
+test('桌面·W3 LPX 机架级 3D 基线 + 平面开关按代际改名（C2C scale-up）', async ({ page }, testInfo) => {
+  onlyOn(testInfo, 'desktop')
+  // 第四代的第一张 WebGL 基线：32 个 1U 托盘、无交换托盘。
+  await gotoAndSettle(page, `/?tour=scene.lpx.rack-anatomy&motion=off`, 700)
+  await expect(page.locator('[data-fallback-2d]')).toHaveCount(0)
+  await expect(page.locator('[data-generation][data-mode]')).toHaveAttribute('data-generation', LPX)
+  const anchor = page.locator('[data-level][data-focus-id]')
+  await expect(anchor).toHaveAttribute('data-level', 'rack')
+  await expect(anchor).toHaveAttribute('data-focus-id', 'asm.lpx.rack')
+
+  // ★ planeLabel：这一代的 `nvlink` 键必须显示成 C2C scale-up——LPX 没有 NVLink。
+  const nvlinkRow = page.locator('[data-plane-toggle="nvlink"]')
+  await expect(nvlinkRow).toContainText('C2C scale-up')
+  await expect(nvlinkRow).not.toContainText('NVLink')
+  await expect(page.locator('[data-plane-toggle="scaleout"]')).toContainText('AFD')
+  // LPX 只有 2 站（对照 GB300 的 10 站），且当前落在第 1 站
+  await expect(page.locator('[data-tour-scene]')).toHaveCount(2)
+  await expect(page.locator('[data-tour-scene-active="1"]')).toHaveCount(1)
+
+  await expect(page).toHaveScreenshot('lpx-rack.png')
+})
+
+test('桌面·W3 平面显示名只在 LPX 改，其余三代仍是 NVLink（helper 没有误伤）', async ({ page }, testInfo) => {
+  onlyOn(testInfo, 'desktop')
+  for (const gen of [GB300, VERA_RUBIN, NVL576]) {
+    await gotoAndSettle(page, `/?gen=${gen}&motion=off`, 300)
+    await expect(page.locator('[data-plane-toggle="nvlink"]'), gen).toContainText('NVLink')
+    await expect(page.locator('[data-plane-toggle="nvlink"]'), gen).not.toContainText('C2C scale-up')
+  }
+  await gotoAndSettle(page, `/?gen=${LPX}&motion=off`, 300)
+  await expect(page.locator('[data-plane-toggle="nvlink"]')).toContainText('C2C scale-up')
+})
+
+test('桌面·W3 LPX 产能拒绝：paired-only 的 reasonCode 文案 + 空的缺数据列表', async ({ page }, testInfo) => {
+  onlyOn(testInfo, 'desktop')
+  await gotoAndSettle(page, `/?gen=${LPX}&motion=off`, 400)
+
+  // 顶栏警示条按 capacityPolicy 出文案（BreadcrumbBar.capacityCaveat）
+  await expect(page.locator('text=仅提供与配对系统联合工作的产能语境')).toHaveCount(1)
+
+  // 产能卡在右栏的「产能粗估」页签下（默认是「部件详情」）
+  await page.click('[data-right-tab="capacity"]')
+  await page.waitForTimeout(200)
+
+  // 产能卡：拒绝出数，且理由是「配对」而不是「缺数据」
+  const card = page.locator(`[data-capacity-card="${LPX}"]`).first()
+  await expect(card).toHaveAttribute('data-capacity-kind', 'refused')
+  await expect(card).toContainText('仅提供配对产能语境，不单独出产能数字')
+  await expect(card).toContainText('配对')
+  // ★ paired-only 是策略性拒绝：missing 恒为空 ⇒ 不得渲染「缺少的官方数据」小节
+  await expect(card).not.toContainText('缺少的官方数据')
+
+  // 对照：NVL576 是另一种拒绝（analyst-modeled），文案必须不同
+  await gotoAndSettle(page, `/?gen=${NVL576}&motion=off`, 400)
+  await page.click('[data-right-tab="capacity"]')
+  await page.waitForTimeout(200)
+  const ruCard = page.locator(`[data-capacity-card="${NVL576}"]`).first()
+  await expect(ruCard).toHaveAttribute('data-capacity-kind', 'refused')
+  await expect(ruCard).toContainText('第三方分析师')
+  await expect(ruCard).not.toContainText('仅提供配对产能语境')
+})
+
+test('桌面·W3 比较模式 VR ↔ LPX：diff 计数 + 配对叙述 + 交换左右两次复原', async ({ page }, testInfo) => {
+  onlyOn(testInfo, 'desktop')
+  await gotoAndSettle(page, `/?gen=${VERA_RUBIN}&mode=compare&right=${LPX}&motion=off`, 900)
+
+  const panel = page.locator('[data-compare-left]')
+  await expect(panel).toHaveAttribute('data-compare-left', VERA_RUBIN)
+  await expect(panel).toHaveAttribute('data-compare-right', LPX)
+
+  // ① DOM diff 计数与纯函数逐位核对（不是拍脑袋数字）
+  const result = compareSystems(VERA_RUBIN, LPX)
+  await expect(page.locator('[data-diff-role]')).toHaveCount(result.rows.length)
+  for (const kind of DIFF_KINDS) {
+    await expect(page.locator(`[data-diff-kind="${kind}"]`)).toHaveCount(result.counts[kind])
+  }
+
+  // ② 内容断言（不只截图）：配对叙述、LPX 独有层、「真的没有」与「未收录 ≠ 没有」的区分
+  await expect(panel).toContainText('配对')
+  await expect(panel).toContainText('AFD')
+  await expect(page.locator('[data-diff-role="lpu-tray"]')).toHaveAttribute('data-diff-kind', 'added')
+  await expect(page.locator('[data-diff-role="fabric-expansion"]')).toHaveAttribute('data-diff-kind', 'added')
+  await expect(page.locator('[data-diff-role="nvswitch-tray"]')).toHaveAttribute('data-diff-kind', 'removed')
+  await expect(page.locator('[data-diff-role="nvswitch-tray"]')).toContainText('真的没有')
+  await expect(page.locator('[data-diff-role="scaleout-nic"]')).toContainText('未收录')
+  // accelerator 行必须警告「72 → 256 没有可比性」
+  await expect(page.locator('[data-diff-role="accelerator"]')).toContainText('没有可比性')
+
+  // ③ 右侧下拉恰好 3 个选项，且不含左侧自己
+  const options = page.locator('[data-compare-right-select] option')
+  await expect(options).toHaveCount(3)
+  expect(await options.evaluateAll((els) => els.map((e) => (e as HTMLOptionElement).value))).not.toContain(
+    VERA_RUBIN,
+  )
+
+  // ④ 交换左右：一次对调、两次复原（旧左必须成为新右）
+  await page.click('[data-compare-swap="1"]')
+  await page.waitForTimeout(500)
+  await expect(page.locator('[data-compare-left]')).toHaveAttribute('data-compare-left', LPX)
+  await expect(page.locator('[data-compare-left]')).toHaveAttribute('data-compare-right', VERA_RUBIN)
+  await page.click('[data-compare-swap="1"]')
+  await page.waitForTimeout(500)
+  await expect(page.locator('[data-compare-left]')).toHaveAttribute('data-compare-left', VERA_RUBIN)
+  await expect(page.locator('[data-compare-left]')).toHaveAttribute('data-compare-right', LPX)
+})
+
+test('/report：四系统动态渲染 + VR↔LPX 配对段 + LPX 拒绝卡（内容断言，不只截图）', async ({
+  page,
+}, testInfo) => {
+  onlyOn(testInfo, 'desktop')
+  const requestedUrls: string[] = []
+  page.on('request', (req) => requestedUrls.push(req.url()))
+
+  await page.goto('/report')
+  await expect(page.locator('h2')).toHaveCount(6)
+
+  // ① 产能卡与系统清单按内容包动态渲染：四个系统一个不少
+  await expect(page.locator('[data-report-capacity] [data-capacity-card]')).toHaveCount(
+    FACTORY_PACK.systems.length,
+  )
+  await expect(page.locator('[data-report-system]')).toHaveCount(FACTORY_PACK.systems.length)
+  for (const s of FACTORY_PACK.systems) {
+    await expect(page.locator(`[data-report-system="${s.id}"]`)).toContainText(s.capacityPolicy)
+  }
+
+  // ② 产能四态：两代出数、NVL576 与 LPX 各自因不同理由拒绝
+  for (const id of [GB300, VERA_RUBIN]) {
+    await expect(page.locator(`[data-capacity-card="${id}"]`)).toHaveAttribute(
+      'data-capacity-kind',
+      'estimate',
+    )
+  }
+  for (const id of [NVL576, LPX]) {
+    await expect(page.locator(`[data-capacity-card="${id}"]`)).toHaveAttribute(
+      'data-capacity-kind',
+      'refused',
+    )
+  }
+
+  // ③ 相邻代际比较链：systems.length - 1 段
+  await expect(page.locator('[data-report-diffs] > div')).toHaveCount(FACTORY_PACK.systems.length - 1)
+
+  // ④ VR ↔ LPX 配对段（内容断言）
+  const pairing = page.locator(`[data-report-pairing="${VERA_RUBIN}|${LPX}"]`)
+  await expect(pairing).toHaveCount(1)
+  await expect(pairing).toContainText('不是「换代」')
+  await expect(pairing).toContainText('attention')
+  await expect(pairing).toContainText('FFN/MoE')
+  await expect(pairing).toContainText('Dynamo')
+
+  // ⑤ LPX 专属拒绝卡：reasonCode 与「不是缺数据」的说明
+  const refusal = page.locator('[data-report-lpx-refusal]')
+  await expect(refusal).toHaveAttribute('data-report-lpx-refusal', 'paired-only-policy')
+  await expect(refusal).toContainText('paired-only')
+  await expect(refusal).toContainText('不是')
+  await expect(refusal).toContainText('0 项')
+
+  await page.waitForTimeout(200)
+  await expect(page).toHaveScreenshot('report-page.png')
+
+  // 硬规则复核：/report 全程不加载 three-vendor
+  expect(requestedUrls.some((u) => u.includes('three-vendor'))).toBe(false)
+})
+
+test('桌面·W3 四系统 × ?gl=off 扫查：三页签都出内容 + 全程不加载 three-vendor', async ({
+  page,
+}, testInfo) => {
+  onlyOn(testInfo, 'desktop')
+  const requestedUrls: string[] = []
+  page.on('request', (req) => requestedUrls.push(req.url()))
+
+  for (const gen of ALL_SYSTEMS) {
+    await gotoAndSettle(page, `/?gen=${gen}&gl=off&motion=off`, 300)
+    await expect(page.locator('main'), gen).toHaveAttribute('data-gl', 'none')
+    await expect(page.locator('[data-fallback-2d]'), gen).toHaveCount(1)
+    await expect(page.locator('[data-generation][data-mode]'), gen).toHaveAttribute('data-generation', gen)
+
+    // ① 结构图（默认页签）：机架立面至少一档（四代都有占 U 位的部件）
+    await expect(page.locator('[data-rack-elevation-row]').first(), `${gen} 结构图`).toBeVisible()
+
+    // ② 组件树
+    await page.click('[data-fallback-2d] [data-tab="tree"]')
+    await page.waitForTimeout(120)
+    await expect(page.locator('[data-component-tree] button').first(), `${gen} 组件树`).toBeVisible()
+
+    // ③ 连接列表：至少一行，且平面名按代际取（LPX 是 C2C scale-up）
+    await page.click('[data-fallback-2d] [data-tab="connections"]')
+    await page.waitForTimeout(120)
+    const rows = page.locator('[data-connection-row]')
+    expect(await rows.count(), `${gen} 连接列表为空`).toBeGreaterThan(0)
+    const nvlinkCell = page.locator('[data-connection-row] [data-plane="nvlink"]').first()
+    if (gen === LPX) {
+      await expect(nvlinkCell).toContainText('C2C scale-up')
+    } else {
+      await expect(nvlinkCell).toContainText('NVLink')
+    }
+  }
+
+  // ★ 四代 × 三页签走完，一次 three-vendor 请求都不该有
+  expect(
+    requestedUrls.filter((u) => u.includes('three-vendor')),
+    '?gl=off 路径加载了 three-vendor',
+  ).toEqual([])
+})
+
+test('移动·W3 四系统切换：根节点/站数跟着换，且窄屏不横向溢出', async ({ page }, testInfo) => {
+  onlyOn(testInfo, 'mobile')
+  await gotoAndSettle(page, '/?motion=off', 500)
+  await expect(page.locator('[data-mobile-view]')).toHaveCount(1)
+
+  for (const gen of ALL_SYSTEMS) {
+    await page.selectOption('[data-mobile-gen-select]', gen)
+    await page.waitForTimeout(600)
+
+    const view = page.locator('[data-mobile-view]')
+    await expect(view, gen).toHaveAttribute('data-generation', gen)
+
+    // ① 根节点跟着换：焦点必须落在该系统自己的装配树里（切代际会重置下钻状态，
+    //    随后移动端自动落到第 1 站，因此焦点是该站的 focusAssemblyId 或系统树根）。
+    const focusId = await view.getAttribute('data-focus-id')
+    const node = FACTORY_PACK.assemblies.find((a) => a.id === focusId)
+    expect(node, `${gen} 的焦点 ${focusId} 不存在`).toBeDefined()
+    expect(node!.systemId, `${gen} 的焦点残留在上一代的树里`).toBe(gen)
+
+    // ② 站数跟着换（与内容包逐位核对）
+    const sceneCount = FACTORY_PACK.scenes.filter((s) => s.systemId === gen).length
+    await expect(page.locator('[data-tour-stop]'), gen).toHaveAttribute(
+      'data-tour-total',
+      String(sceneCount),
+    )
+
+    // ③ 窄屏不横向溢出——第四个代际正是最容易把顶栏撑宽的那一下
+    const overflow = await page.evaluate(() => ({
+      doc: document.documentElement.scrollWidth,
+      win: window.innerWidth,
+    }))
+    expect(overflow.doc, `${gen} 在 390px 下横向溢出（${overflow.doc} > ${overflow.win}）`).toBeLessThanOrEqual(
+      overflow.win,
+    )
+  }
+})
+
+test('移动·W3 导览站在 LPX 下同样可推进（第四代没有掉出移动端主流程）', async ({ page }, testInfo) => {
+  onlyOn(testInfo, 'mobile')
+  await gotoAndSettle(page, `/?gen=${LPX}&motion=off`, 700)
+  await expect(page.locator('[data-mobile-view]')).toHaveAttribute('data-generation', LPX)
+  await expect(page.locator('[data-tour-stop]')).toHaveAttribute('data-tour-total', '2')
+  await expect(page.locator('[data-tour-stop]')).toHaveAttribute('data-tour-stop', '0')
+
+  await page.click('[data-tour-next]')
+  await page.waitForTimeout(400)
+  await expect(page.locator('[data-tour-stop]')).toHaveAttribute('data-tour-stop', '1')
+  // 第 2 站是 AFD 讲解，叙述里必须出现三段流的关键词
+  await expect(page.locator('[data-tour-stop]')).toContainText('AFD')
 })
