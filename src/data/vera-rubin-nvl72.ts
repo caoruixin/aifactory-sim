@@ -105,6 +105,7 @@ export const VERA_RUBIN_SYSTEM: FactorySystem = {
   vendor: 'NVIDIA',
   status: 'announced',
   capacityPolicy: 'standard',
+  architecture: 'nvlink-rack-domain',
   generation: 'vera-rubin',
   referenceUrl: 'https://www.nvidia.com/en-us/data-center/vera-rubin-nvl72/',
   summary:

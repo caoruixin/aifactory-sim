@@ -185,6 +185,17 @@ export type HardwareComponent =
  */
 export type CapacityPolicy = 'standard' | 'analyst-modeled' | 'paired-only'
 
+/**
+ * scale-up 域的架构分型（v1.4 预备提交起）。pack.test 的「核心 roleKey 分型规则」
+ * 按它映射各族必备/禁用 roleKey——之前用 `capacityPolicy !== 'paired-only'` 当判据，
+ * 但产能策略和域架构是两个正交概念（HGX 是 standard 产能却不是机架级 NVLink 域）。
+ * - `nvlink-rack-domain`：NVLink 域跨整机架（GB300 / Vera Rubin / NVL576）；
+ * - `nvlink-node-domain`：NVLink 域止步单服务器，NVSwitch 在基板上（HGX B300）——
+ *   机架级 nvlink 平面刻意为空即教学内容；
+ * - `lpu-direct-fabric`：LPU 直连 fabric，整个架构没有交换层（Groq 3 LPX）。
+ */
+export type SystemArchitecture = 'nvlink-rack-domain' | 'nvlink-node-domain' | 'lpu-direct-fabric'
+
 export interface FactorySystem {
   id: string // sys.*
   name: string
@@ -211,6 +222,8 @@ export interface FactorySystem {
   rackUnitsForLayout: number | null
   /** 产能估算的分支策略，见 `CapacityPolicy`。 */
   capacityPolicy: CapacityPolicy
+  /** scale-up 域架构分型，见 `SystemArchitecture`。与 `capacityPolicy` 正交。 */
+  architecture: SystemArchitecture
 }
 
 // ─────────────────────────── 装配树 ───────────────────────────
@@ -265,6 +278,7 @@ export type ConnectionMedium =
   | 'ac-feed'
   | 'liquid-loop'
   | 'thermal-contact'
+  | 'airflow' // 风冷 cooling 平面（v1.4 HGX 起用；此前八种介质全是液冷/接触语义）
 
 export interface Connection {
   id: string // con.*

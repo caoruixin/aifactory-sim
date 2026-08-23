@@ -313,10 +313,19 @@ describe('证据纪律', () => {
    *   3. 引用了它的**全部**系统都不是 `shipping`——已经量产的一代不该在装配树/规格里
    *      掺分析师或媒体数字（哪怕只是被复用组件间接带进来）。
    */
-  it('★ 非官方源（分析师/业绩会/媒体报道）Claim：证据+状态受限，且不出现在任何 shipping 系统', () => {
+  it('★ 非官方源（分析师/业绩会/媒体报道/内部材料）Claim：证据+状态受限，且不出现在任何 shipping 系统', () => {
+    // v1.4 预备：internal_deck 并入过滤集合——内部材料（如 WAIC deck）此前是纪律缺口，
+    // 只被 flows/narration 纯文案层引用属合法，但一旦进 Claim 就必须受同样约束
+    //（content.test 另有一条更强的锁：WAIC deck 不得出现在任何 Claim.sourceId）。
     const nonOfficial = new Set(
       pack.sources
-        .filter((s) => s.kind === 'analyst_report' || s.kind === 'earnings_call' || s.kind === 'media_report')
+        .filter(
+          (s) =>
+            s.kind === 'analyst_report' ||
+            s.kind === 'earnings_call' ||
+            s.kind === 'media_report' ||
+            s.kind === 'internal_deck',
+        )
         .map((s) => s.id),
     )
     const allowedEvidence = new Set(['analyst_estimate', 'forecast'])
@@ -511,39 +520,58 @@ describe('★ 跨代比较的前提：roleKey 在系统内唯一', () => {
   })
 
   /**
-   * v1.3 W3 重写（原规则要求**每个**系统都有 `compute-tray` + `nvswitch-tray`——
-   * Groq 3 LPX 两个都没有：它的托盘是 `lpu-tray`，而且整个架构里根本不存在交换层）。
+   * v1.4 预备重写（v1.3 W3 版用 `capacityPolicy !== 'paired-only'` 当架构判据——
+   * 产能策略和域架构是两个正交概念：HGX B300 是 standard 产能，却既没有 compute-tray
+   * 也没有 nvswitch-tray，它的 NVLink 域止步单服务器）。
    *
-   * 新规则**按架构分型**，而不是放宽成「随便有几个就行」：
-   *   - 四代共有：facility / rack-row / rack / accelerator / host-cpu
+   * 新规则按 `FactorySystem.architecture` 显式分型：
+   *   - 各代共有：facility / rack-row / rack / accelerator / host-cpu
    *     ——机房、机架列、机架、加速器、主机 CPU 是任何一代都必须有的骨架，
    *       少一个跨代比较就会退化成一堆 added/removed；
-   *   - NVLink 域三代（capacityPolicy !== 'paired-only'）额外强制 compute-tray + nvswitch-tray
+   *   - nvlink-rack-domain（GB300 / Vera Rubin / NVL576）强制 compute-tray + nvswitch-tray
    *     ——「有没有交换托盘」正是这一族的定义特征；
-   *   - LPX（paired-only）额外强制它**自己**的核心角色 lpu-tray + fabric-expansion + nvlink-backplane
+   *   - nvlink-node-domain（HGX B300 起用）强制 gpu-server + hgx-baseboard + nvswitch-asic，
+   *     并禁止 nvswitch-tray / nvlink-backplane——域在服务器里面，机架级 nvlink 平面
+   *     刻意为空即教学内容，交换托盘/背板出现反而是建模错误；
+   *   - lpu-direct-fabric（Groq 3 LPX）强制 lpu-tray + fabric-expansion + nvlink-backplane
    *     ——豁免不等于不检查，否则哪天 LPX 的托盘层被删掉也没人发现。
    */
-  it('核心 roleKey 按架构分型强制：四代共有骨架 + NVLink 域的交换托盘 + LPX 自有角色', () => {
+  it('核心 roleKey 按 architecture 分型强制：共有骨架 + 各族定义特征 + 各族禁用角色', () => {
     const sharedCore = ['facility', 'rack-row', 'rack', 'accelerator', 'host-cpu']
-    /** NVLink 交换域架构（GB300 / Vera Rubin / NVL576）的定义特征。 */
-    const nvlinkDomainCore = ['compute-tray', 'nvswitch-tray']
+    /** NVLink 机架域（GB300 / Vera Rubin / NVL576）的定义特征。 */
+    const rackDomainCore = ['compute-tray', 'nvswitch-tray']
+    /** NVLink 服务器域（HGX）的定义特征：整机服务器、HGX 基板、板载交换 ASIC。 */
+    const nodeDomainCore = ['gpu-server', 'hgx-baseboard', 'nvswitch-asic']
+    /** 服务器域机架里不存在的机架级交换结构。 */
+    const nodeDomainForbidden = ['nvswitch-tray', 'nvlink-backplane']
     /** LPU 直连架构（Groq 3 LPX）的定义特征：托盘、托盘内扩展逻辑、机架内 scale-up 底板。 */
     const lpuFabricCore = ['lpu-tray', 'fabric-expansion', 'nvlink-backplane']
 
     for (const sys of pack.systems) {
       const keys = new Set(pack.assemblies.filter((a) => a.systemId === sys.id).map((a) => a.roleKey))
-      for (const k of sharedCore) expect(keys.has(k), `${sys.id} 缺少四代共有的核心 roleKey ${k}`).toBe(true)
+      for (const k of sharedCore) expect(keys.has(k), `${sys.id} 缺少各代共有的核心 roleKey ${k}`).toBe(true)
 
-      if (sys.capacityPolicy === 'paired-only') {
-        for (const k of lpuFabricCore) {
-          expect(keys.has(k), `${sys.id}（LPU 直连架构）缺少自有核心 roleKey ${k}`).toBe(true)
-        }
-        // 豁免要「说到做到」：LPX 确实不该有 NVLink 交换托盘，写进来反而是建模错误。
-        expect(keys.has('nvswitch-tray'), `${sys.id} 不该有 nvswitch-tray（LPX 架构里没有交换层）`).toBe(false)
-      } else {
-        for (const k of nvlinkDomainCore) {
-          expect(keys.has(k), `${sys.id}（NVLink 域架构）缺少核心 roleKey ${k}`).toBe(true)
-        }
+      switch (sys.architecture) {
+        case 'nvlink-rack-domain':
+          for (const k of rackDomainCore) {
+            expect(keys.has(k), `${sys.id}（NVLink 机架域）缺少核心 roleKey ${k}`).toBe(true)
+          }
+          break
+        case 'nvlink-node-domain':
+          for (const k of nodeDomainCore) {
+            expect(keys.has(k), `${sys.id}（NVLink 服务器域）缺少核心 roleKey ${k}`).toBe(true)
+          }
+          for (const k of nodeDomainForbidden) {
+            expect(keys.has(k), `${sys.id}（NVLink 服务器域）不该有 ${k}——域止步服务器，机架级没有交换托盘/背板`).toBe(false)
+          }
+          break
+        case 'lpu-direct-fabric':
+          for (const k of lpuFabricCore) {
+            expect(keys.has(k), `${sys.id}（LPU 直连架构）缺少自有核心 roleKey ${k}`).toBe(true)
+          }
+          // 豁免要「说到做到」：LPX 确实不该有 NVLink 交换托盘，写进来反而是建模错误。
+          expect(keys.has('nvswitch-tray'), `${sys.id} 不该有 nvswitch-tray（LPX 架构里没有交换层）`).toBe(false)
+          break
       }
     }
   })

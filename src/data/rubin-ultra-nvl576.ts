@@ -153,6 +153,7 @@ export const RUBIN_ULTRA_SYSTEM: FactorySystem = {
   vendor: 'NVIDIA',
   status: 'announced',
   capacityPolicy: 'analyst-modeled',
+  architecture: 'nvlink-rack-domain',
   generation: 'rubin-ultra',
   referenceUrl:
     'https://developer.nvidia.com/blog/nvidia-vera-rubin-pod-seven-chips-five-rack-scale-systems-one-ai-supercomputer/',

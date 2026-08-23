@@ -33,6 +33,7 @@ export const GB300_SYSTEM: FactorySystem = {
   vendor: 'NVIDIA',
   status: 'shipping',
   capacityPolicy: 'standard',
+  architecture: 'nvlink-rack-domain',
   generation: 'blackwell-ultra',
   referenceUrl: 'https://www.nvidia.com/en-us/data-center/gb300-nvl72/',
   summary:

@@ -114,6 +114,7 @@ export const GROQ3_LPX_SYSTEM: FactorySystem = {
   vendor: 'NVIDIA',
   status: 'announced',
   capacityPolicy: 'paired-only',
+  architecture: 'lpu-direct-fabric',
   generation: 'groq3-lpx',
   referenceUrl: 'https://www.nvidia.com/en-us/data-center/lpx/',
   summary:
