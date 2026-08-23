@@ -10,6 +10,8 @@ import {
   orthogonalPath,
   routeConnections,
   sampleAtFraction,
+  stackStubLabels,
+  STUB_LABEL_MIN_GAP,
   truncateAtBox,
   visibleAncestorAt,
 } from './routing'
@@ -288,6 +290,266 @@ describe('出界线三分规则与截断（v1.1 B4）', () => {
         JSON.stringify(clipped),
       )
     })
+  })
+})
+
+describe('rack 深度出界截断（v1.2 F1）', () => {
+  const RACK = 'asm.gb300.rack'
+  const MARGIN = 0.6
+  const plain = routeConnections(SYSTEM_ID, layout, 'rack')
+  const clipped = routeConnections(SYSTEM_ID, layout, 'rack', false, {
+    rootAssemblyId: RACK,
+    margin: MARGIN,
+  })
+  const byId = (rs: typeof clipped, id: string) => rs.find((r) => r.connectionId === id)
+
+  /** 两端都在机架外：与「拆开这一台机架」这一屏毫无关系，却会横穿全屏。 */
+  const OUTSIDE = [
+    'con.gb300.leaf-spine',
+    'con.gb300.converged-storage',
+    'con.gb300.mgmt-node-converged',
+    'con.gb300.mgmt-node-oob',
+    'con.gb300.leaf-oob',
+    'con.gb300.converged-oob',
+    'con.gb300.cdu-facility-water',
+  ] as const
+
+  /** 恰一端在机架内 ⇒ 截断成传送门 stub。 */
+  const CROSSING: Record<string, string> = {
+    'con.gb300.cx8-leaf': 'asm.gb300.scaleout-leaf',
+    'con.gb300.bf3-converged': 'asm.gb300.converged-switch',
+    'con.gb300.inrack-oob-uplink': 'asm.gb300.oob-fabric-switch',
+    'con.gb300.facility-power-shelf': 'asm.gb300.facility-power',
+    'con.gb300.manifold-cdu': 'asm.gb300.cdu',
+  }
+
+  /** 两端都在机架内 ⇒ 完整线，与不截断时逐位相同。 */
+  const INSIDE = [
+    'con.gb300.gpu-nvswitch',
+    'con.gb300.nvswitch-backplane',
+    'con.gb300.tray-backplane',
+    'con.gb300.tray-bmc-mgmt',
+    'con.gb300.nvswitch-tray-mgmt',
+    'con.gb300.bf3-oob',
+    'con.gb300.power-shelf-mgmt',
+    'con.gb300.power-shelf-busbar',
+    'con.gb300.busbar-compute-tray',
+    'con.gb300.busbar-nvswitch-tray',
+    'con.gb300.busbar-mgmt-switch',
+    'con.gb300.tray-cold-plate-manifold',
+    'con.gb300.nvswitch-cold-plate-manifold',
+  ] as const
+
+  it('条数：不截断 25 条（30 条连接减 5 条退化边）→ 截断后 18 条', () => {
+    expect(plain).toHaveLength(25)
+    expect(clipped).toHaveLength(18)
+    expect(OUTSIDE.length + Object.keys(CROSSING).length + INSIDE.length).toBe(25)
+  })
+
+  it('7 条两端都在机架外的线整条消失（逐条点名）', () => {
+    for (const id of OUTSIDE) {
+      expect(byId(plain, id), `${id} 在不截断时应当存在`).toBeDefined()
+      expect(byId(clipped, id), `${id} 两端都在机架外，应当被整条丢弃`).toBeUndefined()
+    }
+  })
+
+  it('5 条跨界线截断成 stub，远端 ID 是被截掉的那一端（逐条点名）', () => {
+    for (const [id, far] of Object.entries(CROSSING)) {
+      const r = byId(clipped, id)
+      expect(r, `${id} 应当保留为 stub`).toBeDefined()
+      expect(r!.stub, `${id}.stub`).not.toBeNull()
+      expect(r!.stub!.farAssemblyId, id).toBe(far)
+    }
+  })
+
+  it('★ bf3-converged 的折叠语义不被截断改写（clipped 后 timeline 端点仍然可用）', () => {
+    // 这条是 ingress/egress 两步唯一的物理链路：from 端在机架内（DPU 折叠成计算托盘），
+    // to 端是机架外的汇聚交换机。截断只该砍几何，不该动 from/to 语义。
+    const r = byId(clipped, 'con.gb300.bf3-converged')!
+    expect(r.fromAssemblyId).toBe('asm.gb300.compute-tray')
+    expect(r.toAssemblyId).toBe('asm.gb300.converged-switch')
+    expect(r.stub!.tip).toEqual(r.points[r.points.length - 1])
+    expect(r.totalLength).toBeLessThan(byId(plain, 'con.gb300.bf3-converged')!.totalLength)
+  })
+
+  it('facility-power-shelf 是唯一 to 端在内的：stub 末端是折线**首**点，方向不翻转', () => {
+    const r = byId(clipped, 'con.gb300.facility-power-shelf')!
+    expect(r.fromAssemblyId).toBe('asm.gb300.facility-power')
+    expect(r.toAssemblyId).toBe('asm.gb300.power-shelf')
+    expect(r.stub!.tip).toEqual(r.points[0])
+  })
+
+  it('13 条机架内的线完全不受影响（stub 为 null 且 points 与不截断时逐位相同）', () => {
+    for (const id of INSIDE) {
+      const cut = byId(clipped, id)
+      expect(cut, `${id} 两端都在机架内，应当保留`).toBeDefined()
+      expect(cut!.stub, `${id} 不该有 stub`).toBeNull()
+      expect(cut!.points, `${id} 的折线不该被动过`).toEqual(byId(plain, id)!.points)
+    }
+  })
+
+  it('截断后六个平面仍然各至少一条线（机架级不会有哪个平面整个空掉）', () => {
+    for (const plane of PLANE_ORDER) {
+      expect(
+        clipped.filter((r) => r.plane === plane).length,
+        `${plane} 平面在机架级截断后应至少有一条线`,
+      ).toBeGreaterThan(0)
+    }
+  })
+
+  it('显式 margin 真的生效（0.3 与 0.6 的 stub 末端不同）', () => {
+    const at03 = routeConnections(SYSTEM_ID, layout, 'rack', false, {
+      rootAssemblyId: RACK,
+      margin: 0.3,
+    })
+    expect(byId(at03, 'con.gb300.cx8-leaf')!.stub!.tip).not.toEqual(
+      byId(clipped, 'con.gb300.cx8-leaf')!.stub!.tip,
+    )
+  })
+
+  it('★ stub 末端落在包围盒**表面上**（而不只是盒内的随便一点）', () => {
+    // ⚠️ 机架 size 必须从 layout 现算：`PLACEMENTS.rack.size` 里的 2.2 会被
+    //    resolveLayout 用 rackHeight(=48×U=2.1336) 覆盖掉，硬编码 1.1 会让这条恒红。
+    const rackSize = layout.get(RACK)!.size
+    const center = ['asm.gb300.facility', 'asm.gb300.row', RACK]
+      .map((id) => layout.get(id)!.slots[0]!)
+      .reduce<Vec3>((acc, p) => [acc[0] + p[0], acc[1] + p[1], acc[2] + p[2]], [0, 0, 0])
+    const limit = [
+      rackSize[0] / 2 + MARGIN,
+      rackSize[1] / 2 + MARGIN,
+      rackSize[2] / 2 + MARGIN,
+    ]
+    for (const r of clipped) {
+      if (!r.stub) continue
+      const d = [
+        Math.abs(r.stub.tip[0] - center[0]),
+        Math.abs(r.stub.tip[1] - center[1]),
+        Math.abs(r.stub.tip[2] - center[2]),
+      ]
+      for (let k = 0; k < 3; k += 1) {
+        expect(d[k]!, `${r.connectionId} 第 ${k} 轴冲出包围盒`).toBeLessThanOrEqual(limit[k]! + 1e-6)
+      }
+      // 「在表面上」= 至少有一个轴恰好顶到边界；只查「盒内」的话，任何一点都能假绿。
+      const onSurface = [0, 1, 2].some((k) => Math.abs(d[k]! - limit[k]!) <= 1e-6)
+      expect(onSurface, `${r.connectionId} 的 tip 不在包围盒表面上：${JSON.stringify(r.stub.tip)}`).toBe(
+        true,
+      )
+    }
+  })
+
+  it('确定性：同输入逐位相同', () => {
+    expect(
+      JSON.stringify(
+        routeConnections(SYSTEM_ID, layout, 'rack', false, { rootAssemblyId: RACK, margin: MARGIN }),
+      ),
+    ).toBe(JSON.stringify(clipped))
+  })
+
+  it('★ board 深度的 stub 集合不被 F1 波及（只该动机架级）', () => {
+    const board = routeConnections(SYSTEM_ID, layout, 'board', true, {
+      rootAssemblyId: 'asm.gb300.compute-tray',
+    })
+    const stubs = board.filter((r) => r.stub)
+    expect(stubs).toHaveLength(8)
+    expect(stubs.map((r) => r.stub!.farAssemblyId).sort()).toEqual(
+      [
+        'asm.gb300.busbar',
+        'asm.gb300.converged-switch',
+        'asm.gb300.inrack-mgmt-switch',
+        'asm.gb300.inrack-mgmt-switch', // tray-bmc-mgmt 与 bf3-oob 同一个远端
+        'asm.gb300.manifold',
+        'asm.gb300.nvlink-backplane',
+        'asm.gb300.nvswitch-asic',
+        'asm.gb300.scaleout-leaf',
+      ].sort(),
+    )
+  })
+})
+
+describe('stackStubLabels（stub 标签防重叠，v1.2 F1）', () => {
+  const gap = STUB_LABEL_MIN_GAP
+
+  it('XZ 重合、竖直方向只差 2 cm 的两个标签被拉开到至少一个间隔', () => {
+    const out = stackStubLabels([
+      { connectionId: 'b', tip: [0, 1.02, 0] },
+      { connectionId: 'a', tip: [0, 1.0, 0] },
+    ])
+    const ya = out.get('a')![1]
+    const yb = out.get('b')![1]
+    expect(Math.abs(ya - yb)).toBeGreaterThanOrEqual(gap - 1e-9)
+    // 最低的那个不动，只把上面的顶开
+    expect(ya).toBe(1.0)
+  })
+
+  it('三个互相冲突的标签依次抬 1 档 / 2 档', () => {
+    const out = stackStubLabels([
+      { connectionId: 'a', tip: [0, 0, 0] },
+      { connectionId: 'b', tip: [0, 0.01, 0] },
+      { connectionId: 'c', tip: [0, 0.02, 0] },
+    ])
+    expect(out.get('a')![1]).toBe(0)
+    expect(out.get('b')![1]).toBeCloseTo(gap, 9)
+    expect(out.get('c')![1]).toBeCloseTo(2 * gap, 9)
+  })
+
+  it('XZ 离得远（> 2×gap）时即使 y 相同也原地不动——不该动的不动', () => {
+    const out = stackStubLabels([
+      { connectionId: 'a', tip: [0, 1, 0] },
+      { connectionId: 'b', tip: [1, 1, 0] },
+    ])
+    expect(out.get('a')).toEqual([0, 1, 0])
+    expect(out.get('b')).toEqual([1, 1, 0])
+  })
+
+  it('X/Z 原样透传，只改 y', () => {
+    const out = stackStubLabels([
+      { connectionId: 'a', tip: [0.3, 1, -0.4] },
+      { connectionId: 'b', tip: [0.3, 1.01, -0.4] },
+    ])
+    expect(out.get('b')![0]).toBe(0.3)
+    expect(out.get('b')![2]).toBe(-0.4)
+  })
+
+  it('确定性：输入顺序打乱，输出逐位相同（内部先排序）', () => {
+    const input = [
+      { connectionId: 'c', tip: [0, 0.02, 0] as Vec3 },
+      { connectionId: 'a', tip: [0, 0, 0] as Vec3 },
+      { connectionId: 'b', tip: [0, 0.01, 0] as Vec3 },
+    ]
+    const a = stackStubLabels(input)
+    const b = stackStubLabels([...input].reverse())
+    expect(JSON.stringify([...a].sort())).toBe(JSON.stringify([...b].sort()))
+  })
+
+  it('y 完全相同时按 connectionId 字典序定序（确定性兜底）', () => {
+    const out = stackStubLabels([
+      { connectionId: 'zz', tip: [0, 1, 0] },
+      { connectionId: 'aa', tip: [0, 1, 0] },
+    ])
+    expect(out.get('aa')![1]).toBe(1)
+    expect(out.get('zz')![1]).toBeCloseTo(1 + gap, 9)
+  })
+
+  it('空数组 → 空 Map，不抛错', () => {
+    expect(stackStubLabels([]).size).toBe(0)
+  })
+
+  it('★ 真实机架级数据：恰好把 cx8-leaf 顶开一档，其余四个不动', () => {
+    // 这是 F1 里唯一真正触发堆叠的地方：cx8-leaf 与 inrack-oob-uplink 从机架 +X 面
+    // 同一处穿出，tip 只差 2.19 cm。
+    const clipped = routeConnections(SYSTEM_ID, layout, 'rack', false, {
+      rootAssemblyId: 'asm.gb300.rack',
+      margin: 0.6,
+    })
+    const stubs = clipped
+      .filter((r) => r.stub)
+      .map((r) => ({ connectionId: r.connectionId, tip: r.stub!.tip }))
+    expect(stubs).toHaveLength(5)
+    const stacked = stackStubLabels(stubs)
+    const moved = stubs
+      .filter((s) => Math.abs(stacked.get(s.connectionId)![1] - s.tip[1]) > 1e-9)
+      .map((s) => s.connectionId)
+    expect(moved).toEqual(['con.gb300.cx8-leaf'])
   })
 })
 

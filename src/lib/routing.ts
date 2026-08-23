@@ -146,6 +146,70 @@ export function truncateAtBox(points: readonly Vec3[], box: Box): Vec3[] {
   return out
 }
 
+// ─────────────────────────── stub 标签防重叠（v1.2 F1） ───────────────────────────
+
+/**
+ * 两个 stub 标签之间的最小间隔（米）。
+ *
+ * 机架级取景约 250 px/m，0.12 m ≈ 30 px，大于标签行高（~18 px），因此抬开一档就够。
+ * 之所以要有这个东西：机架深度下 `cx8-leaf` 与 `inrack-oob-uplink` 的 tip 在小 margin
+ * 时只差 2 cm，两个 `<Html center>` 会完全叠死——「向内偏移」救不了，必须错位。
+ */
+export const STUB_LABEL_MIN_GAP = 0.12
+
+/**
+ * stub 标签的最终世界坐标（冲突时确定性向上抬开）。key = `connectionId`。
+ *
+ * 设计取舍（v1.2 F1）：**冲突触发**而不是「按序号固定槽位」。
+ * 标签的语义是「这条线通向哪」，不是「第 N 号图例」，所以不冲突的标签必须精确贴在
+ * 自己的线端点上；只有真正会叠在一起的那几个才被顶开。副作用也小——托盘/板级本来
+ * 就有 8 个 stub，全局固定槽位会把它们全部挪位、连带打翻板级截图基线。
+ *
+ * 确定性：先按 `(tip.y 升序, connectionId 字典序)` 排序再逐个放置，因此输入顺序不影响
+ * 输出；只向上推 + 升序遍历保证必然终止。
+ */
+export function stackStubLabels(
+  stubs: readonly { connectionId: string; tip: Vec3 }[],
+  minGap = STUB_LABEL_MIN_GAP,
+): Map<string, Vec3> {
+  const sorted = [...stubs].sort((a, b) => {
+    const dy = a.tip[1] - b.tip[1]
+    if (Math.abs(dy) > 1e-9) return dy
+    return a.connectionId < b.connectionId ? -1 : a.connectionId > b.connectionId ? 1 : 0
+  })
+
+  const placed: Vec3[] = []
+  const out = new Map<string, Vec3>()
+  for (const s of sorted) {
+    let y = s.tip[1]
+    // 与「已放置」的标签逐个比：XZ 挨得近 + 竖直方向也挨得近 ⇒ 抬到它上面一档，
+    // 抬完再从头查一遍（可能又碰上另一个）。
+    //
+    // ★ 循环上界写死成 `placed.length + 1` 而不是「无冲突就退出」的 while：
+    //   每一轮至少把 y 抬过一个已放置标签，因此 n 个标签最多 n 轮就无冲突；
+    //   而纯 while 依赖「y 严格递增」，浮点下 `p[1] + minGap <= y` 是可能发生的
+    //   （尤其 y 已经很大时），一旦发生就是死循环——实测踩过。
+    for (let pass = 0; pass <= placed.length; pass += 1) {
+      let moved = false
+      for (const p of placed) {
+        const dxz = Math.hypot(s.tip[0] - p[0], s.tip[2] - p[2])
+        if (dxz < 2 * minGap && Math.abs(y - p[1]) < minGap) {
+          const lifted = p[1] + minGap
+          if (lifted > y) {
+            y = lifted
+            moved = true
+          }
+        }
+      }
+      if (!moved) break
+    }
+    const pos: Vec3 = [s.tip[0], y, s.tip[2]]
+    placed.push(pos)
+    out.set(s.connectionId, pos)
+  }
+  return out
+}
+
 // ─────────────────────────── 向量小工具 ───────────────────────────
 
 function vAdd(a: Vec3, b: Vec3): Vec3 {

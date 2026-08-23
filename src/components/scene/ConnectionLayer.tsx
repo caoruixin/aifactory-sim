@@ -17,10 +17,12 @@
  *   同屏其余线降到 0.35。只改 opacity/linewidth/color，**不翻转 transparent**
  *   （材质本来就常开），因此不涉及着色器重编。当前步骤没有任何物理连接（逻辑层步骤）
  *   时不做退让——否则「网关鉴权」那一步会把整屏的线无缘无故压暗；
- * - **出界线「传送门」**（v1.1 B4）：托盘/板级视图下，通往托盘外部件（业务交换机、
- *   CDU、母排…）的线过去会拖成冲出画面的长斜线，两端都在托盘外的线更是纯噪音。
- *   现在由 `routeConnections` 的 `containment` 做三分：两端在内画全线 / 恰一端在内
- *   截断成 stub + drei `<Html>` 小标签「→ 远端组件名」（可点击选中远端）/ 两端在外丢弃。
+ * - **出界线「传送门」**（v1.1 B4，v1.2 F1 扩到机架级）：托盘/板级/**机架级**视图下，
+ *   通往容器外部件（业务交换机、CDU、母排…）的线过去会拖成冲出画面的长斜线，
+ *   两端都在容器外的线更是纯噪音。现在由 `routeConnections` 的 `containment` 做三分：
+ *   两端在内画全线 / 恰一端在内截断成 stub + drei `<Html>` 小标签「→ 远端组件名」
+ *   （可点击选中远端）/ 两端在外丢弃。多个 stub 的标签靠 `stackStubLabels` 错开，
+ *   否则机架级几个 tip 只差几厘米的标签会完全叠死。
  *
  * ★ **连线是「示意图层」，一律 `depthTest={false}` + `renderOrder=2` 画在几何体之上。**
  *   不这么做的话，**机架内部的连接会完全看不见**：`routing.ts` 的折线总线高度是
@@ -37,9 +39,9 @@ import { invalidate } from '@react-three/fiber'
 import { useEffect, useMemo } from 'react'
 import { assemblyById, episodeOf } from '../../data'
 import type { LodLevel, NetworkPlane } from '../../data/types'
-import type { ResolvedLayout } from '../../lib/layout'
+import type { ResolvedLayout, Vec3 } from '../../lib/layout'
 import { FLOW_EMPHASIS, planeColor } from '../../lib/palette'
-import { routeConnections } from '../../lib/routing'
+import { routeConnections, stackStubLabels } from '../../lib/routing'
 import type { ContainmentOptions, RoutedConnection } from '../../lib/routing'
 import { useFactoryStore } from '../../store'
 
@@ -51,7 +53,7 @@ export interface ConnectionLayerProps {
   planeFilter?: readonly NetworkPlane[]
   /** board 级拆解视图：路由必须走 explode 后的坐标，否则线与拆开的器件脱节。 */
   exploded?: boolean
-  /** 托盘/板级：出界线三分规则的容器（scene anchor 的托盘装配）。 */
+  /** 机架/托盘/板级：出界线三分规则的容器（scene anchor 实际渲染出来的子树根）。 */
   containment?: ContainmentOptions | null
   /** 比较模式不挂 `<Html>` 标签：两个 `<View>` 共用一个事件层，DOM 覆盖层只会添乱。 */
   showStubLabels?: boolean
@@ -71,10 +73,12 @@ export default function ConnectionLayer({
   const reducedMotion = useFactoryStore((s) => s.reducedMotion)
   const select = useFactoryStore((s) => s.select)
 
-  const containRoot = containment?.rootAssemblyId ?? null
+  // containment 由调用方 memo 化（`SceneRoot` 已 useMemo），这里**整对象透传 + 整对象入依赖**：
+  // 拆成 rootAssemblyId 再重建 `{rootAssemblyId}` 会在新增字段（如 margin）时静默丢数据——
+  // v1.2 F1 的机架级 margin 就是这么被吞掉的。
   const routes = useMemo(
-    () => routeConnections(systemId, layout, depth, exploded, containRoot ? { rootAssemblyId: containRoot } : null),
-    [systemId, layout, depth, exploded, containRoot],
+    () => routeConnections(systemId, layout, depth, exploded, containment),
+    [systemId, layout, depth, exploded, containment],
   )
 
   // 当前步骤的高亮只对**该系统自己的**剧本有意义：换代际后 GB300 的连接 ID
@@ -107,10 +111,32 @@ export default function ConnectionLayer({
     return map
   }, [routes, planeFilter])
 
+  /**
+   * stub 标签防重叠（v1.2 F1）：把**当前真的会画出来**的 stub（平面开关打开 + 未被
+   * planeFilter 挡掉 + 允许挂标签）收齐，一次性算出错开后的位置。
+   *
+   * ★ 跨平面统一算：重叠是屏幕上的事，不分平面——机架级 `cx8-leaf`（scaleout）与
+   *   `inrack-oob-uplink`（mgmt）的 tip 就只差几厘米。
+   * ★ 位置随「哪些平面打开」变化是**预期行为**：只对当前这一屏负责，且对同一组输入
+   *   逐位确定（`stackStubLabels` 内部先排序）。
+   */
+  const stubLabelPositions = useMemo(() => {
+    if (!showStubLabels) return new Map<string, Vec3>()
+    const allowed = planeFilter ? new Set(planeFilter) : null
+    const visible: { connectionId: string; tip: Vec3 }[] = []
+    for (const r of routes) {
+      if (!r.stub) continue
+      if (allowed && !allowed.has(r.plane)) continue
+      if (!planes[r.plane]) continue
+      visible.push({ connectionId: r.connectionId, tip: r.stub.tip })
+    }
+    return stackStubLabels(visible)
+  }, [routes, planeFilter, planes, showStubLabels])
+
   // demand 帧循环下，store 驱动的重渲染（平面开关、步骤切换）不会自动触发 WebGL 重绘。
   useEffect(() => {
     invalidate()
-  }, [planes, byPlane, activeConnectionIds, emphasize])
+  }, [planes, byPlane, activeConnectionIds, emphasize, stubLabelPositions])
 
   return (
     <group name="connection-layer">
@@ -144,7 +170,7 @@ export default function ConnectionLayer({
                   r.stub ? (
                     <StubLabel
                       key={`stub-${r.connectionId}`}
-                      position={r.stub.tip}
+                      position={stubLabelPositions.get(r.connectionId) ?? r.stub.tip}
                       assemblyId={r.stub.farAssemblyId}
                       color={lineColor}
                       onSelect={select}
@@ -160,8 +186,11 @@ export default function ConnectionLayer({
 }
 
 /**
- * 出界线末端的「传送门」标签：告诉人这条线通向托盘外的什么部件，点一下就能选中它
- * （相机不动——这一屏看的是托盘内部，不该被一个标签拽走）。
+ * 出界线末端的「传送门」标签：告诉人这条线通向当前容器外的什么部件，点一下就能选中它
+ * （相机不动——这一屏看的是容器内部，不该被一个标签拽走）。
+ *
+ * `position` 由 `stackStubLabels` 给出，可能比线端点略高一点（防重叠），因此它不总是
+ * 精确压在 `stub.tip` 上——冲突时抬 0.12 m/档，实测最多抬 1~2 档。
  */
 function StubLabel({
   position,
@@ -180,7 +209,7 @@ function StubLabel({
       <button
         type="button"
         data-stub-label={assemblyId}
-        title={`通往托盘外：${label}（点击选中）`}
+        title={`通往视图外：${label}（点击选中）`}
         onClick={(e) => {
           e.stopPropagation()
           onSelect(assemblyId)

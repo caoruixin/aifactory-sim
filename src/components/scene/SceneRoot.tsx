@@ -29,6 +29,7 @@ import { flowStepFocus } from '../../lib/flowTimeline'
 import { layoutOf, worldPositionOf } from '../../lib/layout'
 import type { ResolvedLayout } from '../../lib/layout'
 import { HIGHLIGHT, SURFACE, color as paletteColor, palette } from '../../lib/palette'
+import type { ContainmentOptions } from '../../lib/routing'
 import { useFactoryStore } from '../../store'
 import ConnectionLayer from './ConnectionLayer'
 import FlowLayer from './FlowLayer'
@@ -55,6 +56,31 @@ const RENDER_DEPTH: Record<LodLevel, LodLevel> = {
   tray: 'board',
   board: 'board',
 }
+
+/**
+ * 机架级出界线的截断余量（米）——**决策门实测定值，不要随手改小**。
+ *
+ * 机架包围盒是 0.6 × 2.1336 × 1.2（半边长 `[0.3, 1.0668, 0.6]`），margin 直接决定
+ * 5 个「传送门」标签离机架多远。1440×900 桌面全平面实测（headless，逐对量 DOM bbox）：
+ *
+ *   margin | 标签全在画布内 | 逐对重叠
+ *   0.60   | 5/5           | **无**
+ *   0.45   | 5/5           | scaleout-leaf × oob-fabric-switch 3 px²
+ *   0.35   | 5/5           | 同上 22 px²
+ *   0.30   | 5/5           | 同上 32 px²
+ *
+ * 根因：`cx8-leaf` 与 `inrack-oob-uplink` 的 tip 是同一个 XZ、y 只差 2.19 cm
+ * （两条线都从机架 +X 面同一处穿出），`stackStubLabels` 把上面那个抬 0.098 m 之后，
+ * 屏幕上能不能拉开取决于这段世界距离投影出多少像素——margin 越小，标签离相机越远、
+ * 投影越密，0.45 以下就重新叠上了。所以取**候选里最大的 0.6**（也是唯一满足「逐对不
+ * 相交」的一档）。目视复核：0.6 时传送门贴在机架轮廓外一点点、引线清晰可辨，不是飘在
+ * 半空；移动端 390×844 的机架导览站只有 1 个标签（nvlink 全在架内），完全不拥挤，
+ * 因此**不需要**给 StubLabel 加移动端隐藏的 CSS。
+ *
+ * ⚠️ 数值上它与 `routing.ts` 的 `DEFAULT_STUB_MARGIN` 恰好相同，但这里**显式传**：
+ *    只有显式传 + ConnectionLayer/FlowLayer 整对象透传 containment，改这个常量才真的生效。
+ */
+const RACK_STUB_MARGIN = 0.6
 
 /** 从根到该节点的 ID 链（复用 data 层的 ancestorsOf，不重写树遍历）。 */
 function chainOf(assemblyId: string): string[] {
@@ -556,13 +582,21 @@ export default function SceneRoot({
   const exploded = anchor.kind === 'tray' ? anchor.exploded : false
 
   /**
-   * 出界线三分规则的容器 = **实际渲染出来的子树根**（托盘），不是 focus 本身：
-   * board 深度下 focus 可能是某颗 GPU，但屏幕上画的是它所在的整个托盘。
+   * 出界线三分规则的容器 = **实际渲染出来的子树根**，不是 focus 本身：
+   * board 深度下 focus 可能是某颗 GPU，但屏幕上画的是它所在的整个托盘；
+   * rack 深度下屏幕上画的是焦点机架那一整棵子树（`RackScene` 的 `onlyInstance={0}`），
+   * 因此 routing 用的也是机架 instance 0 的世界坐标，两边同源。
+   *
+   * v1.2 F1 补上 rack 分支：机架级过去只对 tray 生效，于是 `bf3-converged`（远端汇聚
+   * 交换机中心 z=-4.4，正交路由总长 ~9.15 m）这类线的粒子「走着走着就飞出画面」，
+   * 而 7 条两端都在机架外的线纯属噪音。cluster 仍然是 null——机房总览本来就该看见全部干线。
    */
-  const containment = useMemo(
-    () => (anchor.kind === 'tray' ? { rootAssemblyId: anchor.trayAssemblyId } : null),
-    [anchor],
-  )
+  const containment = useMemo<ContainmentOptions | null>(() => {
+    if (anchor.kind === 'tray') return { rootAssemblyId: anchor.trayAssemblyId }
+    if (anchor.kind === 'rack')
+      return { rootAssemblyId: anchor.rackAssemblyId, margin: RACK_STUB_MARGIN }
+    return null
+  }, [anchor])
 
   /**
    * 数据流当前步骤参与的硬件（折叠到当前深度）。派生值现算不入 store——

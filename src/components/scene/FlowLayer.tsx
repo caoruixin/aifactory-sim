@@ -50,7 +50,7 @@ export interface FlowLayerProps {
   depth: LodLevel
   /** board 级拆解视图：粒子/beacon 必须落在 explode 后的坐标上（v1.1 B4）。 */
   exploded?: boolean
-  /** 托盘/板级：与 `ConnectionLayer` 用同一套出界线三分规则，粒子不跑出画面。 */
+  /** 机架/托盘/板级：与 `ConnectionLayer` 用同一套出界线三分规则，粒子不跑出画面。 */
   containment?: ContainmentOptions | null
 }
 
@@ -72,14 +72,13 @@ export default function FlowLayer({
   // （FlowBar 会在 DOM 侧解释「该代际暂无剧本」）。
   const episode = episodeOf(systemId, episodeIdx)
 
-  const containRoot = containment?.rootAssemblyId ?? null
+  // 与 ConnectionLayer 同一条规则：containment **整对象透传 + 整对象入依赖**，
+  // 拆字段再重建会静默丢掉 margin（粒子与线必须用同一个包围盒，否则粒子会跑到线外面去）。
   const segments = useMemo<TimelineSegment[]>(() => {
     if (!episode) return []
-    const routes = indexRoutesById(
-      routeConnections(systemId, layout, depth, exploded, containRoot ? { rootAssemblyId: containRoot } : null),
-    )
+    const routes = indexRoutesById(routeConnections(systemId, layout, depth, exploded, containment))
     return buildTimeline(episode, routes)
-  }, [episode, systemId, layout, depth, exploded, containRoot])
+  }, [episode, systemId, layout, depth, exploded, containment])
 
   // 步骤被改变（无论是本组件自己跨段，还是 FlowBar 的上一步/下一步/点击跳转）都要
   // 从段内进度 0 重新起步，否则「点下一步」会从上一段进行到一半的进度接着播。
