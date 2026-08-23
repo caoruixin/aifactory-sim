@@ -94,6 +94,54 @@ describe('集群视图的 nvlink 平面（B4 交接问题③ 回归覆盖）', (
   })
 })
 
+describe('机架扇出 instancePaths（v1.1 A2）', () => {
+  const clusterRoutes = routeConnections(SYSTEM_ID, layout, 'cluster')
+  // 集群深度下 CX-8 网卡收缩成机架 ⇒ 这条 scale-out 边的一端就是 8 台机架
+  const cx8Leaf = clusterRoutes.find((r) => r.connectionId === 'con.gb300.cx8-leaf')!
+
+  it('端点折叠到 count=8 的机架节点时，恰好产出 8 条几何路径', () => {
+    expect(cx8Leaf).toBeDefined()
+    expect(cx8Leaf.fromAssemblyId).toBe('asm.gb300.rack')
+    expect(cx8Leaf.instancePaths).toHaveLength(8)
+  })
+
+  it('8 条路径的起点两两不同（真的分别落在 8 台机架上，而不是复制 8 份）', () => {
+    const starts = new Set(cx8Leaf.instancePaths.map((p) => JSON.stringify(p.points[0])))
+    expect(starts.size).toBe(8)
+  })
+
+  it('主路径（points/lengths/totalLength）恒等于 instancePaths[0]，即旧行为', () => {
+    for (const r of clusterRoutes) {
+      const main = r.instancePaths[0]!
+      expect(r.points).toEqual(main.points)
+      expect(r.lengths).toEqual(main.lengths)
+      expect(r.totalLength).toBe(main.totalLength)
+    }
+  })
+
+  it('★ 扇出不改变路由条数：每条内容连接仍然只有一条 RoutedConnection', () => {
+    const ids = clusterRoutes.map((r) => r.connectionId)
+    expect(new Set(ids).size).toBe(ids.length)
+  })
+
+  it('mgmt-node（count=12）不扇出——只有 roleKey==="rack" 参与扇出', () => {
+    const mgmtOob = clusterRoutes.find((r) => r.connectionId === 'con.gb300.mgmt-node-oob')!
+    expect(mgmtOob.fromAssemblyId).toBe('asm.gb300.mgmt-node')
+    expect(mgmtOob.instancePaths).toHaveLength(1)
+  })
+
+  it('rack 深度下不扇出（机架内视角只画焦点机架）', () => {
+    for (const r of routeConnections(SYSTEM_ID, layout, 'rack')) {
+      expect(r.instancePaths, r.connectionId).toHaveLength(1)
+    }
+  })
+
+  it('确定性：同输入逐位相同（含 instancePaths）', () => {
+    const again = routeConnections(SYSTEM_ID, layout, 'cluster')
+    expect(JSON.stringify(again)).toBe(JSON.stringify(clusterRoutes))
+  })
+})
+
 describe('折线连续性', () => {
   const routes = routeConnections(SYSTEM_ID, layout, 'rack')
 

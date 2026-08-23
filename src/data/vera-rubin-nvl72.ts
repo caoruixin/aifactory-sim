@@ -856,6 +856,21 @@ export const VERA_RUBIN_ASSEMBLIES: AssemblyNode[] = [
     note: '官方明确 Vera Rubin 机架为 45°C 液冷，一次侧水温要求见 CDU 选型。',
   },
   {
+    // v1.1 A3：与 GB300 同构——机房配电需要一个真实存在的盒子，
+    // `con.rubin.facility-power-shelf` 才不会从装配树根（从不渲染）长出来。
+    id: 'asm.rubin.facility-power',
+    systemId: SYSTEM_ID,
+    parentId: 'asm.rubin.facility',
+    componentId: 'cmp.shared.facility-power',
+    roleKey: 'facility-power',
+    label: '机房配电（列头柜 / 母线）',
+    count: 1,
+    countClaim: null,
+    lodLevel: 'cluster',
+    rackU: null,
+    note: 'NVIDIA 未公布 Vera Rubin 的机房侧配电要求，数量与形态为示意。',
+  },
+  {
     id: 'asm.rubin.cdu',
     systemId: SYSTEM_ID,
     parentId: 'asm.rubin.facility',
@@ -1457,7 +1472,7 @@ export const VERA_RUBIN_CONNECTIONS: Connection[] = [
   {
     id: 'con.rubin.facility-power-shelf',
     systemId: SYSTEM_ID,
-    fromAssemblyId: 'asm.rubin.facility',
+    fromAssemblyId: 'asm.rubin.facility-power',
     toAssemblyId: 'asm.rubin.power-shelf',
     plane: 'power',
     topology: 'bus',

@@ -13,6 +13,8 @@
  * 3. 一条「升高 → 沿 X → 沿 Z → 落下」的正交折线；六个平面各占一层独立的总线高度
  *    （按 `PLANE_ORDER` 序号分层），因此即使两条不同平面的连接端点重合，折线也不会重叠。
  * 4. 累计弧长 LUT，供 `flowTimeline.ts` 与 `FlowLayer` 沿路径采样粒子位置。
+ * 5. 机架扇出（v1.1 A2）：集群深度下折叠到「机架」节点的端点会为**每台机架**各出一条
+ *    几何路径（`instancePaths`），但仍然只算**一条** `RoutedConnection`——见该字段注释。
  *
  * ★ 两端折叠到同一可见节点的连接（例如集群视图下 GPU↔NVSwitch 都收缩成同一个「机架」
  *   盒子）视为退化边，直接跳过——画一条长度为零的线没有意义。
@@ -21,25 +23,41 @@
  *   决定；本文件只负责「给定深度，这条连接的两端点世界坐标在哪、折线怎么走」。
  */
 
-import { ancestorsOf, FACTORY_PACK } from '../data'
+import { ancestorsOf, assemblyById, FACTORY_PACK } from '../data'
 import type { NetworkPlane, LodLevel } from '../data/types'
 import { levelIndex } from './drill'
 import { worldPositionOf } from './layout'
 import type { ResolvedLayout, Vec3 } from './layout'
 import { PLANE_ORDER } from './palette'
 
-export interface RoutedConnection {
-  connectionId: string
-  plane: NetworkPlane
-  /** 折线两端实际依附的装配节点 ID（可能是 `Connection` 原始端点的可见祖先，而非其本身）。 */
-  fromAssemblyId: string
-  toAssemblyId: string
+/** 一条几何折线 + 它的弧长 LUT。`RoutedConnection` 的主路径与各机架实例路径共用这个形状。 */
+export interface Path {
   /** 世界坐标折线顶点，长度 ≥ 2，相邻两点即一段。 */
   points: Vec3[]
   /** 累计弧长 LUT：与 `points` 等长，`lengths[0] = 0`，非递减。 */
   lengths: number[]
   /** 折线总长度 = `lengths` 最后一项。 */
   totalLength: number
+}
+
+export interface RoutedConnection extends Path {
+  connectionId: string
+  plane: NetworkPlane
+  /** 折线两端实际依附的装配节点 ID（可能是 `Connection` 原始端点的可见祖先，而非其本身）。 */
+  fromAssemblyId: string
+  toAssemblyId: string
+  /**
+   * 机架扇出：端点折叠到 `count > 1` 的机架节点时，**每台机架一条几何路径**。
+   *
+   * ★ 刻意不拆成多条 `RoutedConnection`：`connectionId` 必须与内容包里的连接一一对应，
+   *   否则 `indexRoutesById` 建的索引会被 `#i` 后缀击穿（`flowTimeline` 按连接 ID 查不到
+   *   路径），`routing.test.ts` 里「NVL576 cluster 深度恰一条 nvlink 路由」这类按条数
+   *   锁定的断言也会被打破。所以「一条连接 = 一条路由」不变，只是它带了一组几何路径。
+   *
+   * `instancePaths[0]` 恒等于本对象自身的 `points/lengths/totalLength`（主路径，
+   * 数据流粒子沿它跑）；不扇出时长度为 1。
+   */
+  instancePaths: Path[]
 }
 
 // ─────────────────────────── 向量小工具 ───────────────────────────
@@ -173,11 +191,27 @@ export function sampleAtFraction(points: Vec3[], lengths: number[], fraction: nu
 // ─────────────────────────── 主入口 ───────────────────────────
 
 /**
+ * 该端点在给定深度下要扇出几条几何路径。
+ *
+ * 只有**集群深度 + 折叠到 `roleKey === 'rack'` 的多实例节点**才扇出：8 台机架在
+ * `layout.slots` 里是同一个装配节点的 8 个实例，只连第 0 台会让画面变成「只有排头
+ * 那台机架接了线」。其余多实例节点（如 12 台管理节点）不扇出——12 条线糊成一片，
+ * 反而读不出「控制面是一组节点」这件事（计划已决事项）。
+ */
+function fanOutCount(assemblyId: string, depth: LodLevel): number {
+  if (depth !== 'cluster') return 1
+  const node = assemblyById(assemblyId)
+  if (!node || node.roleKey !== 'rack') return 1
+  return Math.max(node.count, 1)
+}
+
+/**
  * 给定系统 + 摆位 + 渲染深度，算出全部「两端可见且不退化」连接的折线路由。
  * 不做平面开关/展示策略过滤——那是 `ConnectionLayer` 的职责，这里只管几何。
  *
- * @param exploded 是否使用 board 级 explode 后的坐标（`layout.ts` 的 `explodedSlots`）；
- *   B3 的六平面连线以 rack/cluster 尺度为主，默认 `false`，board 级拆解视图暂不参与连线。
+ * @param exploded 是否使用 board 级 explode 后的坐标（`layout.ts` 的 `explodedSlots`）。
+ *   board 级硬件确实是按 explode 偏移渲染的，因此下钻到拆解视图时必须传 `true`，
+ *   否则线会落在收拢坐标上、与拆开的器件明显脱节（v1.1 B4 修复）。
  */
 export function routeConnections(
   systemId: string,
@@ -199,22 +233,32 @@ export function routeConnections(
     const toItem = layout.get(toId)
     if (!fromItem || !toItem) continue
 
-    const fromCenter = worldPositionOf(layout, fromChain, 0, exploded)
-    const toCenter = worldPositionOf(layout, toChain, 0, exploded)
-    const start = portAnchor(fromCenter, fromItem.size, c.plane)
-    const end = portAnchor(toCenter, toItem.size, c.plane)
+    const fromFan = fanOutCount(fromId, depth)
+    const toFan = fanOutCount(toId, depth)
+    const instances = Math.max(fromFan, toFan)
 
-    const points = orthogonalPath(start, end, c.plane)
-    const { lengths, total } = arcLengthLUT(points)
+    const instancePaths: Path[] = []
+    for (let i = 0; i < instances; i += 1) {
+      const fromCenter = worldPositionOf(layout, fromChain, fromFan > 1 ? i : 0, exploded)
+      const toCenter = worldPositionOf(layout, toChain, toFan > 1 ? i : 0, exploded)
+      const start = portAnchor(fromCenter, fromItem.size, c.plane)
+      const end = portAnchor(toCenter, toItem.size, c.plane)
+      const points = orthogonalPath(start, end, c.plane)
+      const { lengths, total } = arcLengthLUT(points)
+      instancePaths.push({ points, lengths, totalLength: total })
+    }
+    // instances ≥ 1 恒成立（fanOutCount 至少返回 1），主路径即第 0 条
+    const main = instancePaths[0]!
 
     out.push({
       connectionId: c.id,
       plane: c.plane,
       fromAssemblyId: fromId,
       toAssemblyId: toId,
-      points,
-      lengths,
-      totalLength: total,
+      points: main.points,
+      lengths: main.lengths,
+      totalLength: main.totalLength,
+      instancePaths,
     })
   }
   return out

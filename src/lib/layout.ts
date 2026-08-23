@@ -137,10 +137,14 @@ const PLACEMENTS: Record<string, Placement> = {
   cdu: { size: [0.9, 2.0, 1.2], slots: () => [[-5.4, 1.0, 0]] },
   'facility-water-loop': { size: [0.34, 0.34, 13], slots: () => [[-7.0, 0.35, 0]] },
   'external-storage': { size: [1.3, 2.0, 1.1], slots: () => [[5.4, 1.0, 0]] },
-  // 交换层与管理节点堆成两个「网络机柜」立在机架列后方：
-  // 逐层贴着叠放（而不是悬空分散），才读得出「这是一柜设备」而非漂浮的方块。
-  'scaleout-spine': { size: [0.62, 0.32, 0.9], slots: () => [[0, 1.09, -4.4]] },
-  'scaleout-leaf': { size: [0.62, 0.32, 0.9], slots: () => [[0, 0.72, -4.4]] },
+  // 机房配电：列头柜立在机架列的 +X 端头（母线沿列走向，因此盒子在 Z 上拉长），
+  // 与 -X 端的 CDU/水路形成「一边电、一边水」的对称读法。
+  // 不与 external-storage（x=5.4，半宽 0.65 ⇒ 4.75~6.05）重叠。
+  'facility-power': { size: [0.7, 2.1, 2.6], slots: () => [[3.95, 1.05, 0]] },
+  // 交换层与管理节点立在机架列后方。三层刻意拉开到 0.6 m 间距（原来 0.37 m，
+  // 盒高就有 0.32 m，两盒几乎贴叠 —— leaf↔spine 那条线夹在缝里读不出来）。
+  'scaleout-spine': { size: [0.62, 0.32, 0.9], slots: () => [[0, 1.55, -4.4]] },
+  'scaleout-leaf': { size: [0.62, 0.32, 0.9], slots: () => [[0, 0.95, -4.4]] },
   'converged-switch': { size: [0.62, 0.32, 0.9], slots: () => [[0, 0.35, -4.4]] },
   'oob-mgmt-switch': { size: [0.62, 0.2, 0.9], slots: () => [[2.4, 0.1, -4.4]] },
   'control-plane-node': {

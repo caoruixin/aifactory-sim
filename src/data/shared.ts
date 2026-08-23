@@ -97,6 +97,39 @@ export const SHARED_COMPONENTS: HardwareComponent[] = [
     },
   },
   {
+    id: 'cmp.shared.facility-power',
+    kind: 'power',
+    name: '机房配电（列头柜 / 配电母线）',
+    vendor: '数据中心侧',
+    status: 'shipping',
+    summary:
+      '机架列端头的配电柜与沿列走向的配电母线：把机房交流市电分配到每一台机架的电源架，再由电源架整流上机架内的直流母排。',
+    presalesNote:
+      '「市电 → 列头柜/母线槽 → 机架电源架 → 机架直流母排 → 托盘」这条链路要在方案里一路讲通，客户才知道 142 kW 的机架不是插两根电源线就能上。列头柜的开关容量、母线槽的额定电流和上游变压器/UPS 的余量，是机房侧最先卡住扩容的三个点——NVIDIA 参考架构不管这一段，它归客户的机电顾问。',
+    visual: { shape: 'busbar', colorToken: 'plane-power' },
+    imageUrl: null,
+    sourceIds: [RA_SOURCE],
+    specs: {
+      // ⚠️ 参考架构只写到「机架侧」的供电（电源架/母排），机房配电设备的任何参数
+      //    都不在文档范围内 —— 因此这里全部 value: null，不拿行业经验值充数。
+      distributionVoltageV: notPublished(
+        'V',
+        RA_SOURCE,
+        '参考架构只描述机架侧供电（8 个 33 kW 电源架 + 直流母排），未涉及机房配电电压等级；取决于当地电网与客户机电设计。',
+      ),
+      buswayRatedCurrentA: notPublished(
+        'A',
+        RA_SOURCE,
+        '参考架构未公布母线槽/列头柜额定电流，需按每列机架数 × 单机架功率由机电顾问核算。',
+      ),
+      redundancy: notPublished(
+        null,
+        RA_SOURCE,
+        '参考架构未规定机房配电的冗余等级（N / N+1 / 2N），属客户可用性设计范畴。',
+      ),
+    },
+  },
+  {
     id: 'cmp.shared.cdu',
     kind: 'cooling',
     name: 'CDU 冷量分配单元',

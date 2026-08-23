@@ -4,10 +4,14 @@
  * - 折线路由来自 `lib/routing.ts`（纯几何查表，随 `depth` 变化重新计算，开销很小）；
  * - 平面开关的挂载/卸载由 React 自然处理（`planes` 是 store 的响应式订阅）；
  *   demand 帧循环下 React 重渲染不等于 WebGL 重绘，因此还需要显式 `invalidate()`；
- * - **集群级只画 scale-out**：cluster 视图下没有挂机架内部的任何网格，nvlink/power/
- *   cooling/mgmt/business 这些平面的端点要么收缩成同一个「机架」盒子（被 `routing.ts`
- *   当退化边过滤掉），要么会画出「机房→机架」这种在集群尺度没有教学意义的粗线——
- *   因此这里显式收窄，只保留天然适合鸟瞰的 scale-out 主干（rack↔leaf↔spine）；
+ * - **不按层级越权收窄平面**（v1.1 A1）：这里曾经在 cluster 深度硬过滤成「只画
+ *   scale-out + nvlink」。实测后果是机房设备看起来互不相连——数据包里 10 条完全
+ *   合法的机房级连接（manifold↔CDU、CDU↔一次侧水路、DPU→业务交换机→存储、
+ *   带外管理上联、配电→电源架…）即使把开关打开也一条都不画。机架**内部**的边在
+ *   这一级本来就会被 `routing.ts` 当退化边滤掉，所以「集群视图不该有一堆机架内细线」
+ *   这件事根本不需要渲染层再管一次。现在的规则只有一条：**非退化 + 平面开关打开就画**，
+ *   默认视觉秩序交给导览场景 preset（`scene.gb300.cluster-overview` 已收窄为
+ *   scaleout/power/cooling）与用户自己的开关；
  * - 当前 `FlowStep` 引用的连接会加粗、提高不透明度，配合 `FlowBar` 播放/`reducedMotion`
  *   静态高亮（同一条连接不需要 `FlowLayer` 另画一遍，颜色即所在平面色）。
  *
@@ -58,21 +62,16 @@ export default function ConnectionLayer({ systemId, layout, depth, planeFilter }
   }, [systemId, flow.episodeIdx, flow.stepIdx])
 
   const byPlane = useMemo(() => {
-    const clusterView = depth === 'cluster'
     const allowed = planeFilter ? new Set(planeFilter) : null
     const map = new Map<NetworkPlane, RoutedConnection[]>()
     for (const r of routes) {
       if (allowed && !allowed.has(r.plane)) continue
-      // 集群级只保留天然适合鸟瞰的两个平面：scale-out 主干，以及**跨机架**的 scale-up
-      // （NVL576 的机架间光互连就属于后者）。机架内的 nvlink 边在这一级两端会收缩到
-      // 同一个机架盒子，已被 routing.ts 当退化边滤掉，因此不会有多余的线。
-      if (clusterView && r.plane !== 'scaleout' && r.plane !== 'nvlink') continue
       const list = map.get(r.plane)
       if (list) list.push(r)
       else map.set(r.plane, [r])
     }
     return map
-  }, [routes, depth, planeFilter])
+  }, [routes, planeFilter])
 
   // demand 帧循环下，store 驱动的重渲染（平面开关、步骤切换）不会自动触发 WebGL 重绘。
   useEffect(() => {
@@ -86,12 +85,14 @@ export default function ConnectionLayer({ systemId, layout, depth, planeFilter }
         const lineColor = planeColor(plane)
         return (
           <group key={plane} name={`plane-${plane}`}>
-            {list.map((r) => {
+            {list.flatMap((r) => {
               const active = activeConnectionIds.has(r.connectionId)
-              return (
+              // 一条内容连接可能有多条几何路径（集群级的 8 台机架各一条，见 routing.ts
+              // 的 `instancePaths`）——它们共享同一个 connectionId 与同一套视觉参数。
+              return r.instancePaths.map((path, i) => (
                 <Line
-                  key={r.connectionId}
-                  points={r.points}
+                  key={`${r.connectionId}#${i}`}
+                  points={path.points}
                   color={lineColor}
                   lineWidth={active ? 2.5 : 1.5}
                   transparent
@@ -100,7 +101,7 @@ export default function ConnectionLayer({ systemId, layout, depth, planeFilter }
                   renderOrder={2}
                   raycast={() => null}
                 />
-              )
+              ))
             })}
           </group>
         )

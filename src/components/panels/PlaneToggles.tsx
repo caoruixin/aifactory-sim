@@ -55,8 +55,9 @@ export default function PlaneToggles() {
         ))}
       </ul>
       <p className="mt-2 text-[11px] leading-snug text-dim">
-        机架/托盘视图下六个平面都能画出连线；集群总览只画 scale-out 主干（其余平面在这一级
-        会收缩成同一个机架盒子，画出来没有教学意义）。
+        六个平面在任何层级都按开关作画：机架内部的连接（GPU↔NVSwitch、母排取电…）在机架级
+        及以下可见；集群总览呈现的是房间级干线（配电→机架、歧管→CDU→一次侧水、
+        DPU→业务交换机→存储、带外管理上联、rack↔leaf↔spine）。
       </p>
     </section>
   )

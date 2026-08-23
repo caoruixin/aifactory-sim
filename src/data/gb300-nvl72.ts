@@ -613,6 +613,22 @@ export const GB300_ASSEMBLIES: AssemblyNode[] = [
     note: null,
   },
   {
+    // v1.1 A3：`con.*.facility-power-shelf` 原本从**装配树根**（机房）出发，而 ClusterScene
+    // 只画 `childrenOf(root)`，根节点自己从不渲染 —— 那条线于是从空气里长出来。
+    // 补上一个真实存在的「机房配电」盒子，线才有出发点。
+    id: 'asm.gb300.facility-power',
+    systemId: SYSTEM_ID,
+    parentId: 'asm.gb300.facility',
+    componentId: 'cmp.shared.facility-power',
+    roleKey: 'facility-power',
+    label: '机房配电（列头柜 / 母线）',
+    count: 1,
+    countClaim: null,
+    lodLevel: 'cluster',
+    rackU: null,
+    note: '参考架构不涉及机房侧配电设备，数量与形态为示意（每列 1 套列头柜 + 母线）。',
+  },
+  {
     id: 'asm.gb300.cdu',
     systemId: SYSTEM_ID,
     parentId: 'asm.gb300.facility',
@@ -1344,7 +1360,7 @@ export const GB300_CONNECTIONS: Connection[] = [
   {
     id: 'con.gb300.facility-power-shelf',
     systemId: SYSTEM_ID,
-    fromAssemblyId: 'asm.gb300.facility',
+    fromAssemblyId: 'asm.gb300.facility-power',
     toAssemblyId: 'asm.gb300.power-shelf',
     plane: 'power',
     topology: 'bus',

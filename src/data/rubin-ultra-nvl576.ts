@@ -543,6 +543,21 @@ export const RUBIN_ULTRA_ASSEMBLIES: AssemblyNode[] = [
     note: '⚠️ 该文未涉及机房侧冷却；此节点仅为让冷却链在 3D 里能闭合，不代表文中有此描述。',
   },
   {
+    // v1.1 A3：与前两代同构。SemiAnalysis 那篇同样没写机房配电，
+    // 此节点只为让「市电 → 电源架」这条边有个可见的起点，规格一律未知。
+    id: 'asm.ru.facility-power',
+    systemId: SYSTEM_ID,
+    parentId: 'asm.ru.facility',
+    componentId: 'cmp.shared.facility-power',
+    roleKey: 'facility-power',
+    label: '机房配电（列头柜 / 母线）',
+    count: 1,
+    countClaim: null,
+    lodLevel: 'cluster',
+    rackU: null,
+    note: '⚠️ 该文未涉及机房侧配电；此节点仅为让供电链在 3D 里有起点，不代表文中有此描述。',
+  },
+  {
     id: 'asm.ru.cdu',
     systemId: SYSTEM_ID,
     parentId: 'asm.ru.facility',
@@ -873,7 +888,7 @@ export const RUBIN_ULTRA_CONNECTIONS: Connection[] = [
   {
     id: 'con.ru.facility-power-shelf',
     systemId: SYSTEM_ID,
-    fromAssemblyId: 'asm.ru.facility',
+    fromAssemblyId: 'asm.ru.facility-power',
     toAssemblyId: 'asm.ru.power-shelf',
     plane: 'power',
     topology: 'bus',

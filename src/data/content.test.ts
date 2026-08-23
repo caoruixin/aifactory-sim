@@ -9,7 +9,9 @@ import {
   systemById,
   totalInstances,
 } from './index'
+import { resolveLayout } from '../lib/layout'
 import { kvBytesPerToken } from '../lib/roofline'
+import { routeConnections } from '../lib/routing'
 import {
   RUBIN_ULTRA_ASSEMBLIES,
   RUBIN_ULTRA_COMPONENTS,
@@ -554,6 +556,58 @@ describe('三代并存后的全局不变量', () => {
       const count = order.filter((x) => x === id).length
       expect(order.slice(start, start + count).every((x) => x === id), `${id} 的场景不连续`).toBe(true)
     }
+  })
+
+  /**
+   * v1.1 A3：「机房配电」原本没有实体——`con.*.facility-power-shelf` 的起点是**装配树根**
+   * （机房），而 `ClusterScene` 只画 `childrenOf(root)`，根节点自己从不渲染，那条供电线
+   * 于是从空气里长出来。
+   *
+   * ⚠️ 这里必须精确锁「改的是哪条边」：只断言「存在某条 power 路由」是漏的——
+   * 原来的 facility→power-shelf 本来就非退化，不改也照样产出一条路由。
+   */
+  it('★ 三代的「机房配电 → 电源架」都从 facility-power 装配节点出发（不是从装配树根）', () => {
+    const cases = [
+      ['sys.gb300-nvl72', 'con.gb300.facility-power-shelf', 'asm.gb300.facility-power', 'asm.gb300.facility'],
+      ['sys.vera-rubin-nvl72', 'con.rubin.facility-power-shelf', 'asm.rubin.facility-power', 'asm.rubin.facility'],
+      ['sys.rubin-ultra-nvl576', 'con.ru.facility-power-shelf', 'asm.ru.facility-power', 'asm.ru.facility'],
+    ] as const
+
+    for (const [systemId, conId, powerId, rootId] of cases) {
+      // ① 内容层：连接的 from 端指向新节点
+      const conn = FACTORY_PACK.connections.find((c) => c.id === conId)
+      expect(conn, `${conId} 不存在`).toBeDefined()
+      expect(conn!.fromAssemblyId, conId).toBe(powerId)
+      expect(conn!.fromAssemblyId, `${conId} 仍指向装配树根`).not.toBe(rootId)
+
+      // ② 新节点确实存在、是 cluster 级、挂在机房下、用共享的机房配电组件
+      const node = assemblyById(powerId)
+      expect(node, `${powerId} 不存在`).toBeDefined()
+      expect(node!.roleKey).toBe('facility-power')
+      expect(node!.lodLevel).toBe('cluster')
+      expect(node!.parentId).toBe(rootId)
+      expect(node!.componentId).toBe('cmp.shared.facility-power')
+
+      // ③ 渲染层：cluster 深度产出的那条路由，起点也必须是新节点
+      const route = routeConnections(systemId, resolveLayout(systemId), 'cluster').find(
+        (r) => r.connectionId === conId,
+      )
+      expect(route, `${systemId}: ${conId} 在 cluster 深度下应有一条非退化路由`).toBeDefined()
+      expect(route!.fromAssemblyId, conId).toBe(powerId)
+      // 三代机架都是 count=8 ⇒ 配电线扇出到每一台机架
+      expect(route!.instancePaths.length, `${conId} 的机架扇出`).toBe(8)
+    }
+  })
+
+  it('机房配电组件的规格 Claim 全部未公布（参考架构不涉及机房侧配电，不编数）', () => {
+    const comp = componentById('cmp.shared.facility-power')!
+    expect(comp.kind).toBe('power')
+    expect(Object.keys(comp.specs).length).toBeGreaterThan(0)
+    for (const [k, claim] of Object.entries(comp.specs)) {
+      expect(claim.value, `${k} 不应有数值`).toBeNull()
+      expect(claim.note, `${k} 缺说明`).not.toBeNull()
+    }
+    expect(comp.sourceIds).toContain('src.nvidia-nvl72-ra')
   })
 
   it('每代的六平面覆盖情况如实反映来源（GB300/Vera Rubin 六平面齐全，NVL576 只有四个）', () => {
