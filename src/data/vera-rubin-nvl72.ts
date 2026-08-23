@@ -795,9 +795,10 @@ export const VERA_RUBIN_COMPONENTS: HardwareComponent[] = [
     name: 'Spectrum-X 以太网 / Quantum-X800 InfiniBand 交换层',
     vendor: 'NVIDIA',
     status: 'announced',
-    summary: 'Vera Rubin NVL72 的 scale-out 交换层，官方口径为 Quantum-X800 InfiniBand 与 Spectrum-X 以太网两选一。',
+    summary:
+      'Vera Rubin NVL72 的 scale-out 交换层，官方口径为 Quantum-X800 InfiniBand 与 Spectrum-X 以太网两选一；角色划分与 GB300 一致——Leaf 交换层负责计算网的机架接入，Spine 交换层负责计算网的跨机架主干，汇聚交换层则是完全独立的另一张业务与存储网。',
     presalesNote:
-      '出机架这一段官方只给了「用 Quantum-X800 InfiniBand 或 Spectrum-X 以太网」这个方向性说法，端口数、交换机型号与收敛比都还没有 Vera Rubin 专属的参考架构文档。跟客户交流时要明说：这一层现在还没有可引用的官方规格表，方案要按需求另行设计。',
+      '三个名字的角色划分和 GB300 一样：Leaf 管接入——机架内 GPU 的网卡上联到 leaf，是跨机架东西向流量的第一跳；Spine 管互联——只连 leaf、不直连服务器，和 leaf 一起把多台机架拼成集群，「Leaf 管接入，Spine 管互联，它们是同一张计算网的两级」，也对应「NVLink 负责机架内 72 GPU 一跳互联，leaf/spine 负责机架之间」的整体分工。汇聚交换层是完全独立的另一张网——南北向业务与存储经 BlueField-4 DPU 接入，与计算网隔离：「leaf/spine 是 GPU 之间说话的网，汇聚层是集群对外界与存储说话的网」。但要向客户说清楚：这只是角色划分的方向性说法，端口数、交换机型号、收敛比与具体接线方案都还没有 Vera Rubin 专属的参考架构文档，方案要按需求另行设计。',
     visual: { shape: 'switch-box', colorToken: 'plane-scaleout' },
     imageUrl: null,
     sourceIds: [VR_PAGE, VR_PRESS],

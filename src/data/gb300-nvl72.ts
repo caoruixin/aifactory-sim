@@ -332,9 +332,10 @@ export const GB300_COMPONENTS: HardwareComponent[] = [
     name: 'NVIDIA Spectrum-X SN5610 以太网交换机',
     vendor: 'NVIDIA',
     status: 'shipping',
-    summary: '64 端口 800 Gb/s 以太网交换机，同时承担 East/West 计算网与 North/South 业务/存储网的交换。',
+    summary:
+      '64 端口 800 Gb/s 的 Spectrum-X 交换机，同一型号按接线角色分饰三层：作为 Leaf 交换层承担计算网（East/West）的机架接入，作为 Spine 交换层承担计算网的跨机架主干，作为汇聚交换层则切到完全独立的另一张网——业务与存储（North/South，经 BlueField-3 DPU）。',
     presalesNote:
-      '出了机架就是它的地盘。要向客户说清 scale-up 与 scale-out 的量级差：NVLink 每卡 1800 GB/s，而这里单端口 800 Gb/s ≈ 100 GB/s，差了约 18 倍。这就是「张量并行/专家并行尽量留在机架内、跨机架只做数据并行」的根本原因。',
+      '同一款 SN5610，讲清楚靠这套对照框架：Leaf 管接入——每机架的 CX-8 网卡按 rail 上联到 leaf（同编号网卡接同一台 leaf，即 rail-optimized），是 GPU 跨机架东西向流量的第一跳；Spine 管互联——只连 leaf、不直连服务器，与 leaf 构成两级 fat-tree，把多台机架拼成一个训练/推理集群。「Leaf 管接入，Spine 管互联，它们是同一张计算网的两级」，而「NVLink 负责机架内 72 GPU 一跳互联，leaf/spine 负责机架之间」。汇聚交换层则完全不同：南北向客户请求与存储读写经 BlueField-3 DPU 接入，与计算网物理隔离，避免业务流量抢占东西向带宽——「leaf/spine 是 GPU 之间说话的网，汇聚层是集群对外界与存储说话的网」。',
     visual: { shape: 'switch-box', colorToken: 'plane-scaleout' },
     imageUrl: null,
     sourceIds: [RA_SOURCE],
