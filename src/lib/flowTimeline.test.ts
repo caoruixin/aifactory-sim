@@ -3,8 +3,13 @@ import { FACTORY_PACK } from '../data'
 import {
   buildTimeline,
   endpointsOf,
+  fadeAlpha,
   flowStepFocus,
+  particleFraction,
+  PARTICLE_FADE_RAMP_SEC,
+  PARTICLE_TRAIL_OFFSET,
   segmentIndexAtT,
+  segmentParticlePosition,
   sharesEndpoint,
   totalDurationSeconds,
 } from './flowTimeline'
@@ -77,6 +82,7 @@ describe('logicalOnly 段无路径要求', () => {
           description: 'x',
           connectionIds: ['con.does-not-exist'],
           highlightAssemblyIds: [],
+          particleDirection: null,
           logicalOnly: false,
           durationHint: 1,
           presalesNote: null,
@@ -217,6 +223,103 @@ describe('flowStepFocus：当前步骤 ↔ 参与硬件（v1.1 B1）', () => {
     const a = flowStepFocus(episode, PREFILL, 'rack')
     const b = flowStepFocus(episode, PREFILL, 'rack')
     expect(a).toEqual(b)
+  })
+})
+
+describe('粒子方向 / 淡入淡出 / 串珠（v1.2 F3）', () => {
+  const segOf = (stepId: string) => segments.find((s) => s.stepId === stepId)!
+  const ingress = segOf('flow.gb300.moe-inference.business-ingress')
+  const egress = segOf('flow.gb300.moe-inference.egress')
+  const prefill = segOf('flow.gb300.moe-inference.prefill')
+  const gateway = segOf('flow.gb300.moe-inference.gateway')
+  const dist = (a: readonly number[], b: readonly number[]) =>
+    Math.hypot(a[0]! - b[0]!, a[1]! - b[1]!, a[2]! - b[2]!)
+
+  it('direction 从内容包原样映射进 TimelineSegment', () => {
+    expect(ingress.direction).toBe('reverse')
+    expect(egress.direction).toBe('forward')
+    expect(prefill.direction).toBe('bidirectional')
+    expect(gateway.direction).toBeNull()
+  })
+
+  it('★ 请求进入（reverse）：headFrac=0 时粒子在路径**末**点，也就是机架外的传送门那头', () => {
+    // 连接是 bf3-dpu → converged-switch，而请求是反着进来的。
+    // 方向漏接的话这里会返回首点（托盘那头），一眼可辨。
+    const path = ingress.paths[0]!
+    const p = segmentParticlePosition(ingress, 0, 0)!
+    expect(p).not.toBeNull()
+    expect(dist(p, path.points[path.points.length - 1]!)).toBeLessThan(1e-9)
+  })
+
+  it('结果返回（forward）：headFrac=0 时粒子在路径**首**点', () => {
+    const path = egress.paths[0]!
+    const p = segmentParticlePosition(egress, 0, 0)!
+    expect(dist(p, path.points[0]!)).toBeLessThan(1e-9)
+  })
+
+  it('★ Prefill（bidirectional）：两颗珠子分处路径两端，相向而行', () => {
+    const path = prefill.paths[0]!
+    const bead0 = segmentParticlePosition(prefill, 0.1, 0)!
+    const bead1 = segmentParticlePosition(prefill, 0.1, 1)!
+    expect(bead0).not.toBeNull()
+    expect(bead1).not.toBeNull()
+    // 单向播放时这两颗只差 0.07 的相位，距离远小于半条路径
+    expect(dist(bead0, bead1)).toBeGreaterThan(path.totalLength / 2)
+  })
+
+  it('★ headFrac≈0.5 时三颗珠子沿路径的前后次序被逐位钉住（方向漏接必红）', () => {
+    const f = (d: Parameters<typeof particleFraction>[0], i: number) =>
+      particleFraction(d, 0.5, PARTICLE_TRAIL_OFFSET, i)
+    // 0.5 - 0.07 = 0.43000000000000005 ⇒ 只能 toBeCloseTo，toBe 会被浮点咬
+    expect(f('forward', 0)).toBeCloseTo(0.5, 12)
+    expect(f('bidirectional', 0)).toBeCloseTo(0.5, 12)
+    expect(f('bidirectional', 1)).toBeCloseTo(0.57, 12)
+    expect(f('bidirectional', 2)).toBeCloseTo(0.36, 12)
+    // 次序：反向珠(2) < 头珠(0) < 反向珠(1)
+    expect(f('bidirectional', 2)!).toBeLessThan(f('bidirectional', 0)!)
+    expect(f('bidirectional', 0)!).toBeLessThan(f('bidirectional', 1)!)
+  })
+
+  it('reverse 就是 1 - raw（与 forward 镜像）', () => {
+    expect(particleFraction('reverse', 0.3, PARTICLE_TRAIL_OFFSET, 0)).toBeCloseTo(0.7, 12)
+    expect(particleFraction('reverse', 0, PARTICLE_TRAIL_OFFSET, 0)).toBeCloseTo(1, 12)
+  })
+
+  it('拖尾还没入场时返回 null（不是画在起点上堆成一坨）', () => {
+    expect(particleFraction('forward', 0.05, PARTICLE_TRAIL_OFFSET, 1)).toBeNull()
+    expect(particleFraction('bidirectional', 0.05, PARTICLE_TRAIL_OFFSET, 2)).toBeNull()
+    expect(particleFraction('forward', 0.05, PARTICLE_TRAIL_OFFSET, 0)).toBeCloseTo(0.05, 12)
+  })
+
+  it('direction 为 null 时退回正向（数据漏填也不该让粒子凭空消失）', () => {
+    expect(particleFraction(null, 0.42, PARTICLE_TRAIL_OFFSET, 0)).toBeCloseTo(0.42, 12)
+  })
+
+  it('★ fadeAlpha：非 playing 恒为 1（暂停 = 转成静态标记，是设计不是 bug）', () => {
+    expect(fadeAlpha(0, 4, false)).toBe(1)
+    expect(fadeAlpha(2, 4, false)).toBe(1)
+    expect(fadeAlpha(4, 4, false)).toBe(1)
+  })
+
+  it('fadeAlpha：playing 时段首淡入、段尾淡出、中段满值', () => {
+    expect(fadeAlpha(0, 4, true)).toBeCloseTo(0, 12)
+    expect(fadeAlpha(PARTICLE_FADE_RAMP_SEC, 4, true)).toBeCloseTo(1, 12)
+    expect(fadeAlpha(2, 4, true)).toBe(1)
+    expect(fadeAlpha(4, 4, true)).toBeCloseTo(0, 12)
+    expect(fadeAlpha(4 - PARTICLE_FADE_RAMP_SEC, 4, true)).toBeCloseTo(1, 12)
+  })
+
+  it('fadeAlpha 始终落在 [0,1]（越界进度也不例外）', () => {
+    for (const p of [-1, 0, 0.15, 2, 3.9, 5]) {
+      const a = fadeAlpha(p, 4, true)
+      expect(a).toBeGreaterThanOrEqual(0)
+      expect(a).toBeLessThanOrEqual(1)
+    }
+  })
+
+  it('logicalOnly 段（无路径）取位置返回 null，不抛错', () => {
+    expect(gateway.paths).toEqual([])
+    for (let i = 0; i < 3; i += 1) expect(segmentParticlePosition(gateway, 0.5, i)).toBeNull()
   })
 })
 

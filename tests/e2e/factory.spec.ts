@@ -357,6 +357,20 @@ test('桌面·数据流自动播放：motion 开启时 useFrame 真的推进 ste
   await expect(page.locator('footer[data-flow-step]')).not.toHaveAttribute('data-flow-step', '0')
 })
 
+/**
+ * ★ 取舍说明（v1.2 F3）：**粒子的方向（reverse / bidirectional）刻意不在这里做像素断言。**
+ *
+ * 「相向的两颗光点」在 1440×900 里只有几十个像素，要断言方向就得比较相邻两帧里
+ * 某颗珠子的位移向量——采样时机、rAF 抖动、抗锯齿都会把它变成常年偶发红的用例，
+ * 而它保护的又恰恰是最容易被静态分析发现的那类错误。
+ *
+ * 替代覆盖在 `flowTimeline.test.ts` 的「粒子方向 / 淡入淡出 / 串珠」一节：那里用
+ * **真实 buildTimeline 段**断言 ingress 的 headFrac=0 落在路径末点、prefill 两珠分处
+ * 路径两端、以及三颗珠子在 headFrac=0.5 时的前后次序。`FlowLayer` 每帧直接调用
+ * `segmentParticlePosition`，所以方向逻辑漏接必然在单测里红，不会只在像素上表现。
+ *
+ * 下面这条用例只管一件事：粒子到底画不画得出来（视锥剔除回归）。
+ */
 test('桌面·数据流粒子必须真的画得出来（InstancedMesh 视锥剔除回归）', async ({ page }, testInfo) => {
   onlyOn(testInfo, 'desktop')
   // ⚠️ 同样必须 headless（真实动画时序）。

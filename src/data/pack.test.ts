@@ -579,6 +579,38 @@ describe('推理数据流剧本（FlowEpisode）通用不变量', () => {
     }
   })
 
+  it('★ 每个步骤都显式带 particleDirection 字段（hasOwn，不能靠 undefined 蒙混过关）', () => {
+    // 用 hasOwn 而不是 `!== undefined`：漏填的字段在 TS 之外（比如 JSON 内容包）
+    // 读出来也是 undefined，只有 hasOwn 能把「真的写了」这件事钉死。
+    for (const f of pack.flows) {
+      for (const step of f.steps) {
+        expect(
+          Object.hasOwn(step, 'particleDirection'),
+          `${f.id}.${step.id} 缺少 particleDirection 字段`,
+        ).toBe(true)
+      }
+    }
+  })
+
+  it('★ particleDirection 取值合法，且与「这一步有没有线」自洽', () => {
+    const ALLOWED = ['forward', 'reverse', 'bidirectional', null]
+    for (const f of pack.flows) {
+      for (const step of f.steps) {
+        expect(ALLOWED, `${f.id}.${step.id}.particleDirection=${String(step.particleDirection)}`).toContain(
+          step.particleDirection,
+        )
+        // 没有线就没有方向可言：逻辑层步骤与纯本地动作一律 null，
+        // 否则「有方向却没有粒子」会在阅读内容包时误导人。
+        if (step.logicalOnly || step.connectionIds.length === 0) {
+          expect(
+            step.particleDirection,
+            `${f.id}.${step.id} 没有可播放的连接，particleDirection 应为 null`,
+          ).toBeNull()
+        }
+      }
+    }
+  })
+
   it('每个 episode 至少一个 logicalOnly 步骤，且至少覆盖 moe-dispatch 与 moe-combine 阶段', () => {
     for (const f of pack.flows) {
       expect(f.steps.some((s) => s.logicalOnly), `${f.id} 缺少 logicalOnly 步骤`).toBe(true)

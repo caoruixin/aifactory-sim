@@ -9,9 +9,10 @@
  */
 
 import { connectionById } from '../data'
-import type { FlowEpisode, FlowPhase, LodLevel } from '../data/types'
-import { visibleAncestorAt } from './routing'
+import type { FlowEpisode, FlowPhase, LodLevel, ParticleDirection } from '../data/types'
+import { sampleAtFraction, visibleAncestorAt } from './routing'
 import type { RoutedConnection } from './routing'
+import type { Vec3 } from './layout'
 
 /** 七阶段中文名。`FlowBar` 步骤条与阶段徽章复用（与 `drill.ts` 的 `LEVEL_LABEL` 同样的放置方式）。 */
 export const FLOW_PHASE_LABEL: Record<FlowPhase, string> = {
@@ -36,6 +37,8 @@ export interface TimelineSegment {
   t1: number
   /** 原始权重——教学节奏用，禁止换算展示成真实时延。 */
   durationHint: number
+  /** 粒子播放方向（原样映射自 `FlowStep.particleDirection`，v1.2 F3）。 */
+  direction: ParticleDirection
   /** 该步骤引用、且在当前路由结果里能查到路径的连接（顺序与 `FlowStep.connectionIds` 一致）。 */
   paths: RoutedConnection[]
   /** 该步骤高亮的装配节点，原样透传自 `FlowStep.highlightAssemblyIds`。 */
@@ -72,6 +75,7 @@ export function buildTimeline(
       t0,
       t1,
       durationHint: step.durationHint,
+      direction: step.particleDirection,
       paths,
       highlightAssemblyIds: step.highlightAssemblyIds,
     })
@@ -82,6 +86,77 @@ export function buildTimeline(
   if (last) last.t1 = 1
 
   return segments
+}
+
+// ─────────────────── 粒子相位 / 淡入淡出 / 串珠（v1.2 F3，纯函数） ───────────────────
+
+/** 相邻两颗珠子的相位间隔（归一化路径比例）。3 颗珠子串起来约占路径的 14%。 */
+export const PARTICLE_TRAIL_OFFSET = 0.07
+
+/** 段首淡入、段尾淡出的时长（秒）。 */
+export const PARTICLE_FADE_RAMP_SEC = 0.3
+
+/**
+ * 第 `beadIndex` 颗珠子此刻在路径上的归一化位置；`null` = 尚未入场（拖尾还没起步）。
+ *
+ * `bidirectional` 按珠序奇偶把珠子分到两个方向上，于是同一条线上同时有相向流动的点——
+ * 这才是 all-reduce / All-to-All 的样子（底层边的 topology 字段就写着 bidirectional）。
+ *
+ * `direction === null` 时**退回正向**而不是返回 null：万一将来有人加了带路径却漏填
+ * 方向的步骤，退化成历史行为好过粒子凭空消失。真正的防线是类型层（必填 + pack.test
+ * 的 hasOwn/值域断言），不是这里。
+ */
+export function particleFraction(
+  direction: ParticleDirection,
+  headFrac: number,
+  trailOffset: number,
+  beadIndex: number,
+): number | null {
+  const raw = headFrac - trailOffset * beadIndex
+  if (raw < 0) return null
+  if (direction === 'reverse') return 1 - raw
+  if (direction === 'bidirectional') return beadIndex % 2 === 0 ? raw : 1 - raw
+  return raw
+}
+
+/**
+ * 段首淡入、段尾淡出的不透明度系数。
+ *
+ * ★ **非 playing 时恒为 1**，这是刻意的：暂停 = 把粒子转成「当前步骤停在哪」的静态标记，
+ *   所以暂停瞬间 alpha 跳回 1 是设计而不是 bug（切步时 `progressRef` 归零，若沿用播放
+ *   时的公式，暂停画面会是一颗几乎透明的点，等于什么都没标）。单测钉住这条。
+ */
+export function fadeAlpha(
+  progressSec: number,
+  durationSec: number,
+  playing: boolean,
+  rampSec = PARTICLE_FADE_RAMP_SEC,
+): number {
+  if (!playing) return 1
+  if (rampSec <= 0) return 1
+  const inRamp = progressSec / rampSec
+  const outRamp = (durationSec - progressSec) / rampSec
+  return Math.min(Math.max(Math.min(inRamp, outRamp), 0), 1)
+}
+
+/**
+ * 组合「方向 + 相位 + 弧长采样」，直接给出这颗珠子这一帧的世界坐标；
+ * `null` = 这帧不画（无路径 / 拖尾未入场）。
+ *
+ * ★ `FlowLayer` 每帧直接调用它，因此 reverse / bidirectional 一旦漏接，
+ *   下面那组真实段单测必红——方向逻辑不会只存在于「渲染层的某个分支」里。
+ */
+export function segmentParticlePosition(
+  seg: Pick<TimelineSegment, 'paths' | 'direction'>,
+  headFrac: number,
+  beadIndex: number,
+): Vec3 | null {
+  if (seg.paths.length === 0) return null
+  const path = seg.paths[beadIndex % seg.paths.length]
+  if (!path) return null
+  const frac = particleFraction(seg.direction, headFrac, PARTICLE_TRAIL_OFFSET, beadIndex)
+  if (frac === null) return null
+  return sampleAtFraction(path.points, path.lengths, frac)
 }
 
 /** 一个 segment 全部路径的端点集合（用于判断相邻段是否经共享端点连通）。 */

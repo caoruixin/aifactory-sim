@@ -276,6 +276,22 @@ export const FLOW_PHASE_ORDER: readonly FlowPhase[] = [
   'egress',
 ]
 
+/**
+ * 粒子相对连接 `from → to` 的播放方向（v1.2 F3）。
+ *
+ * - `forward`：顺着 from→to 跑；
+ * - `reverse`：逆着跑（例如「请求进入机架」——连接是 DPU→汇聚交换机，
+ *   但请求本身是从汇聚交换机进来的）；
+ * - `bidirectional`：相向串珠，如实表现 all-reduce / All-to-All 这类**双向** collective
+ *   （底层边 topology 就是 `all-to-all, bidirectional`，单向播放是语义错误）；
+ * - `null`：本步没有线（逻辑层步骤 / 纯本地动作），方向不适用。
+ *
+ * ⚠️ 在 `FlowStep` 里**必填**且用 `| null` 而不是 `?:`：内容包要过「JSON 往返深等」
+ *    与「包内不含 undefined」两条断言（`pack.test.ts`），`undefined` 会被
+ *    `JSON.stringify` 静默吞掉。
+ */
+export type ParticleDirection = 'forward' | 'reverse' | 'bidirectional' | null
+
 export interface FlowStep {
   id: string
   phase: FlowPhase
@@ -289,6 +305,11 @@ export interface FlowStep {
    * `logicalOnly: true` 的步骤同样可为空数组。
    */
   highlightAssemblyIds: string[]
+  /**
+   * 粒子沿 `connectionIds` 的播放方向（v1.2 F3 新增，**必填**）。
+   * 取值语义见 `ParticleDirection`；没有连接的步骤填 `null`。
+   */
+  particleDirection: ParticleDirection
   /** true = 纯逻辑层步骤（如「路由器选专家」），没有对应物理链路，UI 打「逻辑」徽章。 */
   logicalOnly: boolean
   /**

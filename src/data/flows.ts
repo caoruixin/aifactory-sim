@@ -24,6 +24,16 @@ import type { FlowEpisode, FlowStep } from './types'
  *    「从显存里读」，权重本身**不会**因为这次请求而重新从网络/存储加载进 HBM
  *    （见 `prefill` 步骤 description 的强调）。
  *
+ * 粒子方向（`particleDirection`，v1.2 F3）：**相对连接自身的 from→to 定义**，与叙事方向
+ * 不一定同向。两处容易搞反的地方：
+ *   - `business-ingress` 是 `reverse`：连接是 `bf3-dpu → converged-switch`，
+ *     而「请求**进入**机架」是反着走的（汇聚交换机 → DPU）。同理 `egress` 才是 `forward`。
+ *   - `moe-combine` 是 `reverse`：description 原文「送回 Token 原本所在的 GPU」。
+ * `prefill` / `decode` 刻意用 `bidirectional`（相向串珠）而不是单向：它们底层复用的
+ * `con.gb300.gpu-nvswitch` 的 topology 就是 `all-to-all, bidirectional`，张量并行的
+ * all-reduce 是**双向**集合通信——拿单向粒子表现它是语义错误，而不只是好不好看的问题。
+ * 逻辑层步骤与纯本地动作（`kv-write`）没有线可跑，一律 `null`。
+ *
  * 路径连通性设计注记（供 `flowTimeline.test.ts` / `routing.test.ts` 交叉核对）：
  * 本 episode 的物理步骤全部复用两条既有连接——`con.gb300.bf3-converged`（业务网络
  * 进出）与 `con.gb300.gpu-nvswitch`（机架内 NVLink 全互联，topology: all-to-all）。
@@ -46,6 +56,7 @@ const STEPS: FlowStep[] = [
       '客户端请求先经过 API 网关：鉴权、限流计量，调度器按模型与 SLA 选中承接的 GB300 机架与计算托盘。这一步是纯逻辑决策，不产生机架内的物理链路流量。',
     connectionIds: [],
     highlightAssemblyIds: [],
+    particleDirection: null,
     logicalOnly: true,
     durationHint: 3,
     presalesNote:
@@ -59,6 +70,7 @@ const STEPS: FlowStep[] = [
       '请求经北向业务网络到达目标托盘的 BlueField-3 DPU——它是这台机柜级计算机对外的安全与流量入口，独立于主机运行，即使托盘内主机被攻破也不影响管理面。',
     connectionIds: ['con.gb300.bf3-converged'],
     highlightAssemblyIds: ['asm.gb300.bf3-dpu'],
+    particleDirection: 'reverse',
     logicalOnly: false,
     durationHint: 4,
     presalesNote:
@@ -72,6 +84,7 @@ const STEPS: FlowStep[] = [
       '⚠️ 权重已经常驻在 72 张 B300 GPU 的 HBM 里，不会因为这次请求重新加载。Prefill 把 prompt 的全部 token 一次并行前向计算，各 GPU 上的张量并行部分和通过 NVLink 全互联（经 18 颗 NVSwitch ASIC）做 all-reduce 汇总——这是「机柜级计算机」而不是「18 台服务器」的直接体现。',
     connectionIds: ['con.gb300.gpu-nvswitch'],
     highlightAssemblyIds: ['asm.gb300.hbm', 'asm.gb300.b300-gpu'],
+    particleDirection: 'bidirectional',
     logicalOnly: false,
     durationHint: 8,
     presalesNote:
@@ -87,6 +100,7 @@ const STEPS: FlowStep[] = [
     // 写 KV 的是 GPU 本身（写进它自己的 HBM），少了 B300 GPU 这一件，
     // 「GPU 写 KV 进 HBM」的故事在「本步涉及」chips 里就讲不完整。
     highlightAssemblyIds: ['asm.gb300.b300-gpu', 'asm.gb300.hbm', 'asm.gb300.grace-cpu'],
+    particleDirection: null,
     logicalOnly: false,
     durationHint: 4,
     presalesNote:
@@ -100,6 +114,7 @@ const STEPS: FlowStep[] = [
       '每生成一个 token，都要重新读一遍常驻的激活权重，再叠加当前已累积的 KV Cache——这是带宽瓶颈而非算力瓶颈。张量并行部分和同样通过 NVLink 全互联同步。⚠️ 真实系统里 decode 会反复经过下面的 MoE 路由/分发/合并步骤，这里按单趟教学叙事呈现，不代表只发生一次。',
     connectionIds: ['con.gb300.gpu-nvswitch'],
     highlightAssemblyIds: ['asm.gb300.hbm', 'asm.gb300.b300-gpu'],
+    particleDirection: 'bidirectional',
     logicalOnly: false,
     durationHint: 8,
     presalesNote:
@@ -113,6 +128,7 @@ const STEPS: FlowStep[] = [
       'DeepSeek-V3 每层配置 256 个路由专家 + 1 个共享专家，每个 Token 由路由器选出 8 个专家。这一步是纯计算决策，发生在 Token 所在的那张 GPU 上，不产生跨卡流量——真正的挑战在下一步的 Dispatch。',
     connectionIds: [],
     highlightAssemblyIds: [],
+    particleDirection: null,
     logicalOnly: true,
     durationHint: 3,
     presalesNote:
@@ -126,6 +142,7 @@ const STEPS: FlowStep[] = [
       '路由结果确定后，Token 要被送到专家所在的 GPU 上执行——这是一轮 All-to-All：每张卡向不同目标发送不同数据，底层经 18 颗 NVSwitch ASIC 交叉互连的机架内全互联传输，而不是真的每两张卡之间各占一条物理线。',
     connectionIds: ['con.gb300.gpu-nvswitch'],
     highlightAssemblyIds: ['asm.gb300.nvswitch-asic'],
+    particleDirection: 'forward',
     logicalOnly: false,
     durationHint: 6,
     presalesNote:
@@ -139,6 +156,7 @@ const STEPS: FlowStep[] = [
       '各专家算完的结果再经一轮 All-to-All 送回 Token 原本所在的 GPU，与其余层的输出汇合后进入下一层继续计算。MoE 节省了计算，却把系统压力转移到了互联与调度——这正是「买 GPU 之外还要看互联设计」的原因。',
     connectionIds: ['con.gb300.gpu-nvswitch'],
     highlightAssemblyIds: ['asm.gb300.nvswitch-asic', 'asm.gb300.b300-gpu'],
+    particleDirection: 'reverse',
     logicalOnly: false,
     durationHint: 6,
     presalesNote: '「跑稳」看的就是这一步：热点专家和尾时延不解决，峰值算力只是纸面数字，实际吞吐会被互联拖住。',
@@ -150,6 +168,7 @@ const STEPS: FlowStep[] = [
     description: '生成的 token 流式经 BlueField-3 DPU 与业务网络送回客户端——去程和回程走的是同一条北向链路。',
     connectionIds: ['con.gb300.bf3-converged'],
     highlightAssemblyIds: ['asm.gb300.bf3-dpu'],
+    particleDirection: 'forward',
     logicalOnly: false,
     durationHint: 4,
     presalesNote:
@@ -162,6 +181,7 @@ const STEPS: FlowStep[] = [
     description: '按输入/命中/输出三段计量，写入计费与可观测性系统。这一步同样是纯逻辑层动作，不占用机架内的物理网络平面。',
     connectionIds: [],
     highlightAssemblyIds: [],
+    particleDirection: null,
     logicalOnly: true,
     durationHint: 3,
     presalesNote: '判断一个超节点好不好，最终还是要连续追问那七个问题——不是只看卡数和峰值算力。',

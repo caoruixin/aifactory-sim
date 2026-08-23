@@ -11,6 +11,16 @@
  * - HBM 装配节点常亮一颗微光标记，与是否在播放无关——呼应「权重常驻显存，不随
  *   请求加载」这条核心心智模型；只在 tray/board 深度（已经能看见板级器件）显示，
  *   避免在集群/机架总览上漂浮一个没有上下文的光点。
+ *
+ * v1.2 F3 的三件事（几何/相位全部下沉到 `flowTimeline.ts` 的纯函数，这里只写矩阵）：
+ * 1. **方向**：粒子按 `TimelineSegment.direction` 播放。「请求进入机架」这一步的连接
+ *    是 DPU→汇聚交换机，但请求本身反着走，过去一律正向播放 = 把箭头画反了；
+ *    prefill/decode 的底层边是 `all-to-all, bidirectional`，改成相向串珠如实表现
+ *    双向 collective。
+ * 2. **串珠**：三颗粒子过去共用同一个 frac，画面上完全重合成一颗；现在按
+ *    `PARTICLE_TRAIL_OFFSET` 错开相位、按 `TRAIL_SCALE` 收小，读得出流动方向。
+ * 3. **淡入淡出**：段首段尾各 0.3 s 渐变，切步不再是瞬移 + 凭空消失。
+ *    ⚠️ 暂停时 alpha 恒为 1（粒子转成「停在哪」的静态标记），这是设计不是 bug。
  */
 
 import { invalidate, useFrame } from '@react-three/fiber'
@@ -19,18 +29,24 @@ import * as THREE from 'three'
 import { ancestorsOf, componentById, episodeOf, FACTORY_PACK } from '../../data'
 import type { LodLevel } from '../../data/types'
 import { levelIndex } from '../../lib/drill'
-import { buildTimeline } from '../../lib/flowTimeline'
+import { buildTimeline, fadeAlpha, segmentParticlePosition } from '../../lib/flowTimeline'
 import type { TimelineSegment } from '../../lib/flowTimeline'
 import { worldPositionOf } from '../../lib/layout'
 import type { ResolvedLayout } from '../../lib/layout'
 import { palette } from '../../lib/palette'
-import { indexRoutesById, routeConnections, sampleAtFraction, visibleAncestorAt } from '../../lib/routing'
+import { indexRoutesById, routeConnections, visibleAncestorAt } from '../../lib/routing'
 import type { ContainmentOptions } from '../../lib/routing'
 import { useFactoryStore } from '../../store'
 
 /** 单个步骤最多同时画几颗粒子（大多数步骤只有 1 条主路径，留一点余量给多路径步骤）。 */
 const MAX_PARTICLES = 3
 const PARTICLE_RADIUS = 0.02
+
+/**
+ * 串珠的逐颗缩放：头珠满尺寸，后两颗依次收小当拖尾。
+ * 三颗珠子过去共用同一个 frac，完全重合成一颗——「串珠」是白给的（v1.2 F3）。
+ */
+const TRAIL_SCALE = [1, 0.75, 0.55] as const
 
 /**
  * 粒子半径按深度缩放。板级是基准（0.02 m ≈ 一颗 HBM 堆栈的尺度）；到了集群级，
@@ -62,6 +78,7 @@ export default function FlowLayer({
   containment = null,
 }: FlowLayerProps) {
   const meshRef = useRef<THREE.InstancedMesh>(null)
+  const materialRef = useRef<THREE.MeshStandardMaterial>(null)
   const progressRef = useRef(0)
   const dummy = useMemo(() => new THREE.Object3D(), [])
 
@@ -106,15 +123,20 @@ export default function FlowLayer({
     }
 
     const showParticles = !state.reducedMotion && !seg.logicalOnly && seg.paths.length > 0
-    const frac = Math.min(progressRef.current / dur, 1)
+    const headFrac = Math.min(progressRef.current / dur, 1)
     const particleScale = PARTICLE_SCALE[depth] ?? 1
+    // 段首淡入 / 段尾淡出；暂停时恒为 1（粒子转成静态标记，见 fadeAlpha 注释）。
+    const alpha = fadeAlpha(progressRef.current, dur, state.flow.playing)
+    if (materialRef.current) materialRef.current.opacity = showParticles ? alpha : 0
 
     for (let i = 0; i < MAX_PARTICLES; i += 1) {
-      const path = showParticles ? seg.paths[i % seg.paths.length] : undefined
-      if (path) {
-        const p = sampleAtFraction(path.points, path.lengths, frac)
+      // 方向 / 相位 / 采样全在 flowTimeline 的纯函数里，这里只负责把结果写进矩阵——
+      // 于是 reverse / bidirectional 有真实段单测兜底，不依赖「渲染层有没有写对分支」。
+      const p = showParticles ? segmentParticlePosition(seg, headFrac, i) : null
+      if (p) {
         dummy.position.set(p[0], p[1], p[2])
-        dummy.scale.setScalar(particleScale)
+        // 拖尾越靠后越小、并跟着 alpha 一起收——淡出时不会留下一排硬边的点。
+        dummy.scale.setScalar(particleScale * (TRAIL_SCALE[i] ?? 1) * alpha)
       } else {
         dummy.position.set(0, -9999, 0) // 藏到视野外，双保险（scale 已经是 0）
         dummy.scale.setScalar(0)
@@ -162,12 +184,19 @@ export default function FlowLayer({
         raycast={() => null}
       >
         <sphereGeometry args={[PARTICLE_RADIUS, 12, 12]} />
+        {/* ★ transparent 在**挂载期**就写死成 true，绝不在运行期翻转：
+            运行期翻 transparent 必须重编着色器，否则 `#define OPAQUE` 会把 alpha 强行
+            写回 1（见 GenericShapes.tsx 的 useTransparencyProgramSync 长注释）。
+            这里每帧只改 opacity，属性改动不触发重编，也就不会踩那个坑。 */}
         <meshStandardMaterial
+          ref={materialRef}
           color={p.accent}
           emissive={p.accent}
           emissiveIntensity={1.8}
           toneMapped={false}
           depthTest={false}
+          transparent
+          opacity={1}
         />
       </instancedMesh>
 
