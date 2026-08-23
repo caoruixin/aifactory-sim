@@ -137,6 +137,49 @@ test('桌面·机架级 + 全平面开启 截图', async ({ page }, testInfo) =>
   )
   await expect(page.locator('[data-fallback-2d]')).toHaveCount(0)
   await expect(page.locator('main')).toHaveAttribute('data-mode', 'explore')
+
+  // ── v1.2 F1：出界截断的 DOM 断言（截图断言放最后，失败信息才有诊断价值）──
+  // 机架级 25 条线里 7 条两端都在机架外（纯噪音），5 条跨界截断成传送门 stub。
+  const stubs = page.locator('[data-stub-label]')
+  await expect(stubs).toHaveCount(5)
+  await expect(page.locator('[data-stub-label="asm.gb300.converged-switch"]')).toHaveCount(1)
+  await expect(stubs).toContainText(['汇聚交换']) // 去向文本可读，不只是个色块
+  // 两端都在机架外的线整条消失：外部存储与 spine 都不该再出现在这一屏
+  await expect(page.locator('[data-stub-label="asm.gb300.storage"]')).toHaveCount(0)
+  await expect(page.locator('[data-stub-label="asm.gb300.scaleout-spine"]')).toHaveCount(0)
+
+  // 标签必须全在画布内，且逐对不相交（后者正是 stackStubLabels 要保证的事：
+  // cx8-leaf 与 inrack-oob-uplink 的线端点只差 2.19 cm，不错开就完全叠死）。
+  const canvasBox = await page.locator('canvas').first().boundingBox()
+  expect(canvasBox).not.toBeNull()
+  const stubBoxes: { id: string; box: NonNullable<Awaited<ReturnType<typeof stubs.boundingBox>>> }[] = []
+  for (let i = 0; i < 5; i += 1) {
+    const el = stubs.nth(i)
+    const box = await el.boundingBox()
+    expect(box, `第 ${i} 个 stub 标签没有 bounding box`).not.toBeNull()
+    stubBoxes.push({ id: (await el.getAttribute('data-stub-label')) ?? `#${i}`, box: box! })
+  }
+  for (const { id, box } of stubBoxes) {
+    expect(box.x, `${id} 越过画布左边界`).toBeGreaterThanOrEqual(canvasBox!.x - 0.5)
+    expect(box.y, `${id} 越过画布上边界`).toBeGreaterThanOrEqual(canvasBox!.y - 0.5)
+    expect(box.x + box.width, `${id} 越过画布右边界`).toBeLessThanOrEqual(
+      canvasBox!.x + canvasBox!.width + 0.5,
+    )
+    expect(box.y + box.height, `${id} 越过画布下边界`).toBeLessThanOrEqual(
+      canvasBox!.y + canvasBox!.height + 0.5,
+    )
+  }
+  for (let i = 0; i < stubBoxes.length; i += 1) {
+    for (let j = i + 1; j < stubBoxes.length; j += 1) {
+      const a = stubBoxes[i]!
+      const b = stubBoxes[j]!
+      const overlapW = Math.min(a.box.x + a.box.width, b.box.x + b.box.width) - Math.max(a.box.x, b.box.x)
+      const overlapH = Math.min(a.box.y + a.box.height, b.box.y + b.box.height) - Math.max(a.box.y, b.box.y)
+      const area = overlapW > 0 && overlapH > 0 ? overlapW * overlapH : 0
+      expect(area, `${a.id} 与 ${b.id} 的标签重叠了 ${area.toFixed(0)} px²`).toBe(0)
+    }
+  }
+
   await expect(page).toHaveScreenshot('gb300-rack-allplanes.png')
 })
 
@@ -581,4 +624,130 @@ test('桌面·C2 步骤切换前后画布高度恒定（底栏不再抖）', asy
     heights.push(Math.round(box!.height))
   }
   expect(new Set(heights).size, `画布高度随步骤变化：${heights.join(',')}`).toBe(1)
+})
+
+// ═════════════════════════ 22~24：v1.2（F2 每步都有 3D 反馈） ═════════════════════════
+
+test('桌面·F2 kv-write 脉冲：播放中真的在呼吸，暂停后回到基线', async ({ page }, testInfo) => {
+  onlyOn(testInfo, 'desktop')
+  // ⚠️ 故意不带 motion=off——要的就是真动画（因此必须 headless，见 config 顶部注释）。
+  //
+  // 差分口径为什么干净：rack 深度 + kv-write 没有 connectionIds ⇒ 没有粒子，
+  // ConnectionLayer 的 emphasize 也恒为 false（没有任何一条线被点亮）。
+  // 这一屏唯一会动的东西就是 18 个计算托盘的自发光脉冲。
+  await page.goto('/?level=rack&focus=asm.gb300.rack')
+  await page.waitForSelector('main[data-ready="1"]', { timeout: 20_000 })
+  await expect(page.locator('[data-fallback-2d]')).toHaveCount(0)
+
+  const kvIdx = FACTORY_PACK.flows
+    .find((f) => f.systemId === GB300)!
+    .steps.findIndex((s) => s.id === 'flow.gb300.moe-inference.kv-write')
+  await page.click(`[data-flow-step-button="${kvIdx}"]`)
+  await page.waitForTimeout(700)
+  const canvas = page.locator('canvas').first()
+  const t0 = (await canvas.screenshot()).toString('base64')
+
+  // ★ 三点采样而不是「峰 0.35 / 谷 1.05 两点」：截图本身有 100~300 ms 延迟，会把相位
+  //   整体推移 δ；两点固定相隔半周期时，差异按 cos(2πδ/PULSE_PERIOD) 衰减，δ≈0.35 s
+  //   时正好归零 —— 那是纯粹由采样时机造成的假红。三点跨 3/4 周期取逐对最大值，
+  //   无论 δ 多少都至少有一对处在 ≥¼ 周期的相位差上。
+  await page.click('footer button:has-text("播放")')
+  await page.waitForTimeout(350)
+  const t1 = (await canvas.screenshot()).toString('base64')
+  await page.waitForTimeout(350)
+  const t2 = (await canvas.screenshot()).toString('base64')
+  await page.waitForTimeout(350)
+  const t3 = (await canvas.screenshot()).toString('base64')
+
+  // kv-write 的 durationHint = 4，上面全部采样都在这一段之内（不会跨段污染差分）
+  await expect(page.locator('footer[data-flow-step]')).toHaveAttribute('data-flow-step', String(kvIdx))
+
+  const pulsing = Math.max(
+    await changedPixelRatio(page, t1, t2),
+    await changedPixelRatio(page, t1, t3),
+    await changedPixelRatio(page, t2, t3),
+  )
+  const vsBase = Math.max(
+    await changedPixelRatio(page, t0, t1),
+    await changedPixelRatio(page, t0, t2),
+    await changedPixelRatio(page, t0, t3),
+  )
+  // ① 播放中的两帧之间必须有差异 —— 它真的在脉动
+  expect(pulsing, `播放中的采样帧之间没有差异（脉冲没生效？）`).toBeGreaterThan(0.001)
+  // ② 且与静止基线也不同 —— 否则「把高亮恒定压暗一档」这种坏实现也能骗过 ①
+  expect(vsBase, `脉冲与静止基线没有差异（恒定压暗的坏实现？）`).toBeGreaterThan(0.001)
+
+  // ③ 暂停必须复位回 base：frameloop 切回 demand 后 useFrame 可能永远不再执行，
+  //    复位若写在 useFrame 的 else 分支里，材质会冻结在暂停那一刻的脉冲值上。
+  await page.click('footer button:has-text("暂停")')
+  await page.waitForTimeout(500)
+  const t4 = (await canvas.screenshot()).toString('base64')
+  expect(
+    await changedPixelRatio(page, t0, t4),
+    '暂停后没有回到静止基线（EmissivePulseDriver 的 effect 复位没生效？）',
+  ).toBeLessThan(0.0005)
+})
+
+test('桌面·F2 ?motion=off 时 kv-write 不脉冲（静态高亮保留）', async ({ page }, testInfo) => {
+  onlyOn(testInfo, 'desktop')
+  await gotoAndSettle(page, '/?level=rack&focus=asm.gb300.rack&motion=off', 700)
+
+  const kvIdx = FACTORY_PACK.flows
+    .find((f) => f.systemId === GB300)!
+    .steps.findIndex((s) => s.id === 'flow.gb300.moe-inference.kv-write')
+  await page.click(`[data-flow-step-button="${kvIdx}"]`)
+  await page.waitForTimeout(600)
+  const canvas = page.locator('canvas').first()
+  const t0 = (await canvas.screenshot()).toString('base64')
+
+  await page.click('footer button:has-text("播放")')
+  await page.waitForTimeout(1000)
+  const t1 = (await canvas.screenshot()).toString('base64')
+  // reducedMotion 下 SceneRoot 的 flowPulse 恒为 false：静态高亮照旧，但一动不动。
+  expect(
+    await changedPixelRatio(page, t0, t1),
+    '减少动态效果开启时画面仍在动（flowPulse 没有被 reducedMotion 关掉？）',
+  ).toBeLessThan(0.0005)
+})
+
+test('桌面·F2 逻辑层徽标三态：播放逻辑步出现 / 物理步消失 / 不挤画布', async ({ page }, testInfo) => {
+  onlyOn(testInfo, 'desktop')
+  await gotoAndSettle(page, '/', 600)
+  const overlay = page.locator('[data-flow-logical-overlay]')
+  const canvas = page.locator('canvas').first()
+
+  // ① 默认（未播放）不显示：静止看某一步时不需要这句提示
+  await expect(overlay).toHaveCount(0)
+  const heightBefore = Math.round((await canvas.boundingBox())!.height)
+
+  // ② 播放第 0 步（网关鉴权，logicalOnly）→ 出现
+  await page.click('[data-flow-step-button="0"]')
+  await page.click('footer button:has-text("播放")')
+  await expect(overlay).toHaveCount(1)
+  await expect(overlay).toContainText('逻辑层步骤')
+  await expect(overlay).toContainText('不产生机架内流量')
+
+  // ③ 绝对定位，不占布局高度——C2 那条「切步骤画布高度恒定」的约束不能被它破坏
+  const heightAfter = Math.round((await canvas.boundingBox())!.height)
+  expect(heightAfter, `徽标出现后画布高度变了：${heightBefore} → ${heightAfter}`).toBe(heightBefore)
+
+  // ④ 切到物理层步骤（Prefill）→ 消失
+  await page.click('[data-flow-step-button="2"]')
+  await expect(overlay).toHaveCount(0)
+})
+
+test('桌面·F2 逻辑层徽标：比较模式与 ?gl=off 下都不出现', async ({ page }, testInfo) => {
+  onlyOn(testInfo, 'desktop')
+  // 比较模式有两个视口，徽标贴谁都不对；降级路径根本没有画布可贴。
+  await gotoAndSettle(page, '/?mode=compare', 900)
+  await expect(page.locator('[data-compare-view]')).toHaveCount(1)
+  await page.click('footer button:has-text("播放")')
+  await page.waitForTimeout(400)
+  await expect(page.locator('[data-flow-logical-overlay]')).toHaveCount(0)
+
+  await gotoAndSettle(page, '/?gl=off', 400)
+  await expect(page.locator('[data-fallback-2d]')).toHaveCount(1)
+  await page.click('footer button:has-text("播放")')
+  await page.waitForTimeout(400)
+  await expect(page.locator('[data-flow-logical-overlay]')).toHaveCount(0)
 })
