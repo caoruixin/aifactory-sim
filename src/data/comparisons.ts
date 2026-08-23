@@ -148,6 +148,138 @@ export const COMPARISONS: ComparisonDefinition[] = [
     ],
   },
   {
+    // v1.3 W3：唯一一条**不是「换代」而是「配对」**的比较定义——左右两边不是前后两代，
+    // 而是同一套 AI Factory 里分工不同的两台机器。narrative 的写法因此也不同：
+    // 不讲「从 A 变成了 B」，讲「什么时候用哪一台」。
+    id: 'cmpdef.vera-rubin-to-groq3-lpx',
+    leftSystemId: 'sys.vera-rubin-nvl72',
+    rightSystemId: 'sys.groq3-lpx',
+    title: 'Vera Rubin NVL72 ↔ Groq 3 LPX（配对，不是换代）',
+    summary: [
+      '★ 先说最重要的一句：**这两台机器不是「谁取代谁」，是配对使用的**。NVIDIA 对 LPX 的每一条性能宣称都带着「paired with Vera Rubin」这个前提；本工具因此对 LPX 的 capacityPolicy 设为 paired-only，**拒绝给它出独立产能数字**。下面这张表读的是「分工」，不是「升级」。',
+      '分工的边界很清楚（官方技术博客原话）：**Rubin GPU 负责 prefill 与 decode 的 attention**（吃长上下文与 KV cache，靠 HBM 容量与带宽），**LPU 负责 decode 的 FFN/MoE**（吃小 batch 下的确定性低时延，靠片上 SRAM）。这个拆法官方叫 attention–FFN 分离（AFD），由 NVIDIA Dynamo 做 KV-aware 路由与编排：每生成一个 token，中间激活在两台机器之间来回一趟。',
+      '两种加速器的哲学正好相反：Rubin GPU 单卡 **288 GB HBM4 / 22 TB/s**；LP30 单颗 **500 MB SRAM / 150 TB/s**——容量差约 576 倍，带宽高约 6.8 倍。机架级同样如此：VR 20.7 TB HBM4 @ 1,580 TB/s vs LPX 128 GB SRAM @ 40 PB/s（约 25 倍带宽）。**容量换带宽**就是这笔交易的全部内容，所以 LPX 里的大模型必须按层切到许多颗 LPU 上（官方原话 layer-wise partitioning），不能按「单卡装得下多少」来算。',
+      '机架内互连也是两条路线：**Vera Rubin 是交换式**（9 个交换托盘 × 4 颗 NVLink 6 芯片 = 36 颗，260 TB/s）；**LPX 干脆没有交换层**——256 颗 LPU 之间是直连 C2C（每颗 96 条 112 Gb/s 链路），机架级 640 TB/s。少一跳换来的是更可控的时延与抖动，代价是拓扑固定、由编译器静态切分。',
+      '⚠️ 口径纪律三条：① 官方对 LPX **没有发过规格表**，所有数字都是产品页/技术博客的**厂商宣称**（证据徽章是 vendor_claim，不是 verified_spec）；② 机架 315 PFLOPS 与每托盘 9.6 PFLOPS 两条官方口径不完全闭合（32 × 9.6 = 307.2 ≠ 315），本项目两条并存、不互推；③ 「35× TPS/MW」是**配对系统**在 **400 TPS/用户** 交互度上对比 GB200 NVL72 的数字——前提拿掉就不成立，低交互度场景用同构 GPU 方案本来就够。',
+      '⚠️ 还有一条容易讲错的：NVIDIA 与 Groq 是**非排他技术许可 + 团队加入**（2025-12 Groq 官方新闻室），Groq 仍作为独立公司运营 GroqCloud。不要说成「NVIDIA 收购了 Groq」。',
+    ],
+    rows: [
+      {
+        roleKey: 'accelerator',
+        label: '加速器（GPU ↔ LPU）',
+        narrative:
+          '★ 这一行是整张表的核心，但它**不是一次升级**——是两种加速器哲学的对照。左：Rubin GPU，每托盘 4 张、每机架 72 张，288 GB HBM4 / 22 TB/s，跑 prefill 与 decode-attention。右：Groq 3 LP30，每托盘 8 颗、每机架 256 颗，**500 MB 片上 SRAM**（不是 GB，也没有 HBM）/ 150 TB/s / 2.5 TB/s C2C，跑 decode 的 FFN/MoE。⚠️ 自动 diff 会把它标成「数量变化 72 → 256」，那个数字**没有可比性**：一颗 LPU 不等于一张 GPU，别拿它讲「密度提升 3.5 倍」。另外 LPU 走内容模型里的 `kind: "lpu"` 分支，类型层面就不带 GPU 的 roofline 数学参数，产能估算不会误把它当 GPU 用。',
+      },
+      {
+        roleKey: 'nvlink-backplane',
+        label: '机架内 scale-up 互连底板',
+        narrative:
+          '★ 三代演进在这一行看得最清楚：GB300 铜背板 → Vera Rubin PCB 中板（无线缆盲插，仍是交换式 NVLink）→ LPX 的 **LPU C2C Spine（无交换芯片，LPU 之间直连）**。左侧 260 TB/s 要经过 36 颗 NVLink 6 交换芯片；右侧 640 TB/s 一颗交换芯片都不经过。⚠️ 官方只说了 LPX「无线缆」「经背板/spine 连接」，**没有公布 spine 的物理介质**（铜还是光），3D 里的形态是示意。',
+      },
+      {
+        roleKey: 'host-cpu',
+        label: '主机 CPU',
+        narrative:
+          '左：NVIDIA Vera，88 核自研 Olympus，每托盘 2 颗、每机架 36 颗，经 NVLink-C2C 与 GPU 共享内存空间——是这台机器的一等公民。右：**型号官方未公布**，每托盘 1 颗，官方托盘图里只标了「Host CPU」四个字，挂最高 128 GB DRAM。⚠️ 这一行绝大多数规格会落进「无法比较」而不是「变化」——因为右侧根本没有数字。★ 特别提醒：LPX 托盘上的 BlueField-4 **自带 CPU**，但它和这颗主机 CPU 在官方图里是两个并列的盒子，不能拿 BF-4 里那颗去填这一行的空。',
+      },
+      {
+        roleKey: 'north-south-dpu',
+        label: 'North/South DPU',
+        narrative:
+          '唯一一个两边**完全相同**的关键部件：都是 NVIDIA BlueField-4，每托盘 1 张（本内容包直接复用同一个组件定义，因此判为无变化）。数量上左 18 张、右 32 张，只是因为托盘数不同。它也是 LPX 与外界（存储、业务网）唯一的官方通路——官方托盘图里没有出现任何 ConnectX 系列网卡。',
+      },
+      {
+        roleKey: 'compute-tray',
+        label: '计算托盘',
+        narrative:
+          '⚠️ 「未收录」在这里的含义特殊：LPX **有**托盘，只是本项目给它单列了 `lpu-tray` 这个 roleKey（见下一行），没有和 NVLink 域三代的 `compute-tray` 配对。理由是两者不是同一类东西——VR 托盘 = 2 CPU + 4 GPU + 8 网卡 + 1 DPU；LPX 托盘 = 8 加速器 + 1 主机 CPU + 1 扩展逻辑 + 1 DPU，没有 scale-out 网卡。硬配对只会产出一条误导性的「18 → 32」。',
+      },
+      {
+        roleKey: 'lpu-tray',
+        label: 'LPX 计算托盘（1U）',
+        narrative:
+          '★ 右侧独有：32 个 1U 液冷无线缆托盘，每个 8 颗 LP30 + 1 颗主机 CPU + 1 个 fabric expansion logic + 1 张 BlueField-4，单托盘 4 GB SRAM / 1.2 PB/s / FP8 9.6 PFLOPS / 20 TB/s scale-up。1U 塞得下 8 颗加速器，是因为既没有 HBM 也没有 800 W 级的芯片。对照左侧的 18 个计算托盘 + 9 个交换托盘。',
+      },
+      {
+        roleKey: 'nvswitch-tray',
+        label: 'NVLink 交换托盘',
+        narrative:
+          '★ 这条「未收录」是**真的没有**，不是资料缺失：LPX 架构里不存在交换层，256 颗 LPU 之间是直连 C2C。这是本表最能说明「两条不同技术路线」的一行——左侧 9 个交换托盘是 NVLink 域成立的物理前提，右侧把这一层整个取消了。',
+      },
+      {
+        roleKey: 'nvswitch-asic',
+        label: 'NVLink 交换芯片',
+        narrative:
+          '★ 同上，这也是**真的没有**：LPX 架构里不存在交换芯片这个部件。左侧每机架 36 颗，右侧 0 颗——不是没建模，是架构里就没有。',
+      },
+      {
+        roleKey: 'gpu-hbm',
+        label: 'HBM 显存堆栈',
+        narrative:
+          '★ 又一条「真的没有」：LP30 不带 HBM，工作集全在 500 MB 片上 SRAM 里，机架级 DRAM（12 TB DDR5）挂在托盘的 fabric expansion logic 与主机 CPU 上，属于第二层容量而不是 decode 主路径。客户问「LPX 能装多大模型」时，答案不能按显存算，要按「切到多少颗 LPU 上」算。',
+      },
+      {
+        roleKey: 'scaleout-nic',
+        label: 'Scale-out 网卡',
+        narrative:
+          '⚠️ 「未收录」不等于「没有」：NVIDIA 的 LPX 托盘图里只画了 BlueField-4 与「backplane and front-panel connections」，没有出现 ConnectX 系列，官方正文也没提 scale-out 网卡。本项目因此不建模——这是资料缺口，不是产品结论。',
+      },
+      {
+        roleKey: 'fabric-expansion',
+        label: 'Fabric Expansion Logic',
+        narrative:
+          '★ 右侧独有：托盘上的扩展逻辑，一边把 8 颗 LP30 的 C2C 链路引到背板与前面板（跨托盘、跨机架），一边挂最高 256 GB DRAM。它是 LPX「无线缆机架」能成立的关键件，作用位置约等于 Vera Rubin 那边的 PCB 中板接口层。⚠️ 官方只给了功能描述，没有公布它是 ASIC、FPGA 还是交换芯片。',
+      },
+      {
+        roleKey: 'afd-peer-rack',
+        label: 'AFD 对端机架（示意）',
+        narrative:
+          '★ 右侧独有，而且它指的**就是左侧这台机器**：LPX 场景里画出配对的 Vera Rubin NVL72，是为了提醒「LPX 从来不是单独部署的」。这个节点没有自己的规格，真正的建模在 sys.vera-rubin-nvl72 代际里。',
+      },
+      {
+        roleKey: 'power-shelf',
+        label: '供电层',
+        narrative:
+          '⚠️ 这一行两边**都是空的**：Vera Rubin 的电源架数量与整机架功率官方未公布，LPX 更彻底——官方给的能效口径全是相对值（35× TPS/MW、10× 收入/瓦），一个绝对功率数字都没有。因此「无变化」在这里的真实含义是「两边都无法比较」。客户做配电规划时，这两代都必须向 NVIDIA/OEM 单独确认。',
+      },
+      {
+        roleKey: 'rack',
+        label: '机架',
+        narrative:
+          '左：第三代 MGX 单宽液冷机架（约 1.8 吨，45°C 液冷）。右：MGX ETL 机架，全液冷，容纳 32 个 1U 托盘。官方特别强调两者共用同一套 MGX 基础设施，让「token factory 只规划一种通用机架」——这是配对部署在机房侧最实在的好处。⚠️ LPX 的机架重量、U 高与进液温度官方都没公布。另注：官方产品页同一张卡片里 ETL / ELT 两种拼写都出现过，对外建议直接说「MGX 机架」。',
+      },
+      {
+        roleKey: 'scaleout-leaf',
+        label: 'Leaf 交换层（计算网）',
+        narrative:
+          '⚠️ 「未收录」不等于「没有」：LPX 没有官方参考架构，NVIDIA 未说明它的 scale-out 接入方案。本项目只建模了官方明确画出的部分（BlueField-4 的 North/South 通路，以及与 NVL72 之间的 AFD 交换）。',
+      },
+      {
+        roleKey: 'scaleout-spine',
+        label: 'Spine 交换层（计算网）',
+        narrative: '⚠️ 同上：LPX 侧的 scale-out 主干官方未公布，本项目不猜。',
+      },
+      {
+        roleKey: 'nic-mezzanine',
+        label: '网卡夹层板',
+        narrative: '⚠️ 「未收录」不等于「没有」：LPX 托盘的前面板连接形态官方未细化到板级，本项目不建模。',
+      },
+      {
+        roleKey: 'nvswitch-cold-plate',
+        label: '交换托盘冷板',
+        narrative: '★ 随交换托盘一起消失：LPX 没有交换托盘，自然也没有它的冷板。托盘冷板本身两边都有（cold-plate 行）。',
+      },
+    ],
+    sourceIds: [
+      'src.nvidia-lpx-page',
+      'src.nvidia-lpx-blog',
+      'src.nvidia-vera-rubin-gtc26-press',
+      'src.groq-nvidia-licensing',
+      'src.nvidia-vera-rubin-page',
+      'src.nvidia-rubin-pod-blog',
+    ],
+  },
+  {
     id: 'cmpdef.gb300-to-rubin-ultra',
     leftSystemId: 'sys.gb300-nvl72',
     rightSystemId: 'sys.rubin-ultra-nvl576',

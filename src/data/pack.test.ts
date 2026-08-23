@@ -510,11 +510,73 @@ describe('★ 跨代比较的前提：roleKey 在系统内唯一', () => {
     }
   })
 
-  it('三代系统共享的核心 roleKey 都能配上（比较不会全是 added/removed）', () => {
-    const core = ['facility', 'rack-row', 'rack', 'compute-tray', 'nvswitch-tray', 'accelerator', 'host-cpu']
+  /**
+   * v1.3 W3 重写（原规则要求**每个**系统都有 `compute-tray` + `nvswitch-tray`——
+   * Groq 3 LPX 两个都没有：它的托盘是 `lpu-tray`，而且整个架构里根本不存在交换层）。
+   *
+   * 新规则**按架构分型**，而不是放宽成「随便有几个就行」：
+   *   - 四代共有：facility / rack-row / rack / accelerator / host-cpu
+   *     ——机房、机架列、机架、加速器、主机 CPU 是任何一代都必须有的骨架，
+   *       少一个跨代比较就会退化成一堆 added/removed；
+   *   - NVLink 域三代（capacityPolicy !== 'paired-only'）额外强制 compute-tray + nvswitch-tray
+   *     ——「有没有交换托盘」正是这一族的定义特征；
+   *   - LPX（paired-only）额外强制它**自己**的核心角色 lpu-tray + fabric-expansion + nvlink-backplane
+   *     ——豁免不等于不检查，否则哪天 LPX 的托盘层被删掉也没人发现。
+   */
+  it('核心 roleKey 按架构分型强制：四代共有骨架 + NVLink 域的交换托盘 + LPX 自有角色', () => {
+    const sharedCore = ['facility', 'rack-row', 'rack', 'accelerator', 'host-cpu']
+    /** NVLink 交换域架构（GB300 / Vera Rubin / NVL576）的定义特征。 */
+    const nvlinkDomainCore = ['compute-tray', 'nvswitch-tray']
+    /** LPU 直连架构（Groq 3 LPX）的定义特征：托盘、托盘内扩展逻辑、机架内 scale-up 底板。 */
+    const lpuFabricCore = ['lpu-tray', 'fabric-expansion', 'nvlink-backplane']
+
     for (const sys of pack.systems) {
       const keys = new Set(pack.assemblies.filter((a) => a.systemId === sys.id).map((a) => a.roleKey))
-      for (const k of core) expect(keys.has(k), `${sys.id} 缺少核心 roleKey ${k}`).toBe(true)
+      for (const k of sharedCore) expect(keys.has(k), `${sys.id} 缺少四代共有的核心 roleKey ${k}`).toBe(true)
+
+      if (sys.capacityPolicy === 'paired-only') {
+        for (const k of lpuFabricCore) {
+          expect(keys.has(k), `${sys.id}（LPU 直连架构）缺少自有核心 roleKey ${k}`).toBe(true)
+        }
+        // 豁免要「说到做到」：LPX 确实不该有 NVLink 交换托盘，写进来反而是建模错误。
+        expect(keys.has('nvswitch-tray'), `${sys.id} 不该有 nvswitch-tray（LPX 架构里没有交换层）`).toBe(false)
+      } else {
+        for (const k of nvlinkDomainCore) {
+          expect(keys.has(k), `${sys.id}（NVLink 域架构）缺少核心 roleKey ${k}`).toBe(true)
+        }
+      }
+    }
+  })
+})
+
+describe('★ 加速器分型：LPU 分支不得携带 GPU 的 roofline 数学参数（v1.3 W3）', () => {
+  it('kind==="lpu" 的组件运行期不带 mathSpecs 键（类型层面已不可能，这里兜底）', () => {
+    const lpus = pack.components.filter((c) => c.kind === 'lpu')
+    expect(lpus.length, '内容包里应至少有一个 LPU 组件（Groq 3 LP30）').toBeGreaterThan(0)
+    for (const c of lpus) {
+      expect(
+        Object.hasOwn(c, 'mathSpecs'),
+        `${c.id} 是 LPU 却带了 mathSpecs——产能 roofline 是按 GPU（HBM 容量/带宽 + 稠密 TFLOPS）建的，套到 SRAM-first 的 LPU 上会得出彻底错误的数字`,
+      ).toBe(false)
+    }
+  })
+
+  it('只有 kind==="gpu" 的组件才允许出现 mathSpecs 键', () => {
+    for (const c of pack.components) {
+      if (Object.hasOwn(c, 'mathSpecs')) {
+        expect(c.kind, `${c.id} 不是 GPU 却带了 mathSpecs`).toBe('gpu')
+      }
+    }
+  })
+
+  it('LPU 组件没有任何 HBM 语义的规格键（SRAM-first 架构，官方明确不带 HBM）', () => {
+    for (const c of pack.components.filter((x) => x.kind === 'lpu')) {
+      for (const key of Object.keys(c.specs)) {
+        expect(
+          /^hbm/i.test(key),
+          `${c.id}.specs.${key} 用了 HBM 语义的键名——LPU 没有 HBM，工作集在片上 SRAM`,
+        ).toBe(false)
+      }
     }
   })
 })

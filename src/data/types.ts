@@ -115,6 +115,15 @@ export interface VisualHint {
 export type NonGpuComponentKind =
   | 'cpu'
   | 'hbm'
+  /**
+   * 语言处理单元（LPU）——非 GPU 的推理加速器（v1.3 W3：NVIDIA Groq 3 LP30）。
+   *
+   * ⚠️ 必须放在 `NonGpuComponentKind` 而不是直接加进 `ComponentKind`：
+   * `HardwareComponent` 是按 `kind` 判别的联合类型，只有 `kind: 'gpu'` 那一支才带
+   * `mathSpecs`。LPU 走 non-GPU 分支 ⇒ 类型层面就**不可能**给它挂 `GpuMathSpecs`
+   * （`pack.test.ts` 另有运行期断言兜底），产能估算也因此不会误把 LPU 当 GPU 用。
+   */
+  | 'lpu'
   | 'tray'
   | 'rack'
   | 'switch'

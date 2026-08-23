@@ -16,6 +16,7 @@ import {
 const GB300 = 'sys.gb300-nvl72'
 const VERA_RUBIN = 'sys.vera-rubin-nvl72'
 const NVL576 = 'sys.rubin-ultra-nvl576'
+const LPX = 'sys.groq3-lpx'
 
 const componentById = new Map(FACTORY_PACK.components.map((c) => [c.id, c]))
 
@@ -193,9 +194,81 @@ describe('GB300 ↔ Rubin Ultra：跨两代', () => {
   })
 })
 
+describe('Vera Rubin ↔ Groq 3 LPX：配对（不是换代）', () => {
+  const result = compareSystems(VERA_RUBIN, LPX)
+  const byKey = new Map(result.rows.map((r) => [r.roleKey, r]))
+
+  it('用到了内容包里的配对定义，且 summary 讲清「不是谁取代谁」', () => {
+    expect(result.id).toBe('cmpdef.vera-rubin-to-groq3-lpx')
+    expect(result.summary.length).toBeGreaterThan(0)
+    expect(result.summary.join(' ')).toContain('配对')
+    expect(result.summary.join(' ')).toContain('AFD')
+    expect(result.rightStatus).toBe('announced')
+  })
+
+  it('★ accelerator 行配上了，但两侧是不同类别的加速器（GPU vs LPU）', () => {
+    const acc = byKey.get('accelerator')!
+    expect(acc.left).not.toBeNull()
+    expect(acc.right).not.toBeNull()
+    expect(acc.left!.total).toBe(72) // 每机架 72 张 Rubin GPU
+    expect(acc.right!.total).toBe(256) // 每机架 256 颗 LP30
+    expect(acc.componentChanged).toBe(true)
+    // narrative 必须显式警告「72 → 256」这个数字没有可比性
+    expect(acc.narrative).toContain('没有可比性')
+  })
+
+  it('★ LPX 独有层判为 added：lpu-tray / fabric-expansion / afd-peer-rack', () => {
+    for (const key of ['lpu-tray', 'fabric-expansion', 'afd-peer-rack']) {
+      const row = byKey.get(key)
+      expect(row, `缺少 roleKey ${key}`).toBeDefined()
+      expect(row!.kind, key).toBe('added')
+      expect(row!.left).toBeNull()
+    }
+    expect(byKey.get('lpu-tray')!.right!.total).toBe(32)
+  })
+
+  it('★ 交换层在 LPX 侧判为 removed，且 narrative 说明这是「真的没有」而不是资料缺失', () => {
+    for (const key of ['nvswitch-tray', 'nvswitch-asic', 'gpu-hbm']) {
+      const row = byKey.get(key)!
+      expect(row.kind, key).toBe('removed')
+      expect(row.narrative, `${key} 缺少 narrative`).not.toBeNull()
+      expect(row.narrative!, key).toContain('真的没有')
+    }
+  })
+
+  it('★ scale-out 网卡的 removed 是资料缺口，narrative 必须澄清「未收录 ≠ 没有」', () => {
+    const nic = byKey.get('scaleout-nic')!
+    expect(nic.kind).toBe('removed')
+    expect(nic.narrative).toContain('未收录')
+  })
+
+  it('BlueField-4 两边复用同一组件 ⇒ 判为无变化（唯一完全相同的关键部件）', () => {
+    const dpu = byKey.get('north-south-dpu')!
+    expect(dpu.componentChanged).toBe(false)
+    expect(dpu.left!.componentId).toBe('cmp.rubin.bluefield-4')
+    expect(dpu.right!.componentId).toBe('cmp.rubin.bluefield-4')
+  })
+
+  it('nvlink-backplane 行把「交换式 → 无交换直连」讲出来（跨代语义键复用的价值）', () => {
+    const bp = byKey.get('nvlink-backplane')!
+    expect(bp.left!.componentId).toBe('cmp.rubin.nvlink-midplane')
+    expect(bp.right!.componentId).toBe('cmp.lpx.c2c-spine')
+    expect(bp.narrative).toContain('直连')
+  })
+
+  it('★ 每条 removed 行都有 narrative（配对表最容易被误读成「LPX 少了一堆东西」）', () => {
+    const def = comparisonFor(VERA_RUBIN, LPX)!
+    const overrides = new Map(def.rows.map((r) => [r.roleKey, r]))
+    for (const r of result.rows.filter((x) => x.kind === 'removed')) {
+      expect(overrides.get(r.roleKey), `${r.roleKey} 是 removed 却没有 narrative`).toBeDefined()
+    }
+  })
+})
+
 describe('比较定义与 3D 索引', () => {
-  it('内容包里三组比较定义都能构建出结果，且 narrative 覆盖生效', () => {
-    expect(FACTORY_PACK.comparisons.length).toBe(3)
+  // v1.3 W3：第四条定义是 Vera Rubin ↔ Groq 3 LPX——**配对**关系而不是换代关系。
+  it('内容包里四组比较定义都能构建出结果，且 narrative 覆盖生效', () => {
+    expect(FACTORY_PACK.comparisons.length).toBe(4)
     for (const def of FACTORY_PACK.comparisons) {
       const result = buildComparison(def)
       expect(result.rows.length).toBeGreaterThan(0)

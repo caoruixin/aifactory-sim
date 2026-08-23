@@ -7,6 +7,13 @@ import {
   GB300_SCENES,
   GB300_SYSTEM,
 } from './gb300-nvl72'
+import {
+  GROQ3_LPX_ASSEMBLIES,
+  GROQ3_LPX_COMPONENTS,
+  GROQ3_LPX_CONNECTIONS,
+  GROQ3_LPX_SCENES,
+  GROQ3_LPX_SYSTEM,
+} from './groq3-lpx'
 import { MODELS } from './models'
 import {
   RUBIN_ULTRA_ASSEMBLIES,
@@ -47,18 +54,31 @@ export const FACTORY_PACK: FactoryContentPack = {
   version: '0.2.0',
   generatedAsOf: '2026-08',
   sources: SOURCES,
-  systems: [GB300_SYSTEM, VERA_RUBIN_SYSTEM, RUBIN_ULTRA_SYSTEM],
+  // ⚠️ 追加只能加在**尾部**：`systems[0]` 是默认代际，`systems[1]` 是比较模式的默认右侧，
+  //    中间插入会让这两个约定连同截图基线一起漂移（content.test.ts 有 toEqual 锁）。
+  systems: [GB300_SYSTEM, VERA_RUBIN_SYSTEM, RUBIN_ULTRA_SYSTEM, GROQ3_LPX_SYSTEM],
   components: [
     ...SHARED_COMPONENTS,
     ...GB300_COMPONENTS,
     ...VERA_RUBIN_COMPONENTS,
     ...RUBIN_ULTRA_COMPONENTS,
+    ...GROQ3_LPX_COMPONENTS,
   ],
-  assemblies: [...GB300_ASSEMBLIES, ...VERA_RUBIN_ASSEMBLIES, ...RUBIN_ULTRA_ASSEMBLIES],
-  connections: [...GB300_CONNECTIONS, ...VERA_RUBIN_CONNECTIONS, ...RUBIN_ULTRA_CONNECTIONS],
+  assemblies: [
+    ...GB300_ASSEMBLIES,
+    ...VERA_RUBIN_ASSEMBLIES,
+    ...RUBIN_ULTRA_ASSEMBLIES,
+    ...GROQ3_LPX_ASSEMBLIES,
+  ],
+  connections: [
+    ...GB300_CONNECTIONS,
+    ...VERA_RUBIN_CONNECTIONS,
+    ...RUBIN_ULTRA_CONNECTIONS,
+    ...GROQ3_LPX_CONNECTIONS,
+  ],
   flows: FLOWS,
   comparisons: COMPARISONS,
-  scenes: [...GB300_SCENES, ...VERA_RUBIN_SCENES, ...RUBIN_ULTRA_SCENES],
+  scenes: [...GB300_SCENES, ...VERA_RUBIN_SCENES, ...RUBIN_ULTRA_SCENES, ...GROQ3_LPX_SCENES],
   models: MODELS,
 }
 

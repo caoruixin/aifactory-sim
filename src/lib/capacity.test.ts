@@ -14,6 +14,7 @@ import { DEFAULT_MBU, DEFAULT_MFU } from './roofline'
 const GB300 = 'sys.gb300-nvl72'
 const VERA_RUBIN = 'sys.vera-rubin-nvl72'
 const NVL576 = 'sys.rubin-ultra-nvl576'
+const LPX = 'sys.groq3-lpx'
 
 function ordered(b: Band | null): boolean {
   return b !== null && b.low <= b.mid && b.mid <= b.high
@@ -153,6 +154,55 @@ describe('★ 拒绝门 1：capacityPolicy 非 standard 的系统按策略拒绝
       expect(e.reasonCode).toBe('analyst-modeled-policy')
       expect(e.tokensPerSec).toBeNull()
     }
+  })
+
+  /**
+   * v1.3 W3：paired-only 从「合成 pack 的假设」变成内容包里真实存在的一代
+   * （Groq 3 LPX）。下面这一组用真系统跑，锁住三件事：
+   *   ① 拒绝发生在**查找 GPU 组件之前**——LPX 装配树里一颗 GPU 都没有，
+   *      如果门的顺序错了，得到的会是 'missing-gpu-component' 而不是策略码；
+   *   ② `missing` 恒为空数组（不是「差一个数」，是这一代没有独立产能语义）；
+   *   ③ 理由文案讲得出「为什么」，供 UI 与 E2E 断言。
+   */
+  describe('paired-only：Groq 3 LPX（内容包里真实存在的 paired-only 代际）', () => {
+    const est = estimateSystemCapacity({ systemId: LPX, modelId: 'deepseek-v3', quantId: 'fp8' })
+
+    it('被拒绝，全部数值字段为 null，missing 为空数组', () => {
+      expect(est.kind).toBe('refused')
+      expect(est.reasonCode).toBe('paired-only-policy')
+      expect(est.missing).toEqual([])
+      expect(est.tokensPerSec).toBeNull()
+      expect(est.ttftMs).toBeNull()
+      expect(est.tpotMs).toBeNull()
+      expect(est.tokensPerWatt).toBeNull()
+      expect(est.gpusPerReplica).toBeNull()
+      expect(est.replicas).toBeNull()
+      expect(est.memory).toBeNull()
+    })
+
+    it('★ 拒绝发生在 GPU 查找之前：LPX 没有 GPU 组件，却不是 missing-gpu-component', () => {
+      const hasGpu = FACTORY_PACK.assemblies
+        .filter((a) => a.systemId === LPX)
+        .some((a) => FACTORY_PACK.components.find((c) => c.id === a.componentId)?.kind === 'gpu')
+      expect(hasGpu, 'LPX 装配树里不应有任何 GPU 组件').toBe(false)
+      expect(est.reasonCode).not.toBe('missing-gpu-component')
+      expect(est.reasonCode).toBe('paired-only-policy')
+    })
+
+    it('理由点明「配对」与系统名，caveats 首条仍在', () => {
+      expect(est.reason).toContain('配对')
+      expect(est.reason).toContain('NVIDIA Groq 3 LPX')
+      expect(est.caveats[0]).toBe(CAPACITY_HEADLINE_CAVEAT)
+    })
+
+    it('无论换什么模型/量化/机架数都拒绝（这道门在最前面）', () => {
+      for (const quantId of ['fp16', 'fp8', 'int4'] as const) {
+        const e = estimateSystemCapacity({ systemId: LPX, modelId: 'llama3-70b', quantId, rackCount: 8 })
+        expect(e.kind).toBe('refused')
+        expect(e.reasonCode).toBe('paired-only-policy')
+        expect(e.missing).toEqual([])
+      }
+    })
   })
 
   it('paired-only 策略：以合成 pack 验证——同样拒绝，理由点明「配对」，reasonCode 独立', () => {

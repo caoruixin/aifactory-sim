@@ -92,6 +92,26 @@ function column(count: number, pitch: number, x: number, z: number, y0: number):
   return out
 }
 
+/**
+ * `perRow` 列 × 若干排的网格，整体以 (0, y, z0) 为中心。
+ *
+ * 给「一排放不下」的板级件用（v1.3 W3：LPX 托盘里 8 颗 LP30——8 × 0.13 m 的一排
+ * 会顶穿 0.54 m 宽的托盘）。`count <= perRow` 时退化成单排，与 `row()` 逐位相同，
+ * 因此把它套在既有 roleKey 上不会改变任何现存代际的摆位。
+ */
+function grid(count: number, perRow: number, pitchX: number, pitchZ: number, y: number, z0: number): Vec3[] {
+  const rows = Math.max(1, Math.ceil(count / perRow))
+  const out: Vec3[] = []
+  for (let i = 0; i < count; i += 1) {
+    const r = Math.floor(i / perRow)
+    const col = i % perRow
+    // 最后一排可能不满，按该排实际列数居中，避免右侧空出一大块。
+    const colsHere = Math.min(perRow, count - r * perRow)
+    out.push([(col - (colsHere - 1) / 2) * pitchX, y, z0 + (r - (rows - 1) / 2) * pitchZ])
+  }
+  return out
+}
+
 /** 机架内按 rack-U 摆位：单实例槽高 = height / count。 */
 function rackUSlots(count: number, ctx: PlacementCtx): Vec3[] {
   const span = ctx.node.rackU
@@ -155,6 +175,9 @@ const PLACEMENTS: Record<string, Placement> = {
   // ── rack 层：占 U 位的走 rackU，纵向贯穿件单独摆 ──
   'compute-tray': { size: [0, 0, 0], slots: rackUSlots },
   'nvswitch-tray': { size: [0, 0, 0], slots: rackUSlots },
+  // LPX 的 1U 计算托盘（32 个）。与 compute-tray 同规则、不同 roleKey——
+  // 见 asm.lpx.lpu-tray 的 note：两者不是同一类东西，不该在跨代比较里硬配对。
+  'lpu-tray': { size: [0, 0, 0], slots: rackUSlots },
   'power-shelf': { size: [0, 0, 0], slots: rackUSlots },
   'inrack-mgmt-switch': { size: [0, 0, 0], slots: rackUSlots },
   'dc-busbar': {
@@ -173,7 +196,9 @@ const PLACEMENTS: Record<string, Placement> = {
   // ── 计算托盘内部（board 级） ──
   accelerator: {
     size: [0.086, 0.012, 0.086],
-    slots: (count) => row(count, 0.13, 0.006, 0.16),
+    // ≤4 颗排一排（GB300 / Vera Rubin / NVL576 都是 4，摆位与 v1.2 逐位相同）；
+    // 更多就折成每排 4 的网格——LPX 托盘是 8 颗 LP30，一排会顶穿托盘宽度。
+    slots: (count) => (count <= 4 ? row(count, 0.13, 0.006, 0.16) : grid(count, 4, 0.13, 0.13, 0.006, 0.16)),
     explode: { lift: 0.0, spread: 1.18 },
   },
   'host-cpu': {
@@ -216,6 +241,13 @@ const PLACEMENTS: Record<string, Placement> = {
     slots: (count) => row(count, 0.1, 0.004, -0.3),
     explode: { lift: 0.08, spread: 1.15 },
   },
+  // LPX 托盘里把 8 颗 LP30 的 C2C 引到背板的扩展逻辑：摆在主机 CPU（z=-0.1，x=0）
+  // 旁边，与 north-south-dpu（z=-0.3）分排，三者互不重叠。
+  'fabric-expansion': {
+    size: [0.062, 0.01, 0.062],
+    slots: (count) => row(count, 0.16, 0.005, -0.1).map((p) => [p[0] - 0.17, p[1], p[2]] as Vec3),
+    explode: { lift: 0.05, spread: 1.2 },
+  },
   'os-storage': {
     size: [0.024, 0.006, 0.085],
     slots: (count) => row(count, 0.04, 0.004, 0.42).map((p) => [p[0] - 0.2, p[1], p[2]] as Vec3),
@@ -230,6 +262,15 @@ const PLACEMENTS: Record<string, Placement> = {
     size: [0.5, 0.006, 0.62],
     slots: () => [[0, 0.0135, 0.02]],
     explode: { lift: 0.17, spread: 1 },
+  },
+
+  // ── AFD 对端机架（Groq 3 LPX 专有的示意节点） ──
+  // 摆在机架列**正前方**（+Z 是机架正面）隔一条通道，读起来就是「过道对面那台 GPU 机架」。
+  // 用独立 roleKey 而不是 'rack'：后者会连带触发 routing 的机架扇出与 SceneRoot 的
+  // rack-row 特判，而这个盒子只是叙事对端，不该参与那些逻辑。
+  'afd-peer-rack': {
+    size: [RACK_WIDTH, 2.2, RACK_DEPTH],
+    slots: (count, ctx) => row(count, RACK_PITCH, ctx.rackHeight / 2, 3.2),
   },
 
   // ── 跨机架光互连（Rubin Ultra NVL576 新增的一层） ──
@@ -341,7 +382,8 @@ export function resolveLayout(
     // rack-U 设备的尺寸由槽高推导；机架与机架列的高度跟随 rackUnitsForLayout。
     let size = rule.size
     if (node.rackU) size = rackUSize(ctx)
-    else if (node.roleKey === 'rack') size = [RACK_WIDTH, rackHeight, RACK_DEPTH]
+    else if (node.roleKey === 'rack' || node.roleKey === 'afd-peer-rack')
+      size = [RACK_WIDTH, rackHeight, RACK_DEPTH]
     else if (node.roleKey === 'rack-row') size = [rackCount * RACK_PITCH, rackHeight, RACK_DEPTH]
     else if (node.roleKey === 'dc-busbar' || node.roleKey === 'liquid-manifold')
       size = [rule.size[0], rackHeight * 0.86, rule.size[2]]

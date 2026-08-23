@@ -13,6 +13,13 @@ import { resolveLayout } from '../lib/layout'
 import { kvBytesPerToken } from '../lib/roofline'
 import { routeConnections } from '../lib/routing'
 import {
+  GROQ3_LPX_ASSEMBLIES,
+  GROQ3_LPX_COMPONENTS,
+  GROQ3_LPX_CONNECTIONS,
+  GROQ3_LPX_SCENES,
+  GROQ3_LPX_SYSTEM,
+} from './groq3-lpx'
+import {
   RUBIN_ULTRA_ASSEMBLIES,
   RUBIN_ULTRA_COMPONENTS,
   RUBIN_ULTRA_CONNECTIONS,
@@ -548,9 +555,183 @@ describe('★ Rubin Ultra NVL576：SemiAnalysis 专项证据纪律（四重锁�
   })
 })
 
-describe('三代并存后的全局不变量', () => {
-  it('三个系统各自成树，且默认代际（systems[0]）是唯一 shipping 的一代', () => {
-    expect(FACTORY_PACK.systems.map((s) => s.id)).toEqual([SYSTEM_ID, VR, RU])
+// ═══════════════════════════ Groq 3 LPX（v1.3 W3） ═══════════════════════════
+
+const LPX = 'sys.groq3-lpx'
+const LPX_RACK = 'asm.lpx.rack'
+
+describe('Groq 3 LPX：机架/托盘/芯片三级数量与容量', () => {
+  it('系统为 announced，产能策略为 paired-only（官方口径只有「与 Vera Rubin 配对」）', () => {
+    expect(GROQ3_LPX_SYSTEM.status).toBe('announced')
+    expect(GROQ3_LPX_SYSTEM.capacityPolicy).toBe('paired-only')
+    expect(GROQ3_LPX_SYSTEM.generation).toBe('groq3-lpx')
+    expect(GROQ3_LPX_SYSTEM.vendor).toBe('NVIDIA')
+  })
+
+  it('★ 32 托盘 × 8 颗 LP30 = 每机架 256 颗 LPU（三处官方口径闭合）', () => {
+    expect(totalInstances('asm.lpx.lpu-tray', LPX_RACK)).toBe(32)
+    expect(totalInstances('asm.lpx.lp30', LPX_RACK)).toBe(256)
+    expect(GROQ3_LPX_SYSTEM.keySpecs.acceleratorCount!.value).toBe(256)
+    expect(GROQ3_LPX_SYSTEM.keySpecs.lpuTrayCount!.value).toBe(32)
+    expect(GROQ3_LPX_SYSTEM.keySpecs.lpusPerTray!.value).toBe(8)
+  })
+
+  it('★ keySpecs 用 acceleratorCount 表达加速器数量；gpuCount 恒为 null（LPX 没有 GPU）', () => {
+    expect(GROQ3_LPX_SYSTEM.keySpecs.gpuCount!.value).toBeNull()
+    expect(GROQ3_LPX_SYSTEM.keySpecs.gpuCount!.note).toContain('没有 GPU')
+    expect(GROQ3_LPX_SYSTEM.keySpecs.acceleratorCount!.value).toBe(256)
+    // 装配树里也确实一颗 GPU 都没有
+    const kinds = new Set(
+      GROQ3_LPX_ASSEMBLIES.map((a) => componentById(a.componentId)?.kind).filter(Boolean),
+    )
+    expect(kinds.has('gpu')).toBe(false)
+    expect(kinds.has('lpu')).toBe(true)
+  })
+
+  it('★ 机架 315 PF 与每托盘 9.6 PF 并存：两条独立 Claim，note 注明官方口径不闭合', () => {
+    const rackPf = GROQ3_LPX_SYSTEM.keySpecs.fp8RackPflops!
+    const trayPf = GROQ3_LPX_SYSTEM.keySpecs.fp8PerTrayPflops!
+    expect(rackPf.value).toBe(315)
+    expect(trayPf.value).toBe(9.6)
+    // 32 × 9.6 = 307.2 ≠ 315 —— 这里刻意**不**写相等断言，只钉住「两条都在、都留了痕」。
+    expect(32 * (trayPf.value as number)).not.toBeCloseTo(rackPf.value as number, 1)
+    for (const c of [rackPf, trayPf]) {
+      expect(c.note).toContain('307.2')
+      expect(c.note).toContain('不完全闭合')
+    }
+  })
+
+  it('★ 单 LP30：500 MB SRAM / 150 TB/s / 2.5 TB/s（96 × 112 Gb/s C2C），且明确无 HBM', () => {
+    const lpu = componentById('cmp.lpx.lp30-lpu')!
+    expect(lpu.kind).toBe('lpu')
+    expect(lpu.specs.sramPerChipMB!.value).toBe(500)
+    expect(lpu.specs.sramPerChipMB!.unit).toBe('MB')
+    expect(lpu.specs.sramBandwidthTBs!.value).toBe(150)
+    expect(lpu.specs.scaleUpBandwidthTBs!.value).toBe(2.5)
+    expect(lpu.specs.c2cLinkCount!.value).toBe(96)
+    expect(lpu.specs.c2cLinkGbps!.value).toBe(112)
+    expect(String(lpu.specs.memoryTechnology!.value)).toContain('无 HBM')
+  })
+
+  it('机架级容量与带宽：128 GB SRAM / 40 PB/s / 640 TB/s C2C / 12 TB DDR5', () => {
+    expect(GROQ3_LPX_SYSTEM.keySpecs.sramTotalGB!.value).toBe(128)
+    expect(GROQ3_LPX_SYSTEM.keySpecs.sramBandwidthPBs!.value).toBe(40)
+    expect(GROQ3_LPX_SYSTEM.keySpecs.scaleUpBandwidthTBs!.value).toBe(640)
+    expect(GROQ3_LPX_SYSTEM.keySpecs.ddr5TotalTB!.value).toBe(12)
+  })
+
+  it('★ 托盘 = 8 × LP30 + 1 独立 host CPU + 1 fabric expansion + 1 BF4（四个并列部件）', () => {
+    const kids = GROQ3_LPX_ASSEMBLIES.filter((a) => a.parentId === 'asm.lpx.lpu-tray')
+    const byRole = new Map(kids.map((a) => [a.roleKey, a]))
+    expect(byRole.get('accelerator')!.count).toBe(8)
+    expect(byRole.get('host-cpu')!.count).toBe(1)
+    expect(byRole.get('fabric-expansion')!.count).toBe(1)
+    expect(byRole.get('north-south-dpu')!.count).toBe(1)
+    // ★ R2 P0-4：host CPU 与 BF-4 是**两个不同的组件**，绝不能让 BF-4 内嵌的 CPU 冒充主机 CPU
+    expect(byRole.get('host-cpu')!.componentId).toBe('cmp.lpx.host-cpu')
+    expect(byRole.get('north-south-dpu')!.componentId).toBe('cmp.rubin.bluefield-4')
+    expect(byRole.get('host-cpu')!.componentId).not.toBe(byRole.get('north-south-dpu')!.componentId)
+  })
+
+  it('★ 托盘主机 CPU 型号未公布：component 为 unknown、claim value 为 null，且明令禁止用 BF-4 顶替', () => {
+    const cpu = componentById('cmp.lpx.host-cpu')!
+    expect(cpu.kind).toBe('cpu')
+    expect(cpu.vendor).toBe('未公布')
+    expect(cpu.specs.model!.value).toBeNull()
+    expect(cpu.specs.coreCount!.value).toBeNull()
+    expect(cpu.specs.architecture!.value).toBeNull()
+    expect(cpu.specs.model!.note).toContain('BlueField-4')
+    expect(cpu.presalesNote).toContain('独立部件')
+  })
+
+  it('★ 没有 NVSwitch / 交换托盘：scale-up 是 LPU 直连 C2C', () => {
+    const roleKeys = new Set(GROQ3_LPX_ASSEMBLIES.map((a) => a.roleKey))
+    expect(roleKeys.has('nvswitch-tray')).toBe(false)
+    expect(roleKeys.has('nvswitch-asic')).toBe(false)
+    expect(String(componentById('cmp.lpx.c2c-spine')!.specs.switchless!.value)).toContain('无交换芯片')
+  })
+
+  it('整机架功率与单芯片 TDP 都没出数（官方只给相对能效倍数）', () => {
+    expect(GROQ3_LPX_SYSTEM.keySpecs.rackPowerKW!.value).toBeNull()
+    expect(componentById('cmp.lpx.lp30-lpu')!.specs.tdpW!.value).toBeNull()
+    // 供电层整组规格全为 null
+    for (const [k, c] of Object.entries(componentById('cmp.lpx.power-shelf')!.specs)) {
+      expect(c.value, `power-shelf.${k} 不该有数值`).toBeNull()
+    }
+  })
+
+  it('★ 晶体管数整条不建（keynote-only 数字不进内容包）', () => {
+    const lpu = componentById('cmp.lpx.lp30-lpu')!
+    for (const key of Object.keys(lpu.specs)) {
+      expect(/transistor/i.test(key), `${key} 不该存在——晶体管数只在主题演讲里出现过`).toBe(false)
+    }
+    const allText = JSON.stringify(lpu)
+    expect(allText).not.toContain('98')
+  })
+
+  it('★ 全部 LPX Claim 都是 vendor_claim + announced，且只引官方源', () => {
+    const officialLpxSources = new Set([
+      'src.nvidia-lpx-page',
+      'src.nvidia-lpx-blog',
+      'src.nvidia-vera-rubin-gtc26-press',
+      'src.groq-nvidia-licensing',
+    ])
+    const claims: Claim[] = [
+      ...Object.values(GROQ3_LPX_SYSTEM.keySpecs),
+      ...GROQ3_LPX_COMPONENTS.flatMap((c) => Object.values(c.specs)),
+      ...GROQ3_LPX_ASSEMBLIES.flatMap((a) => (a.countClaim ? [a.countClaim as Claim] : [])),
+      ...GROQ3_LPX_CONNECTIONS.flatMap((c) => (c.bandwidth ? [c.bandwidth as Claim] : [])),
+    ]
+    expect(claims.length).toBeGreaterThan(30)
+    for (const c of claims) {
+      expect(c.evidence, `${c.sourceId} / ${c.locator}`).toBe('vendor_claim')
+      expect(c.status).toBe('announced')
+      expect(officialLpxSources.has(c.sourceId), `意外的源 ${c.sourceId}`).toBe(true)
+    }
+  })
+
+  it('Groq×NVIDIA 关系建成叙事 Claim：非排他许可 + 团队加入 + 独立运营，且不提金额', () => {
+    const rel = GROQ3_LPX_SYSTEM.keySpecs.groqRelationship!
+    expect(rel.sourceId).toBe('src.groq-nvidia-licensing')
+    const text = String(rel.value)
+    expect(text).toContain('非排他')
+    expect(text).toContain('独立公司')
+    expect(rel.note).toContain('不是收购')
+    // 金额一律不建（发布稿没有提到任何数字）
+    expect(JSON.stringify(GROQ3_LPX_SYSTEM)).not.toContain('20B')
+    expect(JSON.stringify(GROQ3_LPX_SYSTEM)).not.toContain('200 亿')
+  })
+
+  it('AFD 叙事数字（35× @400 TPS/用户）带全前提，且标明是配对系统口径', () => {
+    const gain = GROQ3_LPX_SYSTEM.keySpecs.pairedThroughputGain!
+    expect(gain.sourceId).toBe('src.nvidia-lpx-blog')
+    expect(String(gain.value)).toContain('35')
+    expect(String(gain.value)).toContain('400 TPS')
+    expect(gain.note).toContain('配对')
+  })
+
+  it('两个导览场景讲 rack 解剖与 AFD 三段流，highlight 指向本系统真实节点', () => {
+    const scenes = GROQ3_LPX_SCENES
+    expect(scenes.length).toBe(2)
+    const ids = GROQ3_LPX_ASSEMBLIES.map((a) => a.id)
+    for (const s of scenes) {
+      expect(s.systemId).toBe(LPX)
+      for (const h of s.highlightAssemblyIds) expect(ids, `${s.id} → ${h}`).toContain(h)
+      if (s.focusAssemblyId) expect(ids).toContain(s.focusAssemblyId)
+    }
+    const afd = scenes.find((s) => s.id === 'scene.lpx.afd-pairing')!
+    expect(afd.narration).toContain('prefill')
+    expect(afd.narration).toContain('attention')
+    expect(afd.narration).toContain('FFN/MoE')
+    expect(afd.narration).toContain('Dynamo')
+  })
+})
+
+describe('四代并存后的全局不变量', () => {
+  // v1.3 W3：Groq 3 LPX 作为第四个系统**追加在尾部**——`systems[0]` 是默认代际、
+  // `systems[1]` 是比较模式默认右侧，中间插入会让这两个约定连同全部截图基线一起漂移。
+  it('四个系统各自成树，且默认代际（systems[0]）是唯一 shipping 的一代', () => {
+    expect(FACTORY_PACK.systems.map((s) => s.id)).toEqual([SYSTEM_ID, VR, RU, LPX])
     expect(FACTORY_PACK.systems.filter((s) => s.status === 'shipping').map((s) => s.id)).toEqual([SYSTEM_ID])
   })
 
@@ -577,11 +758,13 @@ describe('三代并存后的全局不变量', () => {
    * ⚠️ 这里必须精确锁「改的是哪条边」：只断言「存在某条 power 路由」是漏的——
    * 原来的 facility→power-shelf 本来就非退化，不改也照样产出一条路由。
    */
-  it('★ 三代的「机房配电 → 电源架」都从 facility-power 装配节点出发（不是从装配树根）', () => {
+  it('★ 四代的「机房配电 → 电源架」都从 facility-power 装配节点出发（不是从装配树根）', () => {
     const cases = [
       ['sys.gb300-nvl72', 'con.gb300.facility-power-shelf', 'asm.gb300.facility-power', 'asm.gb300.facility'],
       ['sys.vera-rubin-nvl72', 'con.rubin.facility-power-shelf', 'asm.rubin.facility-power', 'asm.rubin.facility'],
       ['sys.rubin-ultra-nvl576', 'con.ru.facility-power-shelf', 'asm.ru.facility-power', 'asm.ru.facility'],
+      // v1.3 W3：LPX 保持与前三代同构（机房配电必须有实体盒子，供电线才不会从树根长出来）
+      ['sys.groq3-lpx', 'con.lpx.facility-power-shelf', 'asm.lpx.facility-power', 'asm.lpx.facility'],
     ] as const
 
     for (const [systemId, conId, powerId, rootId] of cases) {
@@ -621,11 +804,14 @@ describe('三代并存后的全局不变量', () => {
     expect(comp.sourceIds).toContain('src.nvidia-nvl72-ra')
   })
 
-  it('每代的六平面覆盖情况如实反映来源（GB300/Vera Rubin 六平面齐全，NVL576 只有四个）', () => {
+  it('每代的六平面覆盖情况如实反映来源（GB300/Vera Rubin/LPX 六平面齐全，NVL576 只有四个）', () => {
     const planes: NetworkPlane[] = ['nvlink', 'scaleout', 'business', 'mgmt', 'power', 'cooling']
     for (const p of planes) {
       expect(connectionsOfPlane(SYSTEM_ID, p).length, `GB300 ${p}`).toBeGreaterThan(0)
       expect(connectionsOfPlane(VR, p).length, `Vera Rubin ${p}`).toBeGreaterThan(0)
+      // LPX 的 nvlink 平面装的是 LPU C2C（UI 上经 planeLabel 显示为「C2C scale-up」），
+      // scaleout 平面装的是与 Vera Rubin NVL72 之间的 AFD 交换。
+      expect(connectionsOfPlane(LPX, p).length, `Groq 3 LPX ${p}`).toBeGreaterThan(0)
     }
     for (const p of ['nvlink', 'power', 'mgmt', 'cooling'] as NetworkPlane[]) {
       expect(connectionsOfPlane(RU, p).length, `NVL576 ${p}`).toBeGreaterThan(0)
