@@ -39,6 +39,11 @@ export interface HotspotProps {
   opacity?: number
   /** 双击是否下钻。叶子件（已到板级）关掉，避免「双击了但什么都没变」。 */
   drillable?: boolean
+  /**
+   * 数据流当前步骤参与的硬件（v1.1 B1）。走与「选中」同一套 emissive 机制，
+   * 换 `accent-2` 区分——从而任何深度都能看出「这一步发生在哪个盒子里」。
+   */
+  flowActive?: boolean
 }
 
 export function Hotspot({
@@ -49,6 +54,7 @@ export function Hotspot({
   colorOverride,
   opacity,
   drillable = true,
+  flowActive = false,
 }: HotspotProps) {
   const select = useFactoryStore((s) => s.select)
   const drillTo = useFactoryStore((s) => s.drillTo)
@@ -102,12 +108,20 @@ export function Hotspot({
     [drillTo, select, node.id, drillable],
   )
 
+  // 优先级：选中 > 悬停 > 数据流当前步骤。前两者是「用户此刻的意图」，
+  // 数据流高亮是背景叙事，不该盖掉用户自己点的那一件。
   const emissive = isSelected
     ? p[HIGHLIGHT.selectedToken]
     : isHovered
       ? p[HIGHLIGHT.hoveredToken]
-      : null
-  const emissiveIntensity = isSelected ? HIGHLIGHT.selectedEmissive : HIGHLIGHT.hoveredEmissive
+      : flowActive
+        ? p[HIGHLIGHT.flowToken]
+        : null
+  const emissiveIntensity = isSelected
+    ? HIGHLIGHT.selectedEmissive
+    : isHovered
+      ? HIGHLIGHT.hoveredEmissive
+      : HIGHLIGHT.flowEmissive
 
   return (
     <ShapeMesh

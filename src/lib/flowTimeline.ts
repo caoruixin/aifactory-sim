@@ -8,7 +8,9 @@
  * 粒子位置；`FlowBar` 拿它渲染步骤条。
  */
 
-import type { FlowEpisode, FlowPhase } from '../data/types'
+import { connectionById } from '../data'
+import type { FlowEpisode, FlowPhase, LodLevel } from '../data/types'
+import { visibleAncestorAt } from './routing'
 import type { RoutedConnection } from './routing'
 
 /** 七阶段中文名。`FlowBar` 步骤条与阶段徽章复用（与 `drill.ts` 的 `LEVEL_LABEL` 同样的放置方式）。 */
@@ -113,7 +115,65 @@ export function segmentIndexAtT(segments: readonly TimelineSegment[], t: number)
   return segments.length - 1
 }
 
-/** 整个 episode 的播放总时长（秒，按 speed=1 计），供 UI 显示节奏参考。 */
+/** 整个 episode 的播放总时长（秒，按 speed=1 计），供 UI 显示总时长参考。 */
 export function totalDurationSeconds(episode: FlowEpisode): number {
   return episode.steps.reduce((sum, s) => sum + s.durationHint, 0)
+}
+
+// ─────────────────────── 当前步骤 ↔ 参与硬件（v1.1 B1） ───────────────────────
+
+export interface FlowStepFocus {
+  /**
+   * 该步骤引用的**精确**装配节点 ID：`connectionIds` 两端的原值 ∪ `highlightAssemblyIds`。
+   * `FlowBar` 的「本步涉及」chips 用它——点进去要能看到 HBM 本身的详情，
+   * 而不是它折叠后的那个托盘。
+   */
+  chipIds: string[]
+  /**
+   * 上面那组 ID 经 `visibleAncestorAt(depth)` 折叠后的集合：**当前深度下真的挂载在
+   * 场景里**的那些节点，供 3D 高亮。例：kv-write 引用 HBM，在机架级折叠为「计算托盘」
+   * 发光（语义正确，且任何深度都有反馈）。
+   */
+  sceneHighlightIds: string[]
+}
+
+const EMPTY_FOCUS: FlowStepFocus = { chipIds: [], sceneHighlightIds: [] }
+
+/**
+ * 当前步骤涉及哪些硬件（纯函数）。
+ *
+ * ★ 刻意**不把结果存进 store**：它是 `(episode, stepIdx, depth)` 的派生值，而深度变化
+ *   （下钻、切代际）根本不经过 `setFlow`——存下来的 ID 会在下钻后失效（kv-write 引用的
+ *   HBM 装配在 cluster/rack 深度压根没挂载）。组件里按 `[stepIdx, depth, generation]`
+ *   useMemo 现算即可，成本是几次查表。
+ */
+export function flowStepFocus(
+  episode: FlowEpisode | null | undefined,
+  stepIdx: number,
+  depth: LodLevel,
+): FlowStepFocus {
+  const step = episode?.steps[stepIdx]
+  if (!step) return EMPTY_FOCUS
+
+  const chipIds: string[] = []
+  const pushChip = (id: string): void => {
+    if (id && !chipIds.includes(id)) chipIds.push(id)
+  }
+  // 顺序：连接两端（按剧本里 connectionIds 的顺序）→ 显式高亮件。
+  // 稳定顺序让 chips 不会在重渲染之间跳位。
+  for (const cid of step.connectionIds) {
+    const conn = connectionById(cid)
+    if (!conn) continue
+    pushChip(conn.fromAssemblyId)
+    pushChip(conn.toAssemblyId)
+  }
+  for (const aid of step.highlightAssemblyIds) pushChip(aid)
+
+  const sceneHighlightIds: string[] = []
+  for (const id of chipIds) {
+    const visible = visibleAncestorAt(id, depth)
+    if (visible && !sceneHighlightIds.includes(visible)) sceneHighlightIds.push(visible)
+  }
+
+  return { chipIds, sceneHighlightIds }
 }

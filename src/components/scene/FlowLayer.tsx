@@ -25,19 +25,42 @@ import { worldPositionOf } from '../../lib/layout'
 import type { ResolvedLayout } from '../../lib/layout'
 import { palette } from '../../lib/palette'
 import { indexRoutesById, routeConnections, sampleAtFraction, visibleAncestorAt } from '../../lib/routing'
+import type { ContainmentOptions } from '../../lib/routing'
 import { useFactoryStore } from '../../store'
 
 /** 单个步骤最多同时画几颗粒子（大多数步骤只有 1 条主路径，留一点余量给多路径步骤）。 */
 const MAX_PARTICLES = 3
 const PARTICLE_RADIUS = 0.02
 
+/**
+ * 粒子半径按深度缩放。板级是基准（0.02 m ≈ 一颗 HBM 堆栈的尺度）；到了集群级，
+ * 同一颗球在几十米的取景里只剩不到一个像素——「步骤在推进、画面上什么也没有」。
+ * 几何体只有一个，靠 per-instance scale 放大，不额外占 draw call。
+ */
+const PARTICLE_SCALE: Record<LodLevel, number> = {
+  cluster: 4,
+  rack: 2.5,
+  tray: 1,
+  board: 1,
+}
+
 export interface FlowLayerProps {
   systemId: string
   layout: ResolvedLayout
   depth: LodLevel
+  /** board 级拆解视图：粒子/beacon 必须落在 explode 后的坐标上（v1.1 B4）。 */
+  exploded?: boolean
+  /** 托盘/板级：与 `ConnectionLayer` 用同一套出界线三分规则，粒子不跑出画面。 */
+  containment?: ContainmentOptions | null
 }
 
-export default function FlowLayer({ systemId, layout, depth }: FlowLayerProps) {
+export default function FlowLayer({
+  systemId,
+  layout,
+  depth,
+  exploded = false,
+  containment = null,
+}: FlowLayerProps) {
   const meshRef = useRef<THREE.InstancedMesh>(null)
   const progressRef = useRef(0)
   const dummy = useMemo(() => new THREE.Object3D(), [])
@@ -49,11 +72,14 @@ export default function FlowLayer({ systemId, layout, depth }: FlowLayerProps) {
   // （FlowBar 会在 DOM 侧解释「该代际暂无剧本」）。
   const episode = episodeOf(systemId, episodeIdx)
 
+  const containRoot = containment?.rootAssemblyId ?? null
   const segments = useMemo<TimelineSegment[]>(() => {
     if (!episode) return []
-    const routes = indexRoutesById(routeConnections(systemId, layout, depth))
+    const routes = indexRoutesById(
+      routeConnections(systemId, layout, depth, exploded, containRoot ? { rootAssemblyId: containRoot } : null),
+    )
     return buildTimeline(episode, routes)
-  }, [episode, systemId, layout, depth])
+  }, [episode, systemId, layout, depth, exploded, containRoot])
 
   // 步骤被改变（无论是本组件自己跨段，还是 FlowBar 的上一步/下一步/点击跳转）都要
   // 从段内进度 0 重新起步，否则「点下一步」会从上一段进行到一半的进度接着播。
@@ -82,13 +108,14 @@ export default function FlowLayer({ systemId, layout, depth }: FlowLayerProps) {
 
     const showParticles = !state.reducedMotion && !seg.logicalOnly && seg.paths.length > 0
     const frac = Math.min(progressRef.current / dur, 1)
+    const particleScale = PARTICLE_SCALE[depth] ?? 1
 
     for (let i = 0; i < MAX_PARTICLES; i += 1) {
       const path = showParticles ? seg.paths[i % seg.paths.length] : undefined
       if (path) {
         const p = sampleAtFraction(path.points, path.lengths, frac)
         dummy.position.set(p[0], p[1], p[2])
-        dummy.scale.setScalar(1)
+        dummy.scale.setScalar(particleScale)
       } else {
         dummy.position.set(0, -9999, 0) // 藏到视野外，双保险（scale 已经是 0）
         dummy.scale.setScalar(0)
@@ -111,9 +138,11 @@ export default function FlowLayer({ systemId, layout, depth }: FlowLayerProps) {
     return hbmAssemblyIds.map((id) => {
       const visibleId = visibleAncestorAt(id, depth)
       const chain = ancestorsOf(visibleId).map((n) => n.id)
-      return worldPositionOf(layout, chain, 0, false)
+      // exploded 必须贯穿：board 级 HBM 是按 explode 偏移画的，用收拢坐标会让
+      // 那颗「权重常驻显存」的微光飘在拆开后的堆栈之外（v1.1 B4）。
+      return worldPositionOf(layout, chain, 0, exploded)
     })
-  }, [systemId, layout, depth])
+  }, [systemId, layout, depth, exploded])
 
   return (
     <group name="flow-layer">

@@ -3,6 +3,7 @@ import { FACTORY_PACK } from '../data'
 import {
   buildTimeline,
   endpointsOf,
+  flowStepFocus,
   segmentIndexAtT,
   sharesEndpoint,
   totalDurationSeconds,
@@ -152,6 +153,70 @@ describe('totalDurationSeconds', () => {
     )
     expect(total).toBeGreaterThan(0)
     expect(total).toBeLessThan(60)
+  })
+})
+
+describe('flowStepFocus：当前步骤 ↔ 参与硬件（v1.1 B1）', () => {
+  const idxOf = (stepId: string) => episode.steps.findIndex((s) => s.id === stepId)
+  const KV_WRITE = idxOf('flow.gb300.moe-inference.kv-write')
+  const INGRESS = idxOf('flow.gb300.moe-inference.business-ingress')
+  const PREFILL = idxOf('flow.gb300.moe-inference.prefill')
+
+  it('chipIds = connectionIds 两端原值 ∪ highlightAssemblyIds（不折叠）', () => {
+    // ingress 步：一条业务连接（DPU ↔ 汇聚交换机）+ 显式高亮 DPU
+    const focus = flowStepFocus(episode, INGRESS, 'board')
+    expect(focus.chipIds).toContain('asm.gb300.bf3-dpu')
+    expect(focus.chipIds).toContain('asm.gb300.converged-switch')
+    // 去重：DPU 既是连接端点又在 highlightAssemblyIds 里，只应出现一次
+    expect(focus.chipIds.filter((id) => id === 'asm.gb300.bf3-dpu')).toHaveLength(1)
+  })
+
+  it('kv-write 步的 chips 同时含 GPU 与 HBM（「GPU 写 KV 进自己的 HBM」要讲得完整）', () => {
+    const focus = flowStepFocus(episode, KV_WRITE, 'board')
+    expect(focus.chipIds).toContain('asm.gb300.b300-gpu')
+    expect(focus.chipIds).toContain('asm.gb300.hbm')
+  })
+
+  it('chipIds 与深度无关；sceneHighlightIds 随深度折叠', () => {
+    const atBoard = flowStepFocus(episode, KV_WRITE, 'board')
+    const atRack = flowStepFocus(episode, KV_WRITE, 'rack')
+    const atCluster = flowStepFocus(episode, KV_WRITE, 'cluster')
+    expect(atRack.chipIds).toEqual(atBoard.chipIds)
+    expect(atCluster.chipIds).toEqual(atBoard.chipIds)
+
+    // board：原样；rack：折叠成计算托盘；cluster：折叠成机架
+    expect(atBoard.sceneHighlightIds).toContain('asm.gb300.hbm')
+    expect(atRack.sceneHighlightIds).toEqual(['asm.gb300.compute-tray'])
+    expect(atCluster.sceneHighlightIds).toEqual(['asm.gb300.rack'])
+  })
+
+  it('★ 任何深度都有反馈：非空 chipIds 一定折叠出非空 sceneHighlightIds', () => {
+    for (const depth of ['cluster', 'rack', 'tray', 'board'] as const) {
+      for (let i = 0; i < episode.steps.length; i += 1) {
+        const focus = flowStepFocus(episode, i, depth)
+        if (focus.chipIds.length === 0) continue
+        expect(focus.sceneHighlightIds.length, `step ${i} @ ${depth}`).toBeGreaterThan(0)
+      }
+    }
+  })
+
+  it('sceneHighlightIds 去重（多个 chip 折叠到同一个盒子只算一次）', () => {
+    const focus = flowStepFocus(episode, PREFILL, 'cluster')
+    expect(new Set(focus.sceneHighlightIds).size).toBe(focus.sceneHighlightIds.length)
+  })
+
+  it('logicalOnly / 越界 / 无剧本一律安静返回空集合，不抛错', () => {
+    const logicalIdx = episode.steps.findIndex((s) => s.logicalOnly)
+    expect(flowStepFocus(episode, logicalIdx, 'rack')).toEqual({ chipIds: [], sceneHighlightIds: [] })
+    expect(flowStepFocus(episode, 999, 'rack').chipIds).toEqual([])
+    expect(flowStepFocus(null, 0, 'rack').chipIds).toEqual([])
+    expect(flowStepFocus(undefined, 0, 'rack').chipIds).toEqual([])
+  })
+
+  it('确定性：同输入同输出（顺序稳定，chips 不会在重渲染之间跳位）', () => {
+    const a = flowStepFocus(episode, PREFILL, 'rack')
+    const b = flowStepFocus(episode, PREFILL, 'rack')
+    expect(a).toEqual(b)
   })
 })
 

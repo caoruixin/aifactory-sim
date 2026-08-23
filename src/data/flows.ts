@@ -84,7 +84,9 @@ const STEPS: FlowStep[] = [
     description:
       '本轮 prompt 算完的 Key/Value 写进发起该请求的 GPU 自己的 HBM——这是本地显存写入，不经过机架内的任何一条网络链路。KV Cache 会随上下文长度和并发数线性增长，是 decode 阶段显存占用的主角。',
     connectionIds: [],
-    highlightAssemblyIds: ['asm.gb300.hbm', 'asm.gb300.grace-cpu'],
+    // 写 KV 的是 GPU 本身（写进它自己的 HBM），少了 B300 GPU 这一件，
+    // 「GPU 写 KV 进 HBM」的故事在「本步涉及」chips 里就讲不完整。
+    highlightAssemblyIds: ['asm.gb300.b300-gpu', 'asm.gb300.hbm', 'asm.gb300.grace-cpu'],
     logicalOnly: false,
     durationHint: 4,
     presalesNote:

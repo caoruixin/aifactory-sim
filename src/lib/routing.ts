@@ -23,7 +23,7 @@
  *   决定；本文件只负责「给定深度，这条连接的两端点世界坐标在哪、折线怎么走」。
  */
 
-import { ancestorsOf, assemblyById, FACTORY_PACK } from '../data'
+import { ancestorsOf, assemblyById, descendantsOf, FACTORY_PACK } from '../data'
 import type { NetworkPlane, LodLevel } from '../data/types'
 import { levelIndex } from './drill'
 import { worldPositionOf } from './layout'
@@ -58,6 +58,92 @@ export interface RoutedConnection extends Path {
    * 数据流粒子沿它跑）；不扇出时长度为 1。
    */
   instancePaths: Path[]
+  /**
+   * 出界线的「传送门」标记（v1.1 B4）：`null` = 完整线；否则说明这条线在容器包围盒外
+   * 被截断了，`farAssemblyId` 是被截掉那一端的装配节点（渲染层在 `tip` 处放一个
+   * 「→ 远端组件名」的可点击标签）。只有传了 `containment` 时才可能非 null。
+   */
+  stub: { farAssemblyId: string; tip: Vec3 } | null
+}
+
+// ─────────────────────────── 出界线三分规则（B4） ───────────────────────────
+
+/** 轴对齐包围盒（世界坐标）。 */
+export interface Box {
+  min: Vec3
+  max: Vec3
+}
+
+/**
+ * 归属三分：两端都在容器内 / 恰一端在内 / 两端都在外。
+ *
+ * ★ 「容器」是**实际渲染出来的那棵子树的根**（`SceneRoot` 里 scene anchor 的托盘装配），
+ *   不是 focus 本身——board 深度下 focus 可能是某颗 GPU，但屏幕上画的是它所在的整个托盘。
+ */
+export type ContainmentKind = 'inside' | 'crossing' | 'outside'
+
+export function classifyContainment(
+  fromAssemblyId: string,
+  toAssemblyId: string,
+  insideIds: ReadonlySet<string>,
+): ContainmentKind {
+  const a = insideIds.has(fromAssemblyId)
+  const b = insideIds.has(toAssemblyId)
+  if (a && b) return 'inside'
+  if (a || b) return 'crossing'
+  return 'outside'
+}
+
+/** 以 `center`/`size` 为中心的包围盒，各轴向外扩 `margin` 米。 */
+export function expandedBox(center: Vec3, size: Vec3, margin: number): Box {
+  const half: Vec3 = [size[0] / 2 + margin, size[1] / 2 + margin, size[2] / 2 + margin]
+  return {
+    min: [center[0] - half[0], center[1] - half[1], center[2] - half[2]],
+    max: [center[0] + half[0], center[1] + half[1], center[2] + half[2]],
+  }
+}
+
+function insideBox(p: Vec3, box: Box, eps = 1e-9): boolean {
+  for (let k = 0; k < 3; k += 1) {
+    if (p[k]! < box.min[k]! - eps || p[k]! > box.max[k]! + eps) return false
+  }
+  return true
+}
+
+/**
+ * 线段 `a→b`（`a` 在盒内）离开盒子的参数 t ∈ [0,1]；整段都在盒内时返回 `null`。
+ * 逐轴取「先撞到的那一面」——正交折线每段只沿单轴走，因此最多只有一个轴给出解。
+ */
+function exitFraction(a: Vec3, b: Vec3, box: Box): number | null {
+  let tExit = Infinity
+  for (let k = 0; k < 3; k += 1) {
+    const d = b[k]! - a[k]!
+    if (Math.abs(d) < 1e-12) continue
+    const t = d > 0 ? (box.max[k]! - a[k]!) / d : (box.min[k]! - a[k]!) / d
+    if (t >= 0 && t < tExit) tExit = t
+  }
+  return tExit <= 1 ? tExit : null
+}
+
+/**
+ * 从 `points[0]`（须在盒内）沿折线走，在**第一次穿出盒子**处截断。
+ * 整条折线都在盒内时原样返回。返回的折线末点即 stub 末端。
+ */
+export function truncateAtBox(points: readonly Vec3[], box: Box): Vec3[] {
+  if (points.length === 0) return []
+  const out: Vec3[] = [points[0]!]
+  for (let i = 1; i < points.length; i += 1) {
+    const a = points[i - 1]!
+    const b = points[i]!
+    const t = insideBox(b, box) ? null : exitFraction(a, b, box)
+    if (t === null) {
+      out.push(b)
+      continue
+    }
+    out.push(lerpVec3(a, b, t))
+    return out
+  }
+  return out
 }
 
 // ─────────────────────────── 向量小工具 ───────────────────────────
@@ -206,19 +292,47 @@ function fanOutCount(assemblyId: string, depth: LodLevel): number {
 }
 
 /**
+ * 托盘/板级视图的「只画这个容器相关的线」设置（v1.1 B4）。
+ */
+export interface ContainmentOptions {
+  /** 实际渲染出来的子树根（scene anchor 的托盘装配 ID），不是 focus 本身。 */
+  rootAssemblyId: string
+  /** 出界线在容器包围盒外多远截断（米）。 */
+  margin?: number
+}
+
+const DEFAULT_STUB_MARGIN = 0.6
+
+/**
  * 给定系统 + 摆位 + 渲染深度，算出全部「两端可见且不退化」连接的折线路由。
  * 不做平面开关/展示策略过滤——那是 `ConnectionLayer` 的职责，这里只管几何。
  *
  * @param exploded 是否使用 board 级 explode 后的坐标（`layout.ts` 的 `explodedSlots`）。
  *   board 级硬件确实是按 explode 偏移渲染的，因此下钻到拆解视图时必须传 `true`，
  *   否则线会落在收拢坐标上、与拆开的器件明显脱节（v1.1 B4 修复）。
+ * @param containment 传入则启用出界线三分规则：两端在容器内 → 画完整线；恰一端在内 →
+ *   在容器包围盒外 `margin` 米处截断成 stub（`stub` 字段带远端 ID 与末端坐标）；
+ *   两端都在外 → **整条丢弃**（托盘视图里那些横穿全屏的长斜线正是它们）。
  */
 export function routeConnections(
   systemId: string,
   layout: ResolvedLayout,
   depth: LodLevel,
   exploded = false,
+  containment: ContainmentOptions | null = null,
 ): RoutedConnection[] {
+  let insideIds: ReadonlySet<string> | null = null
+  let clipBox: Box | null = null
+  if (containment) {
+    const rootItem = layout.get(containment.rootAssemblyId)
+    if (rootItem) {
+      insideIds = new Set(descendantsOf(containment.rootAssemblyId).map((a) => a.id))
+      const rootChain = ancestorsOf(containment.rootAssemblyId).map((a) => a.id)
+      const rootCenter = worldPositionOf(layout, rootChain, 0, exploded)
+      clipBox = expandedBox(rootCenter, rootItem.size, containment.margin ?? DEFAULT_STUB_MARGIN)
+    }
+  }
+
   const out: RoutedConnection[] = []
   for (const c of FACTORY_PACK.connections) {
     if (c.systemId !== systemId) continue
@@ -233,22 +347,47 @@ export function routeConnections(
     const toItem = layout.get(toId)
     if (!fromItem || !toItem) continue
 
+    // 出界线三分：两端都在容器外的线整条丢弃（它们与这一屏无关，却会横穿全屏）
+    let insideEnd: 'start' | 'end' | null = null
+    let farAssemblyId: string | null = null
+    if (insideIds && clipBox) {
+      const kind = classifyContainment(fromId, toId, insideIds)
+      if (kind === 'outside') continue
+      if (kind === 'crossing') {
+        insideEnd = insideIds.has(fromId) ? 'start' : 'end'
+        farAssemblyId = insideEnd === 'start' ? toId : fromId
+      }
+    }
+
     const fromFan = fanOutCount(fromId, depth)
     const toFan = fanOutCount(toId, depth)
     const instances = Math.max(fromFan, toFan)
 
     const instancePaths: Path[] = []
+    let tip: Vec3 | null = null
     for (let i = 0; i < instances; i += 1) {
       const fromCenter = worldPositionOf(layout, fromChain, fromFan > 1 ? i : 0, exploded)
       const toCenter = worldPositionOf(layout, toChain, toFan > 1 ? i : 0, exploded)
       const start = portAnchor(fromCenter, fromItem.size, c.plane)
       const end = portAnchor(toCenter, toItem.size, c.plane)
-      const points = orthogonalPath(start, end, c.plane)
+      let points = orthogonalPath(start, end, c.plane)
+
+      if (insideEnd && clipBox) {
+        // 从容器内那一端往外走到包围盒边界处截断；折线方向保持 from→to 不变，
+        // 因此 stub 末端可能是首点（to 在内时）也可能是末点（from 在内时）。
+        const forward = insideEnd === 'start' ? points : [...points].reverse()
+        const cut = truncateAtBox(forward, clipBox)
+        if (cut.length < 2) continue
+        points = insideEnd === 'start' ? cut : [...cut].reverse()
+        if (tip === null) tip = insideEnd === 'start' ? points[points.length - 1]! : points[0]!
+      }
+
       const { lengths, total } = arcLengthLUT(points)
       instancePaths.push({ points, lengths, totalLength: total })
     }
-    // instances ≥ 1 恒成立（fanOutCount 至少返回 1），主路径即第 0 条
-    const main = instancePaths[0]!
+    // instances ≥ 1 恒成立（fanOutCount 至少返回 1），但截断可能把路径全砍掉
+    const main = instancePaths[0]
+    if (!main) continue
 
     out.push({
       connectionId: c.id,
@@ -259,6 +398,7 @@ export function routeConnections(
       lengths: main.lengths,
       totalLength: main.totalLength,
       instancePaths,
+      stub: farAssemblyId && tip ? { farAssemblyId, tip } : null,
     })
   }
   return out

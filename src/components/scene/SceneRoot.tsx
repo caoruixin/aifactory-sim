@@ -20,11 +20,12 @@ import { Edges, Grid, Instance, Instances } from '@react-three/drei'
 import { invalidate } from '@react-three/fiber'
 import { useCallback, useMemo, useRef, useState } from 'react'
 import type * as THREE from 'three'
-import { ancestorsOf, assemblyById, childrenOf, componentById } from '../../data'
+import { ancestorsOf, assemblyById, childrenOf, componentById, episodeOf } from '../../data'
 import type { AssemblyNode, LodLevel, NetworkPlane } from '../../data/types'
 import type { DiffKind } from '../../lib/compare'
 import { DIFF_TOKEN } from '../../lib/compare'
 import { levelIndex, sceneAnchorOf } from '../../lib/drill'
+import { flowStepFocus } from '../../lib/flowTimeline'
 import { layoutOf, worldPositionOf } from '../../lib/layout'
 import type { ResolvedLayout } from '../../lib/layout'
 import { HIGHLIGHT, SURFACE, color as paletteColor, palette } from '../../lib/palette'
@@ -72,6 +73,8 @@ interface BranchProps {
   /** 只渲染第几个实例；省略则全部渲染。 */
   onlyInstance?: number
   diff?: DiffContext | null
+  /** 数据流当前步骤参与的硬件（已折叠到当前深度）；命中的部件走 emissive 高亮。 */
+  flowHighlight?: ReadonlySet<string> | null
 }
 
 /** 比较模式下的静态部件：不可交互，用描边颜色表达 diff 类别。 */
@@ -118,6 +121,7 @@ function AssemblyBranch({
   asShell = false,
   onlyInstance,
   diff = null,
+  flowHighlight = null,
 }: BranchProps) {
   const item = layout.get(node.id)
   const kids = childrenOf(node.id)
@@ -147,7 +151,14 @@ function AssemblyBranch({
             ) : diff ? (
               <DiffMesh node={node} size={item.size} diff={diff} />
             ) : (
-              <Hotspot node={node} instanceIndex={i} position={[0, 0, 0]} size={item.size} drillable={drillable} />
+              <Hotspot
+                node={node}
+                instanceIndex={i}
+                position={[0, 0, 0]}
+                size={item.size}
+                drillable={drillable}
+                flowActive={flowHighlight?.has(node.id) ?? false}
+              />
             )}
             {visibleKids.map((kid) => (
               <AssemblyBranch
@@ -157,6 +168,7 @@ function AssemblyBranch({
                 depth={depth}
                 exploded={exploded}
                 diff={diff}
+                flowHighlight={flowHighlight}
               />
             ))}
           </group>
@@ -173,7 +185,16 @@ function AssemblyBranch({
  * 代价：instanced mesh 不支持 per-instance emissive，因此高亮改用 per-instance color
  * （观感与 Hotspot 的 emissive 高亮对齐，两处都取 palette 的 accent）。
  */
-function RackInstances({ node, layout }: { node: AssemblyNode; layout: ResolvedLayout }) {
+function RackInstances({
+  node,
+  layout,
+  flowActive = false,
+}: {
+  node: AssemblyNode
+  layout: ResolvedLayout
+  /** 数据流当前步骤折叠到「机架」时，整排机架都换成流高亮色（instanced 不支持 emissive）。 */
+  flowActive?: boolean
+}) {
   const item = layout.get(node.id)
   // 机架壳的底色同样跟产品状态走：集群总览一眼就能看出这是哪一代
   // （shipping 原色 / announced 蓝调 / forecast 琥珀线框）。
@@ -219,8 +240,17 @@ function RackInstances({ node, layout }: { node: AssemblyNode; layout: ResolvedL
         <Instance
           key={i}
           position={pos}
-          // 选中时高亮第 0 架（相机也飞向它），悬停时高亮鼠标下的那一架
-          color={hoveredIdx === i ? p[HIGHLIGHT.hoveredToken] : isSelected && i === 0 ? p[HIGHLIGHT.selectedToken] : base}
+          // 选中时高亮第 0 架（相机也飞向它），悬停时高亮鼠标下的那一架；
+          // 数据流当前步骤折叠到机架时整排点亮（集群级也要有「这一步发生在哪」的反馈）
+          color={
+            hoveredIdx === i
+              ? p[HIGHLIGHT.hoveredToken]
+              : isSelected && i === 0
+                ? p[HIGHLIGHT.selectedToken]
+                : flowActive
+                  ? p[HIGHLIGHT.flowToken]
+                  : base
+          }
           onPointerOver={onOver(i)}
           onPointerOut={onOut}
           onClick={(e) => {
@@ -286,10 +316,12 @@ function ClusterScene({
   layout,
   rootId,
   diff = null,
+  flowHighlight = null,
 }: {
   layout: ResolvedLayout
   rootId: string
   diff?: DiffContext | null
+  flowHighlight?: ReadonlySet<string> | null
 }) {
   const root = assemblyById(rootId)
   if (!root) return null
@@ -307,7 +339,11 @@ function ClusterScene({
                 diff ? (
                   <StaticRackInstances node={rack} layout={layout} diff={diff} />
                 ) : (
-                  <RackInstances node={rack} layout={layout} />
+                  <RackInstances
+                    node={rack}
+                    layout={layout}
+                    flowActive={flowHighlight?.has(rack.id) ?? false}
+                  />
                 )
               ) : null}
             </group>
@@ -321,6 +357,7 @@ function ClusterScene({
             depth="cluster"
             exploded={false}
             diff={diff}
+            flowHighlight={flowHighlight}
           />
         )
       })}
@@ -360,11 +397,13 @@ function RackScene({
   rackId,
   depth,
   diff = null,
+  flowHighlight = null,
 }: {
   layout: ResolvedLayout
   rackId: string
   depth: LodLevel
   diff?: DiffContext | null
+  flowHighlight?: ReadonlySet<string> | null
 }) {
   const rack = assemblyById(rackId)
   const chain = useMemo(() => chainOf(rackId), [rackId])
@@ -382,6 +421,7 @@ function RackScene({
         asShell
         onlyInstance={0}
         diff={diff}
+        flowHighlight={flowHighlight}
       />
     </group>
   )
@@ -395,12 +435,14 @@ function TrayScene({
   exploded,
   depth,
   diff = null,
+  flowHighlight = null,
 }: {
   layout: ResolvedLayout
   trayId: string
   exploded: boolean
   depth: LodLevel
   diff?: DiffContext | null
+  flowHighlight?: ReadonlySet<string> | null
 }) {
   const tray = assemblyById(trayId)
   const chain = useMemo(() => chainOf(trayId), [trayId])
@@ -435,6 +477,7 @@ function TrayScene({
         asShell
         onlyInstance={0}
         diff={diff}
+        flowHighlight={flowHighlight}
       />
     </group>
   )
@@ -490,6 +533,8 @@ export default function SceneRoot({
   const storeGeneration = useFactoryStore((s) => s.generation)
   const storeLevel = useFactoryStore((s) => s.level)
   const storeFocusPath = useFactoryStore((s) => s.focusPath)
+  const flowEpisodeIdx = useFactoryStore((s) => s.flow.episodeIdx)
+  const flowStepIdx = useFactoryStore((s) => s.flow.stepIdx)
 
   const generation = systemId ?? storeGeneration
   const level = levelProp ?? storeLevel
@@ -503,14 +548,47 @@ export default function SceneRoot({
   const rootId = focusPath[0]
   const depth = RENDER_DEPTH[level]
 
+  /**
+   * board 级硬件是按 explode 偏移渲染的（`AssemblyBranch` 的 `exploded` 分支）。
+   * 连线与数据流粒子过去一律走收拢坐标，结果是「器件拆开了，线还留在原位」——
+   * 这里把实际状态一路传下去（v1.1 B4）。
+   */
+  const exploded = anchor.kind === 'tray' ? anchor.exploded : false
+
+  /**
+   * 出界线三分规则的容器 = **实际渲染出来的子树根**（托盘），不是 focus 本身：
+   * board 深度下 focus 可能是某颗 GPU，但屏幕上画的是它所在的整个托盘。
+   */
+  const containment = useMemo(
+    () => (anchor.kind === 'tray' ? { rootAssemblyId: anchor.trayAssemblyId } : null),
+    [anchor],
+  )
+
+  /**
+   * 数据流当前步骤参与的硬件（折叠到当前深度）。派生值现算不入 store——
+   * 深度变化不经过 `setFlow`，存下来的 ID 一下钻就失效（见 `flowStepFocus` 注释）。
+   * 比较模式不挂数据流，因此那边恒为 null。
+   */
+  const flowHighlight = useMemo(() => {
+    if (diff !== null) return null
+    const focus = flowStepFocus(episodeOf(generation, flowEpisodeIdx), flowStepIdx, depth)
+    return focus.sceneHighlightIds.length > 0 ? new Set(focus.sceneHighlightIds) : null
+  }, [diff, generation, flowEpisodeIdx, flowStepIdx, depth])
+
   return (
     <>
       <GroundGrid visible={showGround && anchor.kind === 'cluster'} />
       {anchor.kind === 'cluster' && rootId ? (
-        <ClusterScene layout={layout} rootId={rootId} diff={diff} />
+        <ClusterScene layout={layout} rootId={rootId} diff={diff} flowHighlight={flowHighlight} />
       ) : null}
       {anchor.kind === 'rack' ? (
-        <RackScene layout={layout} rackId={anchor.rackAssemblyId} depth={depth} diff={diff} />
+        <RackScene
+          layout={layout}
+          rackId={anchor.rackAssemblyId}
+          depth={depth}
+          diff={diff}
+          flowHighlight={flowHighlight}
+        />
       ) : null}
       {anchor.kind === 'tray' ? (
         <TrayScene
@@ -519,15 +597,32 @@ export default function SceneRoot({
           exploded={anchor.exploded}
           depth={depth}
           diff={diff}
+          flowHighlight={flowHighlight}
         />
       ) : null}
       {/* 六平面连线 + 推理数据流粒子：挂在 SceneRoot 顶层（不嵌进任何一级子场景的 group），
           全部用 worldPositionOf 直接出世界坐标最省事，也不必跟着 Cluster/Rack/Tray 三选一
           的挂载/卸载重新走一遍坐标换算。 */}
-      <ConnectionLayer systemId={generation} layout={layout} depth={depth} planeFilter={planeFilter} />
+      <ConnectionLayer
+        systemId={generation}
+        layout={layout}
+        depth={depth}
+        planeFilter={planeFilter}
+        exploded={exploded}
+        containment={containment}
+        showStubLabels={diff === null}
+      />
       {/* ★ 比较模式绝不挂 FlowLayer：它在 useFrame 里 getState() 推进 stepIdx，
           挂两个会让步骤条以双倍速度跳。数据流是探索模式的功能。 */}
-      {diff === null ? <FlowLayer systemId={generation} layout={layout} depth={depth} /> : null}
+      {diff === null ? (
+        <FlowLayer
+          systemId={generation}
+          layout={layout}
+          depth={depth}
+          exploded={exploded}
+          containment={containment}
+        />
+      ) : null}
     </>
   )
 }

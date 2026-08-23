@@ -11,18 +11,37 @@
  * - t0/t1 用 `flowTimeline.ts` 算，不需要真的路由结果（传空 Map 即可，t0/t1 只看
  *   `durationHint`），因此 FlowBar 完全不用知道当前 3D 深度/摆位。
  * - `reducedMotion` 时给一行提示：没有移动的粒子是预期行为，不是 bug。
+ *
+ * ★ **底栏高度必须恒定**（v1.1 C2）：当前步骤卡以前随文案长短伸缩，切一次步骤就改变
+ *   一次画布尺寸 → `CameraRig` 的 resize 效果重放 → 用户手动调好的视角被打回默认机位。
+ *   C1 已经从相机侧堵死了这条路，这里再从源头消除抖动：详情区固定行高 + 内部滚动，
+ *   步骤切换不再改变 `<canvas>` 的高度（E2E 有一条断言直接钉住这一点）。
+ *
+ * ★ 「本步涉及」chips（v1.1 B2）来自纯函数 `flowStepFocus(episode, stepIdx, depth)` 的
+ *   `chipIds`（**精确**装配 ID，不折叠——点进去要看到 HBM 本身而不是它所在的托盘）。
+ *   点击 = 选中 + 把右栏切到「部件详情」tab；**相机不动**（这是「顺手看一眼这是什么」，
+ *   不是导航动作）。tab 是 `FactoryPage` 的本地 state，所以切换动作由它下传。
  */
 
-import { episodeOf, systemById } from '../../data'
-import { buildTimeline, FLOW_PHASE_LABEL } from '../../lib/flowTimeline'
+import { assemblyById, episodeOf, systemById } from '../../data'
+import { buildTimeline, FLOW_PHASE_LABEL, flowStepFocus } from '../../lib/flowTimeline'
 import { useFactoryStore } from '../../store'
 
 const EMPTY_ROUTES = new Map<string, never>()
 const SPEEDS = [0.5, 1, 2] as const
 
-export default function FlowBar() {
+export interface FlowBarProps {
+  /**
+   * 点击「本步涉及」chip 时调用（选中该装配节点 + 把右栏切到部件详情）。
+   * 省略则只做选中——降级/移动路径下右栏 tab 不由这里管。
+   */
+  onInspectAssembly?: (assemblyId: string) => void
+}
+
+export default function FlowBar({ onInspectAssembly }: FlowBarProps = {}) {
   const flow = useFactoryStore((s) => s.flow)
   const setFlow = useFactoryStore((s) => s.setFlow)
+  const select = useFactoryStore((s) => s.select)
   const reducedMotion = useFactoryStore((s) => s.reducedMotion)
   const generation = useFactoryStore((s) => s.generation)
 
@@ -44,8 +63,16 @@ export default function FlowBar() {
   const stepIdx = Math.min(Math.max(flow.stepIdx, 0), segments.length - 1)
   const current = segments[stepIdx]!
 
+  // chipIds 与渲染深度无关（深度只影响 3D 侧的 sceneHighlightIds），
+  // 因此这里固定传最深一级——FlowBar 完全不需要知道当前钻到了哪一层。
+  const chipIds = flowStepFocus(episode, stepIdx, 'board').chipIds
+
   const goTo = (idx: number) => setFlow({ stepIdx: Math.min(Math.max(idx, 0), segments.length - 1) })
   const togglePlay = () => setFlow({ playing: !flow.playing })
+  const inspect = (assemblyId: string) => {
+    select(assemblyId)
+    onInspectAssembly?.(assemblyId)
+  }
 
   return (
     <footer
@@ -147,8 +174,12 @@ export default function FlowBar() {
         })}
       </ol>
 
-      {/* 当前步骤详情 */}
-      <div className="border-t border-line px-4 py-2">
+      {/* 当前步骤详情。★ 固定高度 + 内部滚动：见文件头 C2 注释 —— 这一块以前随文案
+          长短伸缩，切一次步骤就抖一次画布高度，正是相机被没收的诱因。 */}
+      <div
+        data-flow-detail
+        className="scrollbar-thin h-[8.5rem] overflow-y-auto border-t border-line px-4 py-2"
+      >
         <div className="flex flex-wrap items-center gap-1.5">
           <span className="rounded border border-line bg-panel-2 px-1.5 py-px text-[11px] text-dim">
             {FLOW_PHASE_LABEL[current.phase]}
@@ -164,6 +195,25 @@ export default function FlowBar() {
           >
             {current.logicalOnly ? '逻辑层' : '物理层'}
           </span>
+
+          {/* 本步涉及的硬件：把「这一步在讲什么」和「屏幕上哪个盒子亮了」对上号 */}
+          {chipIds.length > 0 ? (
+            <span data-flow-chips className="flex flex-wrap items-center gap-1">
+              <span className="text-[11px] text-dim">本步涉及</span>
+              {chipIds.map((id) => (
+                <button
+                  key={id}
+                  type="button"
+                  data-flow-chip={id}
+                  onClick={() => inspect(id)}
+                  title="选中该部件并打开右栏详情（不移动相机）"
+                  className="cursor-pointer rounded-full border border-accent-2/40 bg-accent-2/10 px-1.5 py-px text-[11px] text-accent-2 hover:border-accent-2 hover:bg-accent-2/20"
+                >
+                  {assemblyById(id)?.label ?? id}
+                </button>
+              ))}
+            </span>
+          ) : null}
         </div>
         <p className="mt-1.5 text-xs leading-relaxed">{current.description}</p>
         {current.presalesNote ? (

@@ -198,9 +198,10 @@ export const GB300_COMPONENTS: HardwareComponent[] = [
     name: 'HBM3e 高带宽显存堆栈',
     vendor: 'NVIDIA / 存储厂商',
     status: 'shipping',
-    summary: '与 GPU 芯片封装在一起的 3D 堆叠显存，提供 decode 阶段最稀缺的资源——显存带宽。',
+    summary:
+      '与 GPU 芯片封装在一起的 3D 堆叠显存，提供 decode 阶段最稀缺的资源——显存带宽。它同时装着两样东西：常驻的模型权重，以及每个在途请求的 KV Cache。',
     presalesNote:
-      '这是整场演示里最该强调的一块：模型权重是**常驻**在 HBM 里的，不随每个请求加载。推理时每生成一个 token 就要把激活权重完整读一遍 HBM，所以 decode 速度基本等于「带宽 ÷ 要读的字节数」。客户想提升并发，第一优先级往往是显存而不是算力。',
+      '这是整场演示里最该强调的一块：模型权重是**常驻**在 HBM 里的，不随每个请求加载。推理时每生成一个 token 就要把激活权重完整读一遍 HBM，所以 decode 速度基本等于「带宽 ÷ 要读的字节数」。另一半容量归 KV Cache——prefill 算完的 Key/Value 就写在这里，随上下文长度与并发数线性增长，decode 每一步还要把它一起读回来。客户想提升并发，第一优先级往往是显存（容量装得下 KV、带宽读得动权重）而不是算力。',
     visual: { shape: 'chip-stack', colorToken: null },
     imageUrl: null,
     sourceIds: [RA_SOURCE, GB300_PAGE_SOURCE],

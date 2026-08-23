@@ -154,7 +154,9 @@ export default function FactoryPage() {
             </aside>
           </div>
 
-          <FlowBar />
+          {/* 「本步涉及」chip 点击 = 选中 + 把右栏切到部件详情：用户停在「产能粗估」
+              tab 时只 select 是看不到东西的（tab 是这里的本地 state，所以动作下传）。 */}
+          <FlowBar onInspectAssembly={() => setTab('detail')} />
         </>
       )}
     </main>

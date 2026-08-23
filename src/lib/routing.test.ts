@@ -4,10 +4,13 @@ import { resolveLayout } from './layout'
 import { PLANE_ORDER } from './palette'
 import {
   arcLengthLUT,
+  classifyContainment,
+  expandedBox,
   indexRoutesById,
   orthogonalPath,
   routeConnections,
   sampleAtFraction,
+  truncateAtBox,
   visibleAncestorAt,
 } from './routing'
 import type { Vec3 } from './layout'
@@ -139,6 +142,164 @@ describe('机架扇出 instancePaths（v1.1 A2）', () => {
   it('确定性：同输入逐位相同（含 instancePaths）', () => {
     const again = routeConnections(SYSTEM_ID, layout, 'cluster')
     expect(JSON.stringify(again)).toBe(JSON.stringify(clusterRoutes))
+  })
+})
+
+describe('出界线三分规则与截断（v1.1 B4）', () => {
+  const TRAY = 'asm.gb300.compute-tray'
+  const insideIds = new Set(
+    FACTORY_PACK.assemblies
+      .filter((a) => a.id === TRAY || a.parentId === TRAY || ['asm.gb300.hbm'].includes(a.id))
+      .map((a) => a.id),
+  )
+
+  describe('classifyContainment', () => {
+    it('两端都在容器内 → inside', () => {
+      expect(classifyContainment('asm.gb300.b300-gpu', 'asm.gb300.hbm', insideIds)).toBe('inside')
+    })
+    it('恰一端在内 → crossing（两个方向都是）', () => {
+      expect(classifyContainment('asm.gb300.b300-gpu', 'asm.gb300.nvswitch-asic', insideIds)).toBe('crossing')
+      expect(classifyContainment('asm.gb300.busbar', 'asm.gb300.compute-tray', insideIds)).toBe('crossing')
+    })
+    it('两端都在外 → outside（正是横穿全屏那些长斜线）', () => {
+      expect(classifyContainment('asm.gb300.facility-power', 'asm.gb300.power-shelf', insideIds)).toBe(
+        'outside',
+      )
+    })
+  })
+
+  describe('expandedBox / truncateAtBox', () => {
+    const box = expandedBox([0, 0, 0], [2, 2, 2], 0.5) // 半边长 1.5
+
+    it('包围盒各轴向外扩 margin', () => {
+      expect(box.min).toEqual([-1.5, -1.5, -1.5])
+      expect(box.max).toEqual([1.5, 1.5, 1.5])
+    })
+
+    it('整条折线都在盒内时原样返回', () => {
+      const pts: Vec3[] = [
+        [0, 0, 0],
+        [1, 0, 0],
+        [1, 1, 0],
+      ]
+      expect(truncateAtBox(pts, box)).toEqual(pts)
+    })
+
+    it('穿出盒子时在边界处精确截断，末点即 stub 末端', () => {
+      const pts: Vec3[] = [
+        [0, 0, 0],
+        [0, 5, 0], // 竖直向上冲出盒子
+      ]
+      const cut = truncateAtBox(pts, box)
+      expect(cut).toHaveLength(2)
+      expect(cut[1]).toEqual([0, 1.5, 0])
+    })
+
+    it('在穿出之前的折点全部保留（多段折线）', () => {
+      const pts: Vec3[] = [
+        [0, 0, 0],
+        [1, 0, 0],
+        [1, 0, 9],
+      ]
+      const cut = truncateAtBox(pts, box)
+      expect(cut).toEqual([
+        [0, 0, 0],
+        [1, 0, 0],
+        [1, 0, 1.5],
+      ])
+    })
+
+    it('空折线不抛错', () => {
+      expect(truncateAtBox([], box)).toEqual([])
+    })
+  })
+
+  describe('routeConnections + containment（托盘视图）', () => {
+    const plain = routeConnections(SYSTEM_ID, layout, 'board', true)
+    const clipped = routeConnections(SYSTEM_ID, layout, 'board', true, { rootAssemblyId: TRAY })
+    const byId = (rs: typeof clipped, id: string) => rs.find((r) => r.connectionId === id)
+
+    it('两端都在托盘外的连接被整条丢弃（路由条数真的变少）', () => {
+      expect(clipped.length).toBeLessThan(plain.length)
+      // 机房配电 → 电源架：与这块计算托盘毫无关系
+      expect(byId(plain, 'con.gb300.facility-power-shelf')).toBeDefined()
+      expect(byId(clipped, 'con.gb300.facility-power-shelf')).toBeUndefined()
+      // 交换托盘的冷板 → 歧管：同样两端都在这块托盘之外
+      expect(byId(clipped, 'con.gb300.nvswitch-cold-plate-manifold')).toBeUndefined()
+    })
+
+    it('两端都在托盘内的连接保持完整（无 stub、点数不变）', () => {
+      const full = byId(clipped, 'con.gb300.grace-gpu-c2c')!
+      expect(full).toBeDefined()
+      expect(full.stub).toBeNull()
+      expect(full.points).toEqual(byId(plain, 'con.gb300.grace-gpu-c2c')!.points)
+    })
+
+    it('恰一端在内 → 截断成 stub，且远端 ID 是被截掉的那一端', () => {
+      // GPU（托盘内） ↔ NVSwitch ASIC（另一块交换托盘里）
+      const s = byId(clipped, 'con.gb300.gpu-nvswitch')!
+      expect(s).toBeDefined()
+      expect(s.stub).not.toBeNull()
+      expect(s.stub!.farAssemblyId).toBe('asm.gb300.nvswitch-asic')
+      expect(s.totalLength).toBeLessThan(byId(plain, 'con.gb300.gpu-nvswitch')!.totalLength)
+      // stub 末端就是折线的末点（from 在内 ⇒ 向 to 方向截断）
+      expect(s.stub!.tip).toEqual(s.points[s.points.length - 1])
+    })
+
+    it('to 端在内时方向不翻转：stub 末端是折线**首**点', () => {
+      // 母排（托盘外） → 计算托盘（容器自身）
+      const s = byId(clipped, 'con.gb300.busbar-compute-tray')!
+      expect(s.stub).not.toBeNull()
+      expect(s.stub!.farAssemblyId).toBe('asm.gb300.busbar')
+      expect(s.stub!.tip).toEqual(s.points[0])
+      // from/to 语义不变
+      expect(s.fromAssemblyId).toBe('asm.gb300.busbar')
+      expect(s.toAssemblyId).toBe('asm.gb300.compute-tray')
+    })
+
+    it('★ stub 末端落在「托盘包围盒 + margin」的表面上，不会冲出画面', () => {
+      const trayItem = layout.get(TRAY)!
+      const chain = ['asm.gb300.facility', 'asm.gb300.row', 'asm.gb300.rack', TRAY]
+      // 与 routeConnections 内部同一套算法（worldPositionOf + expandedBox）
+      const margin = 0.6
+      const limit = [
+        trayItem.size[0] / 2 + margin,
+        trayItem.size[1] / 2 + margin,
+        trayItem.size[2] / 2 + margin,
+      ]
+      const center = chain
+        .map((id) => layout.get(id)!.explodedSlots[0]!)
+        .reduce<Vec3>((acc, p) => [acc[0] + p[0], acc[1] + p[1], acc[2] + p[2]], [0, 0, 0])
+      for (const r of clipped) {
+        if (!r.stub) continue
+        const [x, y, z] = r.stub.tip
+        expect(Math.abs(x - center[0]), r.connectionId).toBeLessThanOrEqual(limit[0]! + 1e-6)
+        expect(Math.abs(y - center[1]), r.connectionId).toBeLessThanOrEqual(limit[1]! + 1e-6)
+        expect(Math.abs(z - center[2]), r.connectionId).toBeLessThanOrEqual(limit[2]! + 1e-6)
+      }
+    })
+
+    it('不传 containment 时行为完全不变（没有任何 stub）', () => {
+      for (const r of plain) expect(r.stub, r.connectionId).toBeNull()
+    })
+
+    it('确定性：同输入逐位相同', () => {
+      expect(JSON.stringify(routeConnections(SYSTEM_ID, layout, 'board', true, { rootAssemblyId: TRAY }))).toBe(
+        JSON.stringify(clipped),
+      )
+    })
+  })
+})
+
+describe('exploded 坐标贯穿（v1.1 B4）', () => {
+  it('board 级 explode 后，线的端点跟着器件一起挪（收拢 / 拆开两套坐标不同）', () => {
+    const collapsed = routeConnections(SYSTEM_ID, layout, 'board', false)
+    const exploded = routeConnections(SYSTEM_ID, layout, 'board', true)
+    expect(collapsed.length).toBe(exploded.length)
+    // HBM/冷板等有 explode 偏移的器件，其连接端点必须不同
+    const a = collapsed.find((r) => r.connectionId === 'con.gb300.gpu-cold-plate')!
+    const b = exploded.find((r) => r.connectionId === 'con.gb300.gpu-cold-plate')!
+    expect(a.points[0]).not.toEqual(b.points[0])
   })
 })
 

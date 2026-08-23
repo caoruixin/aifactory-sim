@@ -182,7 +182,24 @@ export const SURFACE = {
 export const HIGHLIGHT = {
   selectedToken: 'accent' as PaletteToken,
   hoveredToken: 'accent-2' as PaletteToken,
+  /** 数据流当前步骤「参与的硬件」——与选中同一套 emissive 机制，换个语义色区分。 */
+  flowToken: 'accent-2' as PaletteToken,
   selectedEmissive: 0.55,
   hoveredEmissive: 0.28,
+  flowEmissive: 0.5,
   ghostOpacity: 0.12,
+} as const
+
+/**
+ * 数据流播放时的连线强调（v1.1 B3）。
+ *
+ * ★ 只改 `opacity`/`linewidth`/`color`，**不翻转 `transparent`**——`ConnectionLayer` 的
+ *   `<Line>` 材质本来就常开 transparent，因此不需要 `useTransparencyProgramSync`
+ *   那套重编着色器的仪式（那是 mesh 在运行期翻 transparent 才需要的）。
+ */
+export const FLOW_EMPHASIS = {
+  /** 当前步骤连接的线宽倍数。 */
+  activeWidthScale: 1.8,
+  /** 其余（已开平面的）线退让到的不透明度。 */
+  idleOpacity: 0.35,
 } as const
