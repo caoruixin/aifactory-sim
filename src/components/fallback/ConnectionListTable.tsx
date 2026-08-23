@@ -8,7 +8,8 @@
  */
 
 import { FACTORY_PACK, assemblyById } from '../../data'
-import { PLANE_LABEL, planeColor } from '../../lib/palette'
+import { planeColor } from '../../lib/palette'
+import { planeLabel } from '../../lib/planeLabel'
 import { useFactoryStore } from '../../store'
 
 export interface ConnectionListTableProps {
@@ -68,7 +69,10 @@ export default function ConnectionListTable({ activeConnectionIds }: ConnectionL
                       className="inline-block h-2.5 w-2.5 shrink-0 rounded-full"
                       style={{ background: planeColor(c.plane) }}
                     />
-                    <span className="text-dim">{PLANE_LABEL[c.plane]}</span>
+                    {/* 显示名按代际取（lib/planeLabel.ts）：LPX 的 nvlink = C2C scale-up。 */}
+                    <span className="text-dim" data-plane={c.plane}>
+                      {planeLabel(c.systemId, c.plane)}
+                    </span>
                   </span>
                 </td>
                 <td className="py-1.5 pr-2">

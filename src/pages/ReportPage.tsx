@@ -15,14 +15,14 @@ import CapacityBands from '../components/panels/CapacityBands'
 import RackElevationSvg from '../components/fallback/RackElevationSvg'
 import { EvidenceChip, EVIDENCE_LABEL, StatusChip, STATUS_LABEL } from '../components/ui/Chips'
 import { FACTORY_PACK, flowsOfSystem, sourceById, systemById } from '../data'
-import type { Claim, EvidenceType, SourceKind } from '../data/types'
+import type { CapacityPolicy, Claim, EvidenceType, SourceKind } from '../data/types'
 import { estimateSystemCapacity } from '../lib/capacity'
 import { changedRows, compareSystems } from '../lib/compare'
 import { FLOW_PHASE_LABEL } from '../lib/flowTimeline'
 
 const GB300 = 'sys.gb300-nvl72'
 const VERA_RUBIN = 'sys.vera-rubin-nvl72'
-const NVL576 = 'sys.rubin-ultra-nvl576'
+const LPX = 'sys.groq3-lpx'
 
 // ─────────────────────────── 证据统计（纯函数） ───────────────────────────
 
@@ -48,17 +48,37 @@ function allClaims(): ClaimRef[] {
   return out
 }
 
+/**
+ * 相邻两代之间的比较链：按内容包里 `systems` 的**声明顺序**两两串起来。
+ *
+ * v1.3 W3 起改成动态推导而不是硬编码三个 ID——第四代（Groq 3 LPX）加进来时
+ * 这一节要自动跟着长出来，否则汇报页会永远停在「三代」，而顶栏已经有四个按钮了。
+ * 顺序即声明顺序，因此结果是确定的（截图基线依赖这一点）。
+ */
+function adjacentComparisonPairs(): Array<[string, string]> {
+  const ids = FACTORY_PACK.systems.map((s) => s.id)
+  const pairs: Array<[string, string]> = []
+  for (let i = 1; i < ids.length; i += 1) pairs.push([ids[i - 1]!, ids[i]!])
+  return pairs
+}
+
 export default function ReportPage() {
   const claims = useMemo(allClaims, [])
+  // 产能卡按内容包里的全部系统动态渲染——新增代际不需要改这一页。
   const capacity = useMemo(
     () =>
-      [GB300, VERA_RUBIN, NVL576].map((systemId) =>
-        estimateSystemCapacity({ systemId, modelId: 'deepseek-v3', quantId: 'fp8' }),
+      FACTORY_PACK.systems.map((s) =>
+        estimateSystemCapacity({ systemId: s.id, modelId: 'deepseek-v3', quantId: 'fp8' }),
       ),
     [],
   )
-  const diffToRubin = useMemo(() => compareSystems(GB300, VERA_RUBIN), [])
-  const diffToUltra = useMemo(() => compareSystems(VERA_RUBIN, NVL576), [])
+  const diffs = useMemo(
+    () => adjacentComparisonPairs().map(([left, right]) => compareSystems(left, right)),
+    [],
+  )
+  /** Vera Rubin ↔ Groq 3 LPX 是**配对**而不是换代，单独成段讲（见下面的配对小节）。 */
+  const pairing = useMemo(() => compareSystems(VERA_RUBIN, LPX), [])
+  const lpxCapacity = capacity.find((c) => c.systemId === LPX)
   const episode = flowsOfSystem(GB300)[0]
 
   const byEvidence = useMemo(() => {
@@ -189,24 +209,86 @@ export default function ReportPage() {
       </Section>
 
       {/* ── 4. 代际变化 ── */}
-      <Section n={4} title="代际变化：GB300 → Vera Rubin → Rubin Ultra">
-        <div className="space-y-4">
-          <SummaryBlock title={diffToRubin.title} points={diffToRubin.summary} />
-          <DiffTable title="主要差异（按 roleKey 自动配对）" result={diffToRubin} />
-          <SummaryBlock title={diffToUltra.title} points={diffToUltra.summary} />
-          <DiffTable title="主要差异（按 roleKey 自动配对）" result={diffToUltra} />
+      <Section
+        n={4}
+        title={`代际变化：${FACTORY_PACK.systems.map((s) => s.name.replace(/^NVIDIA\s+/, '')).join(' → ')}`}
+      >
+        {/* 相邻两代逐对展开，按内容包声明顺序动态生成——新增代际自动接上。 */}
+        <div className="space-y-4" data-report-diffs>
+          {diffs.map((result) => (
+            <div key={result.id === 'cmpdef.auto' ? `${result.leftSystemId}->${result.rightSystemId}` : result.id}>
+              <SummaryBlock title={result.title} points={result.summary} />
+              <div className="mt-2">
+                <DiffTable title="主要差异（按 roleKey 自动配对）" result={result} />
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* ── 4b：配对（不是换代） ── */}
+        <div
+          className="mt-6 rounded-md border border-accent-2/30 bg-accent-2/5 px-3 py-3"
+          data-report-pairing={`${pairing.leftSystemId}|${pairing.rightSystemId}`}
+        >
+          <h3 className="text-sm font-semibold">
+            ★ 例外：Vera Rubin NVL72 ↔ Groq 3 LPX 不是「换代」，是「配对」
+          </h3>
+          <p className="mt-1 text-xs leading-relaxed">
+            上面那串箭头读的是时间轴，唯独最后一格要换个读法。<strong>Groq 3 LPX 不接替
+            Vera Rubin NVL72，而是和它一起工作</strong>：NVIDIA 把推理的 decode 阶段拆成两半——
+            <strong>Rubin GPU 负责 prefill 与 decode 的 attention</strong>（吃长上下文与 KV cache，
+            靠 HBM 的容量与带宽），<strong>LPU 负责 decode 的 FFN/MoE</strong>（吃小 batch 下的
+            确定性低时延，靠片上 SRAM）。官方称之为 attention–FFN 分离（AFD），
+            由 NVIDIA Dynamo 做 KV-aware 路由：每生成一个 token，中间激活在两台机器之间来回一趟。
+          </p>
+          <ul className="mt-2 ml-4 list-disc space-y-1 text-xs leading-relaxed">
+            {pairing.summary.map((p, i) => (
+              <li key={i}>{p}</li>
+            ))}
+          </ul>
+          <div className="mt-3">
+            <DiffTable title="配对双方的部件对照（按 roleKey 自动配对）" result={pairing} />
+          </div>
         </div>
 
         <h3 className="mt-6 text-sm font-semibold">同一负载下的产能粗估对照</h3>
         <p className="text-xs leading-relaxed text-dim">
           参考模型 deepseek-v3（671B 总参 / 37B 激活，MLA）、FP8、单机架、中等负载
-          （2k 输入 / 4k 上下文 / 并发 32）。三代中有两代拿不到完整数字——这正是要展示的结论之一。
+          （2k 输入 / 4k 上下文 / 并发 32）。
+          {FACTORY_PACK.systems.length} 代里只有 {capacity.filter((c) => c.kind === 'estimate').length}{' '}
+          代拿得到完整数字——<strong>拿不到的那几代分别因为什么拿不到</strong>，正是这一节要展示的结论。
         </p>
-        <div className="mt-2 grid gap-3 md:grid-cols-3 print:grid-cols-3">
+        <div className="mt-2 grid gap-3 md:grid-cols-2 print:grid-cols-2" data-report-capacity>
           {capacity.map((est) => (
             <CapacityBands key={est.systemId} estimate={est} compact />
           ))}
         </div>
+
+        {/* LPX 专属拒绝卡：paired-only 与「缺数据」是完全不同的两种拒绝，必须讲清楚 */}
+        {lpxCapacity && lpxCapacity.kind === 'refused' ? (
+          <div
+            className="mt-3 rounded-md border border-bad/35 bg-bad/5 px-3 py-2"
+            data-report-lpx-refusal={lpxCapacity.reasonCode ?? ''}
+          >
+            <h4 className="text-xs font-semibold">
+              为什么 {lpxCapacity.systemName} 这一格是空的（reasonCode：
+              <code className="font-mono">{lpxCapacity.reasonCode}</code>）
+            </h4>
+            <p className="mt-1 text-xs leading-relaxed">
+              这<strong>不是</strong>「差一个官方数字」——注意它的「缺少的官方数据」列表是空的
+              （{lpxCapacity.missing.length} 项）。LPX 的产能语义本身就只在配对场景下成立：
+              NVIDIA 对它的每一条性能宣称都带着「paired with Vera Rubin」这个前提，
+              官方从未给出「LPX 单独跑能出多少 token」的口径。本工具因此把它的 capacityPolicy 设为
+              <code className="mx-1 font-mono">paired-only</code>，在查找 GPU 组件<strong>之前</strong>就拒绝出数。
+            </p>
+            <p className="mt-1 text-[11px] leading-relaxed text-dim">{lpxCapacity.reason}</p>
+            <p className="mt-1 text-[11px] leading-relaxed text-warn">
+              ⚠️ 推论：任何来源给你一个「Groq 3 LPX 每机架 N tokens/s」的独立数字，都要先问它的口径出处。
+              官方能对得上的只有相对指标——与 Vera Rubin NVL72 配对后，在 400 TPS/用户 的交互度上，
+              每兆瓦吞吐最高 35×（对比 GB200 NVL72）。
+            </p>
+          </div>
+        ) : null}
       </Section>
 
       {/* ── 5. 证据边界 ── */}
@@ -247,15 +329,24 @@ export default function ReportPage() {
           </tbody>
         </table>
 
-        <h3 className="mt-4 text-sm font-semibold">三代产品的状态与可引用性</h3>
-        <ul className="space-y-2">
+        <h3 className="mt-4 text-sm font-semibold">
+          {FACTORY_PACK.systems.length} 个系统的状态、产能口径与可引用性
+        </h3>
+        <ul className="space-y-2" data-report-systems>
           {FACTORY_PACK.systems.map((s) => (
-            <li key={s.id} className="rounded-md border border-line px-3 py-2">
+            <li key={s.id} className="rounded-md border border-line px-3 py-2" data-report-system={s.id}>
               <div className="flex flex-wrap items-center gap-1.5">
                 <span className="text-sm font-medium">{s.name}</span>
                 <StatusChip status={s.status} />
                 <span className="text-[11px] text-dim">{STATUS_LABEL[s.status]}</span>
+                <span
+                  className="rounded border border-line bg-panel-2 px-1.5 py-px font-mono text-[10px] text-dim"
+                  title="产能估算的分支策略（lib/capacity.ts 按它决定拒绝门）"
+                >
+                  {s.capacityPolicy}
+                </span>
               </div>
+              <p className="mt-1 text-xs leading-relaxed">{CAPACITY_POLICY_NOTE[s.capacityPolicy]}</p>
               <p className="mt-1 text-xs leading-relaxed text-dim">
                 来源：
                 {s.sourceIds
@@ -301,8 +392,14 @@ export default function ReportPage() {
             并区分 goodput 与 SLA 达成率。
           </li>
           <li>
-            <strong>加入国产与自研 ASIC 路线</strong>：目前只覆盖 NVIDIA 一条线，
-            客户实际的选型对话通常是多路线并行。
+            <strong>把 AFD 配对讲成可算的账</strong>：Groq 3 LPX 现在只能定性地讲分工与官方倍数
+            （35× TPS/MW @ 400 TPS/用户）。要真正回答「配几台 LPX 配一台 NVL72」，
+            需要官方公布 LPX 的功率口径与 AFD 链路带宽——这两项一出来，
+            本工具就能把 paired-only 从「拒绝出数」升级成「配对产能模型」。
+          </li>
+          <li>
+            <strong>加入国产与自研 ASIC 路线</strong>：目前只覆盖 NVIDIA 一条线
+            （含经技术许可并入的 Groq LPU 路线），客户实际的选型对话通常是多路线并行。
           </li>
           <li>
             <strong>把这套内容包做成可维护的资产</strong>：新一代发布时只需追加一个数据文件，
@@ -314,14 +411,26 @@ export default function ReportPage() {
       <footer className="mt-8 border-t border-line pt-3 text-[11px] leading-relaxed text-dim">
         本页所有性能区间均为 roofline 粗估，非实测、非可承诺产能；产能口径按 capacityPolicy 分支——
         「analyst-modeled」代际（当前为 NVL576）拓扑已由 NVIDIA 官方确认，但机架内部规格主要来自
-        第三方分析师，不代表 NVIDIA 官方口径，本工具对其一律不出产能数字。引用前请回看每个数字旁的
-        证据徽章与出处。
+        第三方分析师，不代表 NVIDIA 官方口径；「paired-only」代际（当前为 Groq 3 LPX）的性能口径
+        官方只在与 Vera Rubin NVL72 配对的前提下给出，本工具对这两类一律不出产能数字。
+        另注：Groq 3 LPX 的全部数字都是产品页与技术博客的<strong>厂商宣称</strong>口径
+        （NVIDIA 尚未发布该产品的规格表或参考架构），证据徽章为 vendor_claim。
+        引用前请回看每个数字旁的证据徽章与出处。
       </footer>
     </main>
   )
 }
 
 // ─────────────────────────── 子块 ───────────────────────────
+
+/** 三种产能策略对「这一代的数字能不能对外用」意味着什么。 */
+const CAPACITY_POLICY_NOTE: Record<CapacityPolicy, string> = {
+  standard: '常规口径：官方规格表齐全，本工具按 roofline 出产能粗估区间（仍是粗估，不是可承诺产能）。',
+  'analyst-modeled':
+    '⚠️ 拓扑已由 NVIDIA 官宣，但机架内部规格主要来自第三方分析师（forecast 证据），本工具对它一律不出产能数字。能讲趋势与骨架，不能拿具体数字做方案。',
+  'paired-only':
+    '⚠️ 只在与配对系统联合工作时才有产能语义（官方口径全部是「paired with Vera Rubin」），本工具不提供它的独立产能数字。这不是缺数据，是这一代没有「单独跑」这回事。',
+}
 
 const SOURCE_KIND_LABEL: Record<SourceKind, string> = {
   official_doc: '厂商官方文档',

@@ -310,6 +310,85 @@ describe('比较定义与 3D 索引', () => {
   })
 })
 
+/**
+ * v1.3 W3：四个系统 ⇒ 4 × 3 = 12 个**有序**组合。比较视图允许用户任意组合左右
+ * （代际按钮 + 右侧下拉 + 交换按钮），因此每一格都必须能算出结果，不能只测有
+ * 人工定义的那四条。
+ */
+describe('★ 全部 12 个有序组合都能比较（参数化）', () => {
+  const ids = FACTORY_PACK.systems.map((s) => s.id)
+  const orderedPairs: Array<[string, string]> = ids.flatMap((l) =>
+    ids.filter((r) => r !== l).map((r) => [l, r] as [string, string]),
+  )
+
+  it('4 个系统恰好产生 12 个有序组合', () => {
+    expect(ids.length).toBe(4)
+    expect(orderedPairs.length).toBe(12)
+  })
+
+  it.each(orderedPairs)('%s → %s：行非空、roleKey 不重复、counts 与行数自洽', (left, right) => {
+    const result = compareSystems(left, right)
+    expect(result.rows.length, `${left}→${right} 没有任何配对行`).toBeGreaterThan(0)
+
+    const keys = result.rows.map((r) => r.roleKey)
+    expect(new Set(keys).size, `${left}→${right} 有重复 roleKey`).toBe(keys.length)
+
+    const total = DIFF_ORDER.reduce((sum, k) => sum + result.counts[k], 0)
+    expect(total, `${left}→${right} counts 与行数对不上`).toBe(result.rows.length)
+
+    // 两侧 ID 与名字都要落地（避免 UI 显示成裸 ID）
+    expect(result.leftSystemId).toBe(left)
+    expect(result.rightSystemId).toBe(right)
+    expect(result.leftName.length).toBeGreaterThan(0)
+    expect(result.rightName.length).toBeGreaterThan(0)
+
+    // 每行至少有一侧存在（roleKey 是从两侧并集来的，不可能两侧皆空）
+    for (const row of result.rows) {
+      expect(row.left !== null || row.right !== null, `${left}→${right} 的 ${row.roleKey} 两侧皆空`).toBe(true)
+    }
+  })
+
+  it.each(orderedPairs)('%s → %s：纯函数，同输入逐位相同（截图基线依赖）', (left, right) => {
+    expect(JSON.stringify(compareSystems(left, right))).toBe(JSON.stringify(compareSystems(left, right)))
+  })
+
+  it.each(orderedPairs)('%s → %s：反向比较的行集合相同，只是左右调换', (left, right) => {
+    const fwd = compareSystems(left, right)
+    const rev = compareSystems(right, left)
+    expect(new Set(rev.rows.map((r) => r.roleKey))).toEqual(new Set(fwd.rows.map((r) => r.roleKey)))
+    // added ↔ removed 必须对称：正向「右侧新增」= 反向「右侧未收录」
+    expect(rev.counts.added).toBe(fwd.counts.removed)
+    expect(rev.counts.removed).toBe(fwd.counts.added)
+  })
+
+  it('★ 只有同方向的人工定义才复用叙述；反向一律退化为纯自动 diff（不给方向反了的文案）', () => {
+    for (const [left, right] of orderedPairs) {
+      const def = comparisonFor(left, right)
+      const result = compareSystems(left, right)
+      const sameDirection = def?.leftSystemId === left
+      if (sameDirection) {
+        expect(result.summary.length, `${left}→${right} 应复用定义的要点`).toBeGreaterThan(0)
+      } else {
+        expect(result.summary, `${left}→${right} 不该有叙述`).toEqual([])
+        expect(result.rows.every((r) => r.narrative === null), `${left}→${right}`).toBe(true)
+      }
+    }
+  })
+
+  /**
+   * ComparePanel 的右侧下拉用的就是这个表达式（`systems.filter(s => s.id !== generation)`）。
+   * 这里锁住「每个左侧恰好三个右侧选项、且不含自己」——DOM 层的实际渲染数量由 E2E 断言。
+   */
+  it('★ ComparePanel 的右侧选项：每个左侧恰三个，且不含自己', () => {
+    for (const left of ids) {
+      const options = FACTORY_PACK.systems.filter((s) => s.id !== left).map((s) => s.id)
+      expect(options.length, `${left} 的右侧选项数`).toBe(3)
+      expect(options, `${left} 的右侧选项不该含自己`).not.toContain(left)
+      expect(new Set(options).size).toBe(3)
+    }
+  })
+})
+
 describe('mirrorFocusPath：把左侧焦点按 roleKey 映到右侧', () => {
   it('同名 roleKey → 右侧对应节点的完整路径', () => {
     expect(mirrorFocusPath('asm.gb300.compute-tray', VERA_RUBIN)).toEqual([

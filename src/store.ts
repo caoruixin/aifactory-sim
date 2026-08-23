@@ -38,9 +38,17 @@ export interface CompareState {
   showDiffOnly: boolean
 }
 
-/** 换代际时给右侧挑一个「不等于左侧」的系统，避免左右同代看不出差异。 */
+/**
+ * 换代际时给右侧挑一个「不等于左侧」的系统，避免左右同代看不出差异。
+ *
+ * ⚠️ 同时兼任**清洗**职责（v1.3 W3）：`preferred` 可能是 `?right=` 传进来的垃圾、
+ * 已删除的 systemId，或者恰好等于左侧——三种情况都要回落到一个合法的他系统，
+ * 否则 `ComparePanel` 的 `<select>` 会拿到一个不在 options 里的 value（React 受控
+ * 组件会显示成空白），比较视图也会左右同代。
+ */
 function otherSystemThan(systemId: string, preferred: string): string {
-  if (preferred !== systemId) return preferred
+  const known = FACTORY_PACK.systems.some((s) => s.id === preferred)
+  if (known && preferred !== systemId) return preferred
   return FACTORY_PACK.systems.find((s) => s.id !== systemId)?.id ?? systemId
 }
 
@@ -84,7 +92,22 @@ export interface FactoryState extends DrillState {
   setMode: (mode: ExplorerMode) => void
   /** 切换代际：换系统 = 换整棵装配树，因此下钻状态必须重置到该系统的根。 */
   setGeneration: (systemId: string) => void
+  /**
+   * 更新比较状态。`right` 会被清洗：未知 ID / 与左侧同代 一律回落到一个合法的他系统
+   *（见 `otherSystemThan`），因此 `?right=` 这类外部输入可以直接喂进来。
+   */
   setCompare: (patch: Partial<CompareState>) => void
+  /**
+   * **原子**交换比较双方：当前代际 ↔ 右侧代际。
+   *
+   * 为什么必须是一个独立 action 而不是「先 setGeneration 再 setCompare」：
+   * `setGeneration` 自带「给右侧挑一个不等于左侧的系统」的逻辑，会把旧左侧冲掉，
+   * 于是两步写法交换一次就丢了原来的左侧。这里在同一次 `set` 里把
+   * 「新左 = 旧右、新右 = 旧左」一起落地，从而 **swap 两次必然复原**。
+   * 换代际同样要重置下钻状态（新系统是另一棵装配树），但 `mode` / `showDiffOnly`
+   * 是用户当前的视角偏好，交换左右不该把它们也重置掉。
+   */
+  swapCompareSides: () => void
   setFlow: (patch: Partial<FactoryState['flow']>) => void
   setReducedMotion: (v: boolean) => void
   setGlStatus: (s: GlStatus) => void
@@ -241,7 +264,33 @@ export const useFactoryStore = create<FactoryState>()(
           }
         }),
 
-      setCompare: (patch) => set((s) => ({ compare: { ...s.compare, ...patch } })),
+      setCompare: (patch) =>
+        set((s) => {
+          const next = { ...s.compare, ...patch }
+          // 清洗右侧：未知 ID（?right=sys.nope / 已删除的代际）或与左侧同代都不接受。
+          return { compare: { ...next, right: otherSystemThan(s.generation, next.right) } }
+        }),
+
+      swapCompareSides: () =>
+        set((s) => {
+          const nextLeft = s.compare.right
+          const nextRight = s.generation
+          // 右侧本来就非法（理论上进不来，setCompare 已清洗）时不做任何事，
+          // 免得把 generation 换成一个不存在的系统。
+          if (!FACTORY_PACK.systems.some((x) => x.id === nextLeft)) return s
+          if (nextLeft === nextRight) return s
+          return {
+            // 换系统 = 换整棵装配树：focusPath/selectedId 必须整体重置（同 setGeneration）。
+            ...initialDrillState(nextLeft),
+            generation: nextLeft,
+            hoveredId: null,
+            tourStopIdx: -1,
+            flow: { ...s.flow, stepIdx: 0, playing: false },
+            // ★ showDiffOnly 与 mode 保持不变：交换左右是换视角，不是换偏好。
+            compare: { ...s.compare, right: nextRight },
+          }
+        }),
+
       setFlow: (patch) => set((s) => ({ flow: { ...s.flow, ...patch } })),
       setReducedMotion: (reducedMotion) => set({ reducedMotion }),
       setGlStatus: (glStatus) => set({ glStatus }),

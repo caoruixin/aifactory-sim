@@ -23,7 +23,8 @@ import {
 } from '../../data'
 import type { AssemblyNode, Claim, Connection, HardwareComponent } from '../../data/types'
 import { LEVEL_LABEL, canDrillInto, levelOfFocus, rackContainerOf } from '../../lib/drill'
-import { PLANE_LABEL, planeColor } from '../../lib/palette'
+import { planeColor } from '../../lib/palette'
+import { planeLabel } from '../../lib/planeLabel'
 import { detailIdOf, useFactoryStore } from '../../store'
 import { EvidenceChip, MetaChip, StatusChip } from '../ui/Chips'
 
@@ -307,7 +308,11 @@ function ConnectionRow({
           className="inline-block h-2.5 w-2.5 shrink-0 rounded-full"
           style={{ background: planeColor(connection.plane) }}
         />
-        <span className="text-[11px] text-dim">{PLANE_LABEL[connection.plane]}</span>
+        {/* 显示名按代际取（lib/planeLabel.ts）：LPX 的 nvlink = C2C scale-up。
+            连接自带 systemId，不必再去 store 取当前代际。 */}
+        <span className="text-[11px] text-dim" data-plane={connection.plane}>
+          {planeLabel(connection.systemId, connection.plane)}
+        </span>
         <span className="ml-auto font-mono text-[11px] text-dim">{connection.topology}</span>
       </div>
       <div className="mt-1 text-sm">

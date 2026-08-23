@@ -16,7 +16,7 @@
  */
 
 import { Suspense, lazy, useEffect, useState } from 'react'
-import { assemblyById, childrenOf, scenesOfSystem, systemById } from '../../data'
+import { FACTORY_PACK, assemblyById, childrenOf, scenesOfSystem, systemById } from '../../data'
 import { LEVEL_LABEL, canDrillInto } from '../../lib/drill'
 import { detailIdOf, focusIdOf, useFactoryStore } from '../../store'
 import { ErrorBoundary } from '../ErrorBoundary'
@@ -40,6 +40,7 @@ export default function MobileFactoryView() {
   const applyScene = useFactoryStore((s) => s.applyScene)
   const drillTo = useFactoryStore((s) => s.drillTo)
   const drillUp = useFactoryStore((s) => s.drillUp)
+  const setGeneration = useFactoryStore((s) => s.setGeneration)
   const setGlStatus = useFactoryStore((s) => s.setGlStatus)
   const focusId = useFactoryStore(focusIdOf)
   const detailId = useFactoryStore(detailIdOf)
@@ -81,16 +82,38 @@ export default function MobileFactoryView() {
   }
 
   return (
-    <div className="flex h-full flex-col" data-mobile-view="1">
-      {/* ── 精简面包屑 ── */}
+    <div
+      className="flex h-full flex-col"
+      data-mobile-view="1"
+      data-generation={generation}
+      data-focus-id={focusId ?? ''}
+    >
+      {/* ── 精简面包屑 + 紧凑代际选择器 ── */}
       <header className="shrink-0 border-b border-line bg-panel px-3 py-2">
-        <div className="flex items-center gap-2 overflow-x-auto pb-1.5">
-          {system ? (
-            <>
-              <span className="shrink-0 text-sm font-semibold">{system.name}</span>
-              <StatusChip status={system.status} />
-            </>
-          ) : null}
+        {/*
+          代际切换在窄屏用 <select> 而不是桌面那排按钮：内容包已经有四个系统，
+          四个按钮（每个还带状态徽章）在 390px 下必然横向溢出。<select> 是原生的
+          紧凑控件，选项再多也只占一行，且 `min-w-0` + `flex-1` 保证它自己会收缩
+          而不是把整行撑宽。
+        */}
+        <div className="flex items-center gap-2 pb-1.5">
+          <label className="sr-only" htmlFor="mobile-generation-select">
+            代际
+          </label>
+          <select
+            id="mobile-generation-select"
+            data-mobile-gen-select="1"
+            value={generation}
+            onChange={(e) => setGeneration(e.target.value)}
+            className="min-w-0 flex-1 truncate rounded-md border border-line bg-panel px-1.5 py-1 text-sm font-semibold"
+          >
+            {FACTORY_PACK.systems.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name}
+              </option>
+            ))}
+          </select>
+          {system ? <StatusChip status={system.status} /> : null}
         </div>
         <div className="flex items-center gap-2 text-xs">
           <span className="text-dim">

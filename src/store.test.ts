@@ -191,6 +191,104 @@ describe('store 转移', () => {
     expect(s.tourStopIdx).toBe(1)
   })
 
+  // ─────────── v1.3 W3：四系统轮转 + 比较双方的清洗与原子交换 ───────────
+
+  it('★ 四系统轮转：切到任何一代，右侧都自动落在一个合法的他系统上', () => {
+    const ids = FACTORY_PACK.systems.map((s) => s.id)
+    expect(ids.length).toBe(4)
+    for (const id of ids) {
+      useFactoryStore.getState().setGeneration(id)
+      const s = useFactoryStore.getState()
+      expect(s.generation, id).toBe(id)
+      expect(s.compare.right, `${id} 的右侧不该等于左侧`).not.toBe(id)
+      expect(ids, `${id} 的右侧必须是已登记的系统`).toContain(s.compare.right)
+    }
+  })
+
+  it('★ setCompare 清洗未知 ID：?right=sys.nope 不会把 select 打成空值', () => {
+    useFactoryStore.getState().setCompare({ right: 'sys.nope' })
+    const right = useFactoryStore.getState().compare.right
+    expect(FACTORY_PACK.systems.some((s) => s.id === right)).toBe(true)
+    expect(right).not.toBe('sys.nope')
+    expect(right).not.toBe(useFactoryStore.getState().generation)
+  })
+
+  it('★ setCompare 清洗「右侧 = 左侧」：比较视图不允许左右同代', () => {
+    const left = useFactoryStore.getState().generation
+    useFactoryStore.getState().setCompare({ right: left })
+    expect(useFactoryStore.getState().compare.right).not.toBe(left)
+  })
+
+  it('setCompare 只改 showDiffOnly 时不会误伤已经合法的右侧', () => {
+    useFactoryStore.getState().setCompare({ right: 'sys.groq3-lpx' })
+    useFactoryStore.getState().setCompare({ showDiffOnly: true })
+    expect(useFactoryStore.getState().compare.right).toBe('sys.groq3-lpx')
+    expect(useFactoryStore.getState().compare.showDiffOnly).toBe(true)
+  })
+
+  /**
+   * 12 个有序组合（4 系统 × 3 个他系统）逐个验证 swap 的两条性质：
+   *   ① 一次交换 = 左右恰好对调（**旧左必须成为新右**——这正是两步写法
+   *      setGeneration + setCompare 做不到的，setGeneration 会把旧左冲掉）；
+   *   ② 交换两次必然复原（对合性）。
+   */
+  it('★ swapCompareSides：全部 12 个有序组合，交换一次对调、交换两次复原', () => {
+    const ids = FACTORY_PACK.systems.map((s) => s.id)
+    let pairs = 0
+    for (const left of ids) {
+      for (const right of ids) {
+        if (left === right) continue
+        pairs += 1
+
+        useFactoryStore.getState().setGeneration(left)
+        useFactoryStore.getState().setCompare({ right })
+        expect(useFactoryStore.getState().generation, `${left}|${right} 起点左侧`).toBe(left)
+        expect(useFactoryStore.getState().compare.right, `${left}|${right} 起点右侧`).toBe(right)
+
+        // ① 一次交换
+        useFactoryStore.getState().swapCompareSides()
+        const once = useFactoryStore.getState()
+        expect(once.generation, `${left}|${right} 交换后左侧`).toBe(right)
+        expect(once.compare.right, `${left}|${right} 交换后右侧（旧左必须保住）`).toBe(left)
+
+        // ② 再交换一次 → 复原
+        useFactoryStore.getState().swapCompareSides()
+        const twice = useFactoryStore.getState()
+        expect(twice.generation, `${left}|${right} 复原左侧`).toBe(left)
+        expect(twice.compare.right, `${left}|${right} 复原右侧`).toBe(right)
+      }
+    }
+    expect(pairs, '4 个系统应有 12 个有序组合').toBe(12)
+  })
+
+  it('swapCompareSides 重置下钻状态（换系统 = 换整棵装配树），但保留 mode 与 showDiffOnly', () => {
+    useFactoryStore.getState().setGeneration(DEFAULT_SYSTEM_ID)
+    useFactoryStore.getState().setCompare({ right: 'sys.groq3-lpx', showDiffOnly: true })
+    useFactoryStore.getState().setMode('compare')
+    useFactoryStore.getState().drillTo(GPU)
+    expect(focusIdOf(useFactoryStore.getState())).toBe(GPU)
+
+    useFactoryStore.getState().swapCompareSides()
+    const s = useFactoryStore.getState()
+    expect(s.generation).toBe('sys.groq3-lpx')
+    expect(s.compare.right).toBe(DEFAULT_SYSTEM_ID)
+    // 下钻状态回到新系统的根，不残留上一代的 ID
+    expect(s.level).toBe('cluster')
+    expect(s.selectedId).toBeNull()
+    expect(focusIdOf(s)).toBe('asm.lpx.facility')
+    expect(FACTORY_PACK.assemblies.find((a) => a.id === focusIdOf(s))!.systemId).toBe('sys.groq3-lpx')
+    // 视角偏好不动
+    expect(s.mode).toBe('compare')
+    expect(s.compare.showDiffOnly).toBe(true)
+  })
+
+  it('swapCompareSides 在右侧非法时是空操作（不会把 generation 换成不存在的系统）', () => {
+    useFactoryStore.setState({ compare: { right: 'sys.nope', showDiffOnly: false } })
+    const before = useFactoryStore.getState()
+    useFactoryStore.getState().swapCompareSides()
+    expect(useFactoryStore.getState()).toBe(before)
+  })
+
   it('glStatus / ready 可被 3D 层回写', () => {
     useFactoryStore.getState().setGlStatus('failed')
     useFactoryStore.getState().setReady(true)

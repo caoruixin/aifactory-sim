@@ -25,6 +25,7 @@ export default function ComparePanel() {
   const compare = useFactoryStore((s) => s.compare)
   const setCompare = useFactoryStore((s) => s.setCompare)
   const setGeneration = useFactoryStore((s) => s.setGeneration)
+  const swapCompareSides = useFactoryStore((s) => s.swapCompareSides)
 
   const result = compareSystems(generation, compare.right)
   const rows = compare.showDiffOnly ? changedRows(result.rows) : result.rows
@@ -32,7 +33,7 @@ export default function ComparePanel() {
   const right = systemById(compare.right)
 
   return (
-    <div className="flex h-full flex-col overflow-y-auto">
+    <div className="flex h-full flex-col overflow-y-auto" data-compare-left={generation} data-compare-right={compare.right}>
       <header className="border-b border-line px-4 py-3">
         <h2 className="text-[11px] font-semibold tracking-widest text-dim uppercase">代际比较</h2>
         <p className="mt-1.5 text-sm leading-snug font-semibold">{result.title}</p>
@@ -45,6 +46,7 @@ export default function ComparePanel() {
           <span className="text-dim">右</span>
           <select
             value={compare.right}
+            data-compare-right-select="1"
             onChange={(e) => setCompare({ right: e.target.value })}
             className="min-w-0 flex-1 rounded-md border border-line bg-panel px-1.5 py-1 text-xs"
             aria-label="右侧代际"
@@ -78,13 +80,32 @@ export default function ComparePanel() {
           只看有变化的部件（3D 里未变化的降为半透明）
         </label>
 
-        <button
-          type="button"
-          onClick={() => setGeneration(compare.right)}
-          className="mt-2 rounded-md border border-accent/40 bg-accent/10 px-2 py-1 text-xs font-medium text-accent hover:bg-accent/20"
-        >
-          把右侧设为当前代际 →
-        </button>
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {/*
+            交换左右：一次原子动作（store.swapCompareSides），保证「旧左变新右」——
+            两步写法（setGeneration + setCompare）会被 setGeneration 自带的
+            「给右侧挑个不同代」逻辑把旧左侧冲掉，交换一次就丢了。
+            方向敏感的比较定义（comparisons.ts 的 summary/narrative 按 A→B 写）
+            在反向时会退化成纯自动 diff，这正是我们想让用户看到的行为。
+          */}
+          <button
+            type="button"
+            data-compare-swap="1"
+            onClick={swapCompareSides}
+            title="把左右两侧对调（再点一次复原）"
+            className="rounded-md border border-line bg-panel px-2 py-1 text-xs hover:border-accent hover:text-accent"
+          >
+            ⇄ 交换左右
+          </button>
+          <button
+            type="button"
+            data-compare-promote-right="1"
+            onClick={() => setGeneration(compare.right)}
+            className="rounded-md border border-accent/40 bg-accent/10 px-2 py-1 text-xs font-medium text-accent hover:bg-accent/20"
+          >
+            把右侧设为当前代际 →
+          </button>
+        </div>
       </header>
 
       {result.summary.length > 0 ? (

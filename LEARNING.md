@@ -303,6 +303,89 @@ Power Shelf / Busbar / CDU / 冷板 / Rack U。素材都在对应部件的详情
 
 ---
 
+## 5b. NVIDIA 2026 更新 · Groq 3 LPX 与分离式推理（第 4 周后加课，60 分钟）
+
+> 前四周讲的都是「一台 GPU 机架怎么把一次推理跑完」。2026 年 GTC 之后这句话不再完整了：
+> NVIDIA 把 decode 拆成两半，交给两种**不同架构**的机器分头跑。这一节补上这条线。
+> ⚠️ 先记住一条口径纪律：LPX 至今**没有官方规格表**，下面每个数字在工具里的证据徽章
+> 都是「厂商宣称」（vendor_claim）而不是「官方规格」，对外引用要连同前提一起说。
+
+**环节 5.1 LPU 是什么（20 分钟）**
+
+▶ 打开 <https://caoruixin.github.io/aifactory-sim/?tour=scene.lpx.rack-anatomy>
+
+- **预期看到**：一个机架里 32 个 1U 托盘整齐排开，比 Vera Rubin 的 18 个计算托盘密得多，
+  而且**一个交换托盘都找不到**。
+- **三问**（先自己答，再看左栏讲解卡）：
+  1. 一个 LPX 机架里有多少颗加速器？它们叫什么？
+  2. 单颗 LPU 的「显存」有多大——注意单位。
+  3. 256 颗芯片之间靠什么连起来？和 Vera Rubin 的连法差在哪？
+- **答案与核对**：256 颗 LP30（32 托盘 × 8）。单颗 **500 MB 片上 SRAM**——是 **MB 不是 GB**，
+  对照 Rubin GPU 单卡 288 GB HBM4，容量差约 576 倍；换来的是 150 TB/s 片上带宽
+  （Rubin 单卡 22 TB/s，约 6.8 倍）。**容量换带宽**就是 LPU 这条路线的全部交易内容。
+  连法上 LPX **没有交换层**：每颗 LPU 96 条 112 Gb/s 的直连 C2C 链路，托盘内直连、
+  跨托盘经 C2C spine，机架级 640 TB/s——对照 Vera Rubin 经 36 颗 NVLink 6 交换芯片的 260 TB/s。
+- **一句话记忆**：*GPU 是「装得下、算得动」，LPU 是「吐得快、抖得少」。*
+- 顺手注意界面细节：切到这一代之后，左栏平面开关里第一项不再叫「NVLink」，而是
+  **「C2C scale-up（LPU 直连）」**——因为这一代真的没有 NVLink，写着 NVLink 就是讲错了。
+
+**环节 5.2 AFD 三段流：一个 token 要跑两台机器（25 分钟）**
+
+▶ 打开 <https://caoruixin.github.io/aifactory-sim/?tour=scene.lpx.afd-pairing>
+
+- **预期看到**：画面里有**两个**机架——LPX，以及标着「AFD 对端」的 Vera Rubin NVL72，
+  中间一条 scale-out 连线。
+- **三段流**（这是本节唯一必须背下来的东西）：
+
+  | 段 | 在哪台机器 | 干什么 | 为什么是它 |
+  | --- | --- | --- | --- |
+  | ① prefill | Vera Rubin NVL72（GPU） | 吃下长上下文，建好 KV cache | 吃并行算力与大内存 |
+  | ② decode · attention | Vera Rubin NVL72（GPU） | 每出一个 token，在累积的 KV cache 上算全上下文注意力 | 吃 HBM 容量与带宽 |
+  | ③ decode · FFN/MoE | Groq 3 LPX（LPU） | 跑稀疏专家前馈，结果回传 GPU | 小 batch 下要的是确定性低时延 |
+
+  ②③ 每生成一个 token 就来回一趟，中间交换的是「中间激活」。官方把这个拆法叫
+  **AFD（attention–FFN disaggregation，注意力—前馈分离）**，调度由 **NVIDIA Dynamo**
+  用 KV-aware 路由完成。
+- **三问**：
+  1. 为什么不干脆全放 GPU 上跑？
+  2. 官方宣称的 35× 是什么的 35 倍？前提是什么？
+  3. 客户说「那我买 LPX 就行了吧」，怎么答？
+- **答案与核对**：① 同一条流水线里 prefill 和 decode 的瓶颈完全不同——为峰值吞吐调优的硬件
+  在最怕抖动的那一段并不划算，反之亦然；异构就是为了不做这个妥协。
+  ② 是 **每兆瓦吞吐（TPS/MW）** 的 35 倍，对比 **GB200 NVL72**，而且死死绑在
+  **400 TPS/用户** 这个交互度上——低交互度场景（普通聊天）同构 GPU 方案本来就够用，
+  这个倍数不成立。**报这个数字必须带前提**，否则就是营销复读。
+  ③ 答「LPX 不单独卖，也不单独算」：它不做 prefill、片上只有 128 GB SRAM，
+  官方所有性能口径都写着 paired with Vera Rubin。
+
+**环节 5.3 为什么工具拒绝给 LPX 出产能（15 分钟）**
+
+1. 切到 Groq 3 LPX 代际（顶栏第四个按钮，或
+   ▶ <https://caoruixin.github.io/aifactory-sim/?gen=sys.groq3-lpx>），
+   看顶栏右侧的提示条与产能卡。
+2. 你会看到产能卡是**拒绝出数**的红卡，但它和 NVL576 那张红卡**理由不一样**：
+   - NVL576 是 `analyst-modeled`：已官宣，但机架内部规格主要来自第三方分析师；
+   - LPX 是 **`paired-only`**：官方从没给过「LPX 单独跑」的口径，
+     所以这**不是缺一个数字**——注意它的「缺少的官方数据」列表是**空的**。
+3. 去 `/report` 汇报页第 4 节末尾，读那张 LPX 专属拒绝卡与「配对而非换代」小节。
+4. **自测**：客户拿来一份材料写着「Groq 3 LPX 单机架 N tokens/s」，你的第一句话是什么？
+   —— *「这个数字的口径出处是哪里？官方只给过与 Vera Rubin 配对后的相对指标。」*
+
+**环节 5.4 关系口径：别说成「NVIDIA 收购了 Groq」（5 分钟）**
+
+2025-12 Groq 官方新闻室的原文只说了三件事：与 NVIDIA 签**非排他**推理技术**许可**协议；
+创始人 Jonathan Ross、总裁 Sunny Madra 与部分团队**加入 NVIDIA**；
+**Groq 继续作为独立公司运营**，GroqCloud 不中断。发布稿**没有提到任何金额**，
+所以工具里也没有金额 Claim——坊间流传的数字没有官方出处，不要跟着报。
+
+**✅ 本节验收线**
+- [ ] 能在 60 秒内讲完 AFD 三段流，并说出每段为什么落在那台机器上
+- [ ] 报「35×」时自动带出两个前提（对比 GB200 NVL72、400 TPS/用户）
+- [ ] 能说清 `paired-only` 与 `analyst-modeled` 两种拒绝出数的区别
+- [ ] 不会把 NVIDIA×Groq 说成收购
+
+---
+
 ## 6. 术语卡系统（30 张）
 
 **卡片模板**（正面 3 行，背面 1 行）：
@@ -415,8 +498,8 @@ NVLink 断一条会怎样？/ KV Cache 会把显存吃爆吗？/ MoE 对网络�
 | `tour` | `?tour=scene.gb300.learn-plane-nvlink` | **直达某个导览站**：层级/焦点/平面/讲解文案/3D 高亮一次到位（本手册练习卡用的就是它） |
 | `level` + `focus` | `?level=rack&focus=asm.gb300.rack` | 直达某层级/某部件 |
 | `planes` | `?planes=power,cooling` | 只开指定平面（逗号分隔） |
-| `gen` | `?gen=sys.rubin-ultra-nvl576` | 切换代际 |
-| `mode` + `right` | `?mode=compare&right=sys.vera-rubin-nvl72` | 比较模式 |
+| `gen` | `?gen=sys.rubin-ultra-nvl576`、`?gen=sys.groq3-lpx` | 切换代际（四代：`sys.gb300-nvl72` / `sys.vera-rubin-nvl72` / `sys.rubin-ultra-nvl576` / `sys.groq3-lpx`） |
+| `mode` + `right` | `?mode=compare&right=sys.vera-rubin-nvl72` | 比较模式。`right` 会被清洗：未知代际或与左侧同代一律回落到一个合法的他系统 |
 | `motion=off` | `?motion=off` | 关动画逐步读文案 |
 | `gl=off` | `?gl=off` | 2D 降级（低配设备/投屏兜底） |
 

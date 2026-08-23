@@ -6,7 +6,7 @@
  */
 
 import { beforeEach, describe, expect, it } from 'vitest'
-import { scenesOfSystem } from '../data'
+import { FACTORY_PACK, scenesOfSystem } from '../data'
 import {
   DEFAULT_COMPARE_RIGHT_ID,
   DEFAULT_SYSTEM_ID,
@@ -19,6 +19,7 @@ import { applyShotParams, parseShotParams } from './useShotParams'
 const GB300 = 'sys.gb300-nvl72'
 const VR = 'sys.vera-rubin-nvl72'
 const NVL576 = 'sys.rubin-ultra-nvl576'
+const LPX = 'sys.groq3-lpx'
 
 const NVLINK_TOUR = 'scene.gb300.learn-plane-nvlink'
 const SWITCH_TOUR = 'scene.gb300.learn-switch-layers'
@@ -227,6 +228,50 @@ describe('跨系统规则：显式 gen 指向他系统时，场景序号绝不�
     expect(state().tourStopIdx).toBe(0)
     expect(openPlanes()).toEqual(['cooling'])
     expect(state().level).toBe('cluster')
+  })
+})
+
+describe('?right= 清洗（v1.3 W3：经 store.setCompare 统一把关）', () => {
+  it('合法的他系统原样落地——包括第四代 Groq 3 LPX', () => {
+    seed(`?right=${LPX}`)
+    expect(state().compare.right).toBe(LPX)
+  })
+
+  it('★ 未知 ID 被清洗成一个合法的他系统（不会让 <select> 拿到不存在的 value）', () => {
+    seed('?right=sys.nope')
+    const right = state().compare.right
+    expect(right).not.toBe('sys.nope')
+    expect(FACTORY_PACK.systems.some((s) => s.id === right)).toBe(true)
+    expect(right).not.toBe(state().generation)
+  })
+
+  it('★ 与左侧同代的 ?right= 被清洗（比较视图不允许左右同代）', () => {
+    seed(`?gen=${LPX}&right=${LPX}`)
+    expect(state().generation).toBe(LPX)
+    expect(state().compare.right).not.toBe(LPX)
+  })
+
+  it('?right= 在 ?gen= **之后**落地：按最终代际判「同不同代」，而不是按默认代际', () => {
+    // 右侧写的是 GB300（默认代际）；因为 gen 把左侧换成了 GB300，右侧必须被清洗掉。
+    seed(`?gen=${GB300}&right=${GB300}`)
+    expect(state().generation).toBe(GB300)
+    expect(state().compare.right).not.toBe(GB300)
+    // 反过来：左侧是 LPX 时，GB300 是合法右侧，应原样保留。
+    seed(`?gen=${LPX}&right=${GB300}`)
+    expect(state().generation).toBe(LPX)
+    expect(state().compare.right).toBe(GB300)
+  })
+
+  it('四代 × 每个合法右侧：深链落地后左右必定不同代', () => {
+    const ids = FACTORY_PACK.systems.map((s) => s.id)
+    for (const gen of ids) {
+      for (const right of ids) {
+        seed(`?gen=${gen}&right=${right}`)
+        expect(state().generation, `${gen}|${right}`).toBe(gen)
+        expect(state().compare.right, `${gen}|${right} 左右同代`).not.toBe(gen)
+        expect(ids, `${gen}|${right} 右侧非法`).toContain(state().compare.right)
+      }
+    }
   })
 })
 

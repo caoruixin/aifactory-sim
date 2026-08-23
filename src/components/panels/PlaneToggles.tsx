@@ -7,11 +7,13 @@
  */
 
 import type { NetworkPlane } from '../../data/types'
-import { PLANE_LABEL, PLANE_ORDER, planeColor } from '../../lib/palette'
+import { PLANE_ORDER, planeColor } from '../../lib/palette'
+import { planeLabel } from '../../lib/planeLabel'
 import { useFactoryStore } from '../../store'
 
 export default function PlaneToggles() {
   const planes = useFactoryStore((s) => s.planes)
+  const generation = useFactoryStore((s) => s.generation)
   const togglePlane = useFactoryStore((s) => s.togglePlane)
   const setPlanes = useFactoryStore((s) => s.setPlanes)
 
@@ -35,7 +37,10 @@ export default function PlaneToggles() {
       <ul className="mt-2 space-y-1">
         {PLANE_ORDER.map((plane) => (
           <li key={plane}>
-            <label className="flex cursor-pointer items-center gap-2 rounded px-1 py-1 text-xs hover:bg-panel-2">
+            <label
+              className="flex cursor-pointer items-center gap-2 rounded px-1 py-1 text-xs hover:bg-panel-2"
+              data-plane-toggle={plane}
+            >
               <input
                 type="checkbox"
                 checked={planes[plane]}
@@ -47,8 +52,10 @@ export default function PlaneToggles() {
                 className="inline-block h-2.5 w-2.5 shrink-0 rounded-full"
                 style={{ background: planeColor(plane) }}
               />
+              {/* ★ 显示名按代际取（见 lib/planeLabel.ts）：LPX 这一代的 `nvlink` 键
+                  指的是 LPU 直连 C2C，写「NVLink」是事实错误。持久化键不变。 */}
               <span className={planes[plane] ? '' : 'text-dim line-through'}>
-                {PLANE_LABEL[plane]}
+                {planeLabel(generation, plane)}
               </span>
             </label>
           </li>
