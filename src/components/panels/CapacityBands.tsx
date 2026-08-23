@@ -9,8 +9,18 @@
  * 4. caveats 恒非空，首条常驻显示，其余折叠。
  */
 
-import type { CapacityEstimate, Band } from '../../lib/capacity'
+import type { CapacityEstimate, Band, CapacityRefusalReasonCode } from '../../lib/capacity'
 import { MetaChip } from '../ui/Chips'
+
+/**
+ * 策略性拒绝（`capacityPolicy !== 'standard'`）的固定标题文案——比 `estimate.reason`
+ * 更短，用于卡片顶部的第一行；`estimate.reason` 仍然完整展示在下面作为详细说明。
+ * 其余 reasonCode（缺数据类）没有固定标题，直接用 `estimate.reason`。
+ */
+const REASON_HEADLINE: Partial<Record<CapacityRefusalReasonCode, string>> = {
+  'analyst-modeled-policy': '已官宣，但规格主要来自第三方分析师（forecast 数据），不出产能',
+  'paired-only-policy': '仅提供配对产能语境，不单独出产能数字',
+}
 
 export interface CapacityBandsProps {
   estimate: CapacityEstimate
@@ -111,7 +121,12 @@ export default function CapacityBands({ estimate, compact = false }: CapacityBan
 
       {refused ? (
         <div className="space-y-2 px-3 py-3">
-          <p className="text-sm leading-relaxed text-bad">拒绝出数：{estimate.reason}</p>
+          <p className="text-sm leading-relaxed text-bad">
+            拒绝出数：{(estimate.reasonCode && REASON_HEADLINE[estimate.reasonCode]) ?? estimate.reason}
+          </p>
+          {estimate.reasonCode && REASON_HEADLINE[estimate.reasonCode] ? (
+            <p className="text-[11px] leading-relaxed text-dim">{estimate.reason}</p>
+          ) : null}
           {estimate.missing.length > 0 ? (
             <div>
               <p className="text-[11px] font-semibold tracking-widest text-dim uppercase">缺少的官方数据</p>

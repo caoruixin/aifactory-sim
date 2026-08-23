@@ -16,6 +16,29 @@ function shortName(name: string): string {
   return name.replace(/^NVIDIA\s+/, '').replace(/（预测）$/, '')
 }
 
+/**
+ * 顶部小字警示条：按 `status × capacityPolicy` 出文案（v1.3）。
+ * ⚠️ 判断顺序有意义：`capacityPolicy` 是产能维度的权威信号（哪怕系统已经
+ * `announced`，比如 Rubin Ultra NVL576，产能仍然靠它拒绝出数），要先于
+ * `status` 判断，否则「已官宣」会盖过「规格来自分析师」这层更重要的提醒。
+ */
+function capacityCaveat(system: { status: string; capacityPolicy: string } | undefined): string | null {
+  if (!system) return null
+  if (system.capacityPolicy === 'analyst-modeled') {
+    return '⚠️ 拓扑已官宣，但机架内部规格主要来自第三方分析师，不出产能数字'
+  }
+  if (system.capacityPolicy === 'paired-only') {
+    return '⚠️ 仅提供与配对系统联合工作的产能语境，不单独出产能数字'
+  }
+  if (system.status === 'forecast') {
+    return '⚠️ 这一代的数据来自第三方分析师，不出产能数字'
+  }
+  if (system.status !== 'shipping') {
+    return '⚠️ 官方规格标注「Preliminary information」，可能变化'
+  }
+  return null
+}
+
 export default function BreadcrumbBar() {
   const generation = useFactoryStore((s) => s.generation)
   const focusPath = useFactoryStore((s) => s.focusPath)
@@ -82,13 +105,7 @@ export default function BreadcrumbBar() {
         </div>
 
         <div className="ml-auto flex items-center gap-3">
-          {system?.status !== 'shipping' ? (
-            <span className="text-[11px] text-warn">
-              {system?.status === 'forecast'
-                ? '⚠️ 这一代的数据来自第三方分析师，不出产能数字'
-                : '⚠️ 官方规格标注「Preliminary information」，可能变化'}
-            </span>
-          ) : null}
+          {capacityCaveat(system) ? <span className="text-[11px] text-warn">{capacityCaveat(system)}</span> : null}
           <Link to="/report" className="text-xs text-accent underline">
             汇报页 →
           </Link>

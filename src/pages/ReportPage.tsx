@@ -15,7 +15,7 @@ import CapacityBands from '../components/panels/CapacityBands'
 import RackElevationSvg from '../components/fallback/RackElevationSvg'
 import { EvidenceChip, EVIDENCE_LABEL, StatusChip, STATUS_LABEL } from '../components/ui/Chips'
 import { FACTORY_PACK, flowsOfSystem, sourceById, systemById } from '../data'
-import type { Claim, EvidenceType } from '../data/types'
+import type { Claim, EvidenceType, SourceKind } from '../data/types'
 import { estimateSystemCapacity } from '../lib/capacity'
 import { changedRows, compareSystems } from '../lib/compare'
 import { FLOW_PHASE_LABEL } from '../lib/flowTimeline'
@@ -312,8 +312,10 @@ export default function ReportPage() {
       </Section>
 
       <footer className="mt-8 border-t border-line pt-3 text-[11px] leading-relaxed text-dim">
-        本页所有性能区间均为 roofline 粗估，非实测、非可承诺产能；预测代际的数据来自第三方分析师，
-        不代表 NVIDIA 官方口径。引用前请回看每个数字旁的证据徽章与出处。
+        本页所有性能区间均为 roofline 粗估，非实测、非可承诺产能；产能口径按 capacityPolicy 分支——
+        「analyst-modeled」代际（当前为 NVL576）拓扑已由 NVIDIA 官方确认，但机架内部规格主要来自
+        第三方分析师，不代表 NVIDIA 官方口径，本工具对其一律不出产能数字。引用前请回看每个数字旁的
+        证据徽章与出处。
       </footer>
     </main>
   )
@@ -321,12 +323,13 @@ export default function ReportPage() {
 
 // ─────────────────────────── 子块 ───────────────────────────
 
-const SOURCE_KIND_LABEL: Record<string, string> = {
+const SOURCE_KIND_LABEL: Record<SourceKind, string> = {
   official_doc: '厂商官方文档',
   official_press: '厂商发布稿',
   analyst_report: '⚠️ 第三方分析师报告',
   earnings_call: '⚠️ 业绩电话会',
   internal_deck: '内部材料',
+  media_report: '⚠️ 媒体报道',
 }
 
 function Section({ n, title, children }: { n: number; title: string; children: React.ReactNode }) {

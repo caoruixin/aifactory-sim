@@ -205,6 +205,22 @@ test('桌面·板级 explode 截图（计算托盘拆解）', async ({ page }, t
   await expect(page).toHaveScreenshot('gb300-tray-explode.png')
 })
 
+// ─────────────────────────── 3b：NVL576 组件层证据分层 ───────────────────────────
+
+test('桌面·集群视图（Rubin Ultra NVL576）截图——v1.3 组件层证据分层的首张基线', async ({
+  page,
+}, testInfo) => {
+  onlyOn(testInfo, 'desktop')
+  // 仓库在 v1.3 之前没有任何 NVL576 的 WebGL 截图基线（PLAN-v1.3.md R2 P1-9）；
+  // 这是这一代第一张 3D 基线，同时锁住「官方壳层升 announced（蓝调实体）/
+  // 分析师规格件保持 forecast（琥珀线框）」这条组件层证据分层的视觉表现。
+  await gotoAndSettle(page, `/?gen=${NVL576}&motion=off`)
+  await expect(page.locator('[data-fallback-2d]')).toHaveCount(0)
+  // 代际按钮也带 data-generation，用 [data-mode] 精确定位 BreadcrumbBar 的隐藏状态 span。
+  await expect(page.locator('[data-generation][data-mode]')).toHaveAttribute('data-generation', NVL576)
+  await expect(page).toHaveScreenshot('nvl576-cluster.png')
+})
+
 // ─────────────────────────── 4：比较模式 ───────────────────────────
 
 test('桌面·比较模式（GB300 vs Vera Rubin）：截图 + diff 计数 + showDiffOnly ghost', async ({
