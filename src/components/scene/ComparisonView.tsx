@@ -32,17 +32,17 @@
 
 import { CameraControls, View } from '@react-three/drei'
 import { Canvas, invalidate, useThree } from '@react-three/fiber'
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { systemById } from '../../data'
 import type { LodLevel, NetworkPlane } from '../../data/types'
-import { CAMERA_FOV, cameraPresetFor } from '../../lib/cameraPresets'
+import { CAMERA_FOV } from '../../lib/cameraPresets'
 import { compareSystems, diffIndexOf, mirrorFocusPath } from '../../lib/compare'
-import { layoutOf } from '../../lib/layout'
 import { useFactoryStore } from '../../store'
 import { ErrorBoundary } from '../ErrorBoundary'
 import { pumpFrames } from './pump'
 import SceneRoot from './SceneRoot'
 import type { DiffContext } from './SceneRoot'
+import { useCameraRig } from './useCameraRig'
 
 /** 比较视图只画这两个平面：其余四个在两个小视口里纯属噪音。 */
 const COMPARE_PLANES: readonly NetworkPlane[] = ['nvlink', 'scaleout']
@@ -222,6 +222,12 @@ const ViewportFrame = ({
 /**
  * 比较模式的相机：沿用 `cameraPresets.ts` 的同一套机位数学，但取景盒子按**左侧**系统算。
  * 两代的机架尺寸接近，同一机位在两个视口里的观感是一致的——这正是「可比」的前提。
+ *
+ * ★ 与探索模式共用 `useCameraRig`（v1.1 C1）：这里原本也是「一个效果、依赖含 width/height、
+ *   触发即无条件 setLookAt」，因此比较模式下点数据流步骤或调窗口同样会没收用户视角。
+ *   共用 hook 之后两条路径的 `userMoved` 语义完全一致。
+ *   `widthDivisor: 2` —— 单个视口只占一半宽度，取景要按半宽的宽高比算，否则两边都会被裁掉。
+ *   `animate: false` —— 比较模式不做飞行动画：两个视口同时动只会让人晕。
  */
 function CompareCameraRig({
   systemId,
@@ -233,40 +239,25 @@ function CompareCameraRig({
   level: LodLevel
   focusPath: readonly string[]
   /** 挂事件的 DOM：整个比较容器。不指定的话 drei 会挂到 View 最后连上的那个 tracked 元素，
-   *  结果只有右半边能拖动。 */
+   *  结果只有右半边能拖动。`useCameraRig` 的 wheel/pointerdown 监听也挂在它上面。 */
   domElement: HTMLElement | null
 }) {
-  const controls = useRef<CameraControls | null>(null)
-  const invalidateFrame = useThree((s) => s.invalidate)
-  const width = useThree((s) => s.size.width)
-  const height = useThree((s) => s.size.height)
-
-  useLayoutEffect(() => {
-    const c = controls.current
-    if (!c) return
-    // 单个视口只占一半宽度，取景要按半宽的宽高比算，否则两边都会被裁掉
-    const aspect = height > 0 ? width / 2 / height : 8 / 9
-    const preset = cameraPresetFor(level, [...focusPath], layoutOf(systemId), { aspect })
-    c.minDistance = preset.minDistance
-    c.maxDistance = preset.maxDistance
-    void c.setLookAt(
-      preset.position[0],
-      preset.position[1],
-      preset.position[2],
-      preset.target[0],
-      preset.target[1],
-      preset.target[2],
-      false, // 比较模式不做飞行动画：两个视口同时动只会让人晕
-    )
-    return pumpFrames(invalidateFrame, 400)
-  }, [systemId, level, focusPath, width, height, invalidateFrame])
+  const rig = useCameraRig({
+    systemId,
+    level,
+    focusPath,
+    animate: false,
+    widthDivisor: 2,
+    pumpMs: 400,
+    domElement,
+  })
 
   return (
     <CameraControls
-      ref={controls}
+      ref={rig.ref}
       makeDefault
       domElement={domElement ?? undefined}
-      onChange={() => invalidateFrame()}
+      onChange={rig.onChange}
       maxPolarAngle={Math.PI * 0.495}
     />
   )
