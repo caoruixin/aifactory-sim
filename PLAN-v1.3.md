@@ -1,5 +1,7 @@
 # v1.3 数据核正 + NVL576 叙事重构 + 手册↔应用融合 + Groq 3 LPX 建模（两轮 codex 评审后定稿）
 
+> ✅ 已于 2026-08-24 实施完成（W1 102eb51/9ab063f · W2 1fe2528/9202bea/fb97b8d · W3 69703ca/34b906f/86abc97；独立 QA 核验全绿：554 单测 / E2E 36+36 / 397 条 Claim 证据纪律零违规 / 7 新源 URL 逐条实访）
+
 > 评审记录：R1 5P0/7P1、R2 4P0/9P1，全部采纳修入。批准后：固化为仓库 PLAN-v1.3.md → W1(sonnet)→W2(opus)→W3(opus) 派发 → QA 核验 → 部署 + 手册 artifact 重发。
 
 ## Context
