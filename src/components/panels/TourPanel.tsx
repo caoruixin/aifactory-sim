@@ -3,8 +3,14 @@
  *
  * 导览条目直接来自内容包的 `ScenePreset`（「看什么」的语义），
  * 相机数字留在 `lib/cameraPresets.ts`——内容作者不需要懂 3D 就能加一屏讲解。
+ *
+ * ★ v1.3 W2 两处调整，都是「站数从 3 涨到 10」逼出来的：
+ *   1. **讲解文案渲染在当前站的条目里**，不再吊在整张列表下面——10 个条目之后那块
+ *      卡片一定在折叠线以下，等于打开 `?tour=` 深链却读不到这一站要讲什么；
+ *   2. **当前站自动滚入可视区**：深链可以直接落到第 8 站，不滚的话左栏看上去像没反应。
  */
 
+import { useCallback } from 'react'
 import { scenesOfSystem } from '../../data'
 import { LEVEL_LABEL } from '../../lib/drill'
 import { useFactoryStore } from '../../store'
@@ -16,7 +22,16 @@ export default function TourPanel() {
   const applyScene = useFactoryStore((s) => s.applyScene)
   const reset = useFactoryStore((s) => s.reset)
   const scenes = scenesOfSystem(generation)
-  const activeScene = scenes[tourStopIdx]
+
+  /**
+   * 回调 ref：当前站的条目一挂载就滚进可视区。
+   * 用 `block: 'nearest'` 而不是 'center'——只在必要时滚动，用户手动点第 2 站时
+   * 列表不会莫名其妙地跳。
+   */
+  const focusActive = useCallback((el: HTMLLIElement | null) => {
+    if (!el || typeof el.scrollIntoView !== 'function') return
+    el.scrollIntoView({ block: 'nearest' })
+  }, [])
 
   return (
     <div className="flex h-full flex-col overflow-y-auto">
@@ -31,9 +46,12 @@ export default function TourPanel() {
           {scenes.map((scene, i) => {
             const active = i === tourStopIdx
             return (
-              <li key={scene.id}>
+              <li key={scene.id} ref={active ? focusActive : undefined}>
                 <button
                   type="button"
+                  // 深链（`?tour=`）落到哪一站，E2E 与手册截图都靠这两个锚点核对。
+                  data-tour-scene={scene.id}
+                  data-tour-scene-active={active ? '1' : '0'}
                   onClick={() => applyScene(scene.id)}
                   className={`w-full rounded-lg border px-2.5 py-2 text-left transition-colors ${
                     active
@@ -49,21 +67,24 @@ export default function TourPanel() {
                     {LEVEL_LABEL[scene.lodLevel]}级 · {scene.planes.length} 个平面
                   </span>
                 </button>
+                {active ? (
+                  <div
+                    data-tour-narration={scene.id}
+                    className="mt-1.5 rounded-lg border border-line bg-panel p-2.5"
+                  >
+                    <p className="text-xs leading-relaxed">{scene.narration}</p>
+                    {scene.presalesNote ? (
+                      <p className="mt-2 border-t border-line pt-2 text-[11px] leading-relaxed text-warn">
+                        <span className="font-semibold">售前提示：</span>
+                        {scene.presalesNote}
+                      </p>
+                    ) : null}
+                  </div>
+                ) : null}
               </li>
             )
           })}
         </ol>
-        {activeScene ? (
-          <div className="mt-2.5 rounded-lg border border-line bg-panel p-2.5">
-            <p className="text-xs leading-relaxed">{activeScene.narration}</p>
-            {activeScene.presalesNote ? (
-              <p className="mt-2 border-t border-line pt-2 text-[11px] leading-relaxed text-warn">
-                <span className="font-semibold">售前提示：</span>
-                {activeScene.presalesNote}
-              </p>
-            ) : null}
-          </div>
-        ) : null}
       </section>
 
       <PlaneToggles />

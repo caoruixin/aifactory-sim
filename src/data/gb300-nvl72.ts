@@ -1587,4 +1587,138 @@ export const GB300_SCENES: ScenePreset[] = [
     presalesNote:
       '记准代际口径：ConnectX-8 与 BlueField-3（不是 CX-7 / BF-2）。客户里的老手常拿这个试探你是不是真看过参考架构。',
   },
+
+  // ─── 练习站（v1.3 W2）：学习手册环节 2.1 的六平面任务卡 + 交换层对照卡 ───
+  //
+  // ★ 一律**追加在数组尾部**，绝不插到头部/中部：`store.applyScene` 用的是「系统内序号」，
+  //   `store.test.ts` 与移动端导览截图都锁着前三站的序号（前 3 站 = 讲解站，是主菜）。
+  //
+  // ★ narration 统一三段式「① 你应该看到什么 / ② 谁连谁 + 关键数字 / ③ 断了会怎样」，
+  //   数字**全部取自本文件里已登记的 Claim**（参考架构原文），不新造、不外部补齐。
+  {
+    id: 'scene.gb300.learn-plane-nvlink',
+    systemId: SYSTEM_ID,
+    title: '练习 · NVLink 平面：机架内的 scale-up',
+    narration:
+      '① 你应该看到什么：整架只剩机架内的绿色连线，18 个计算托盘与 9 个交换托盘被一张网兜住，没有一条线离开机架。' +
+      '② 谁连谁 + 关键数字：每张 B300 GPU 引出 18 条第五代 NVLink，机架内 18 颗 NVSwitch ASIC 各接一条，每卡 1.8 TB/s（1800 GB/s）；' +
+      '托盘盲插到无源铜背板，不用一根线缆；机架级聚合带宽 130 TB/s，72 张卡两两之间都有无阻塞直连路径。' +
+      '③ 断了会怎样：NVLink 域一断，72 张卡就不再是「一台机器」——张量并行与 MoE 的 All-to-All 只能退回跨机架以太网，Decode 时延成倍恶化。',
+    lodLevel: 'rack',
+    focusAssemblyId: 'asm.gb300.rack',
+    planes: ['nvlink'],
+    highlightAssemblyIds: [
+      'asm.gb300.compute-tray',
+      'asm.gb300.nvswitch-tray',
+      'asm.gb300.nvlink-backplane',
+    ],
+    presalesNote:
+      '这一屏用来回答「NVLink 到底是什么」：它是机架内的一跳全连，不是「更快的以太网」。数字咬准 1.8 TB/s / 18 条 / 18 颗 / 130 TB/s。',
+  },
+  {
+    id: 'scene.gb300.learn-plane-scaleout',
+    systemId: SYSTEM_ID,
+    title: '练习 · Scale-Out 平面：机架之间的计算网',
+    narration:
+      '① 你应该看到什么：紫色的线从托盘里的网卡出发、穿出机架去找 Leaf 交换层——与上一站正好相反，这一层的活儿全在机架外。' +
+      '② 谁连谁 + 关键数字：每张 GPU 独占一张 ConnectX-8 SuperNIC（1:1，800 Gb/s），这 800 Gb/s 拆成 2×400 Gb/s 分别接到两个独立平面的不同 Leaf 交换机（rail-optimized），每个平面可扩展到 1024 个 400 Gb/s 接口；Leaf 与 Spine 构成完全无阻塞的胖树。' +
+      '③ 断了会怎样：单个 rail 断了由网卡硬件做故障切换与负载均衡，跨机架带宽减半；整层断了则集群退化成一堆互不相干的单机架，多机架训练/推理直接停摆。',
+    lodLevel: 'rack',
+    focusAssemblyId: 'asm.gb300.rack',
+    planes: ['scaleout'],
+    highlightAssemblyIds: ['asm.gb300.cx8-nic', 'asm.gb300.compute-tray'],
+    presalesNote:
+      '与上一站连着讲效果最好：「NVLink 管机架内 72 卡一跳互联，Leaf/Spine 管机架之间」。1:1 GPU:NIC 是这一代的卖点，别说成「每托盘一张网卡」。',
+  },
+  {
+    id: 'scene.gb300.learn-plane-business',
+    systemId: SYSTEM_ID,
+    title: '练习 · 业务与存储平面：南北向的另一张网',
+    narration:
+      '① 你应该看到什么：蓝色的线从托盘里的 BlueField-3 出发接到汇聚交换层，再从汇聚交换层连到外部存储——这条路径与上一站的计算网完全不重叠。' +
+      '② 谁连谁 + 关键数字：每个计算托盘用 BlueField-3 的双 400 Gb/s 端口接入两台汇聚交换机；汇聚交换层与外部存储之间，每计算节点的存储带宽上限 40 GB/s；控制面的管理节点也走这张网下发调度、拉镜像（单端口 200 Gb/s、共 4 口）。' +
+      '③ 断了会怎样：GPU 之间还能通，但「喂不进数据」——训练数据、模型权重与检查点进不来出不去，客户请求也到不了机架，产能等于零。',
+    lodLevel: 'rack',
+    focusAssemblyId: 'asm.gb300.rack',
+    planes: ['business'],
+    highlightAssemblyIds: [
+      'asm.gb300.bf3-dpu',
+      'asm.gb300.converged-switch',
+      'asm.gb300.storage',
+    ],
+    presalesNote:
+      '客户常把这张网和计算网混为一谈。一句话切开：「计算网是 GPU 之间说话，业务网是集群对外界和存储说话」，物理隔离的目的就是别让业务流量抢东西向带宽。',
+  },
+  {
+    id: 'scene.gb300.learn-plane-mgmt',
+    systemId: SYSTEM_ID,
+    title: '练习 · 管理平面：带外那张「小网」',
+    narration:
+      '① 你应该看到什么：灰色的细线把机架里几乎每一类部件都串了一遍——托盘、交换托盘、电源架、DPU，全部汇到机架内的管理交换机，再上联到机架外的带外管理汇聚。' +
+      '② 谁连谁 + 关键数字：每个托盘的主机 BMC 以 1 Gb/s 接入机架内的 2 台 SN2201（走 Redfish 做带外上电、刷固件、收日志）；BlueField-3 自带独立 BMC 与信任根，同样有一个 1 Gb/s 带外口；电源架的功率遥测也走这张网；计算网/业务网交换机的管理口一并归入带外，与数据面物理隔离。' +
+      '③ 断了会怎样：业务不会立刻停，但你「看不见也够不着」——没法远程上电、没法刷固件、没法做功率封顶与能耗计量，故障处置只能派人进机房。',
+    lodLevel: 'rack',
+    focusAssemblyId: 'asm.gb300.rack',
+    planes: ['mgmt'],
+    highlightAssemblyIds: [
+      'asm.gb300.inrack-mgmt-switch',
+      'asm.gb300.oob-fabric-switch',
+      'asm.gb300.bf3-dpu',
+    ],
+    presalesNote:
+      '带宽最小、存在感最低，却是运维方案里第一个被问到的。抓住「主机被攻破也不丢管理面」（BlueField 独立 BMC + 信任根）这个点，安全侧的对话就能接住。',
+  },
+  {
+    id: 'scene.gb300.learn-plane-power',
+    systemId: SYSTEM_ID,
+    title: '练习 · 供电平面：从列头柜到托盘',
+    narration:
+      '① 你应该看到什么：橙色的线自上而下走成一条主干——机房配电柜进来，穿过 8 个电源架，落到一条贯穿机架背部的直流母排，再分给每一个托盘。' +
+      '② 谁连谁 + 关键数字：整机架最高负载 142 kW（官方口径是 up to，不是典型工况）；8 个电源架每架 33 kW、合计 264 kW 的输出能力来服务它；托盘盲插即取电、没有独立电源线；连机架内的管理交换机也走母排直流（机架外那台才用交流）。' +
+      '③ 断了会怎样：单个电源架掉了靠 8 架并联的冗余顶住；母排或列头柜出问题就是整架掉电——这也是为什么客户的第一个问题永远是「机房一个机位能给多少电」。',
+    lodLevel: 'rack',
+    focusAssemblyId: 'asm.gb300.rack',
+    planes: ['power'],
+    highlightAssemblyIds: [
+      'asm.gb300.power-shelf',
+      'asm.gb300.busbar',
+      'asm.gb300.facility-power',
+    ],
+    presalesNote:
+      '142 kW 一定要带上「up to」讲。拿它去算 tokens/W 时也必须声明这是峰值口径，否则数字会被客户当成承诺。',
+  },
+  {
+    id: 'scene.gb300.learn-plane-cooling',
+    systemId: SYSTEM_ID,
+    title: '练习 · 液冷平面：热量怎么离开机架',
+    narration:
+      '① 你应该看到什么：青色的回路从芯片一路往外——冷板贴着 GPU/CPU，托盘冷板挂上机架歧管，歧管接 CDU，CDU 再接机房一次侧水。' +
+      '② 谁连谁 + 关键数字：冷板直接压在 GPU 顶盖上，这是 142 kW 高密机架成立的前提；NVSwitch 同样是液冷器件（18 颗交换芯片的功耗不容忽视）；托盘冷板经快接头挂歧管，支持单托盘维护而不停整机架；CDU 负责二次侧的恒温恒压与流量分配，并在这里把热量换给机房冷冻水。' +
+      '③ 断了会怎样：二次侧失流几十秒内就会触发降频甚至停机——液冷不是「更安静的风扇」，它是这台机器能不能开机的前提条件。',
+    lodLevel: 'rack',
+    focusAssemblyId: 'asm.gb300.rack',
+    planes: ['cooling'],
+    highlightAssemblyIds: ['asm.gb300.tray-cold-plate', 'asm.gb300.manifold', 'asm.gb300.cdu'],
+    presalesNote:
+      '一次侧/二次侧是最容易讲混的一对词。记法：CDU 以内（机架侧）是二次侧，CDU 以外（机房侧）是一次侧，CDU 就是那台换热器。',
+  },
+  {
+    id: 'scene.gb300.learn-switch-layers',
+    systemId: SYSTEM_ID,
+    title: '练习 · 三个交换层各管什么（leaf / spine / 汇聚）',
+    narration:
+      '① 你应该看到什么：机房总览里同时亮着三处交换层——Leaf、Spine、汇聚，同开计算网（紫）与业务网（蓝）两个平面，一眼看出前两者串在一起、第三者自成一路。' +
+      '② 谁连谁 + 关键数字：三层用的是同一款 SN5610（64 端口 × 800 Gb/s），差别只在接线角色。九字框架：leaf = 接入（每机架的 ConnectX-8 按 rail 上联，同编号网卡接同一台 leaf，是 GPU 东西向流量的第一跳）；spine = 主干（只连 leaf、不直连服务器，与 leaf 构成两级无阻塞胖树）；汇聚 = 另一张网（南北向客户请求与存储读写经 BlueField-3 接入，与计算网物理隔离）。' +
+      '③ 断了会怎样：leaf 断 = 那一机架从计算网上掉线；spine 断 = 机架之间不通、集群碎成一堆单机架；汇聚断 = 计算网还好好的，但数据与请求进不来，照样产不出 token。',
+    lodLevel: 'cluster',
+    focusAssemblyId: 'asm.gb300.facility',
+    planes: ['scaleout', 'business'],
+    highlightAssemblyIds: [
+      'asm.gb300.scaleout-leaf',
+      'asm.gb300.scaleout-spine',
+      'asm.gb300.converged-switch',
+    ],
+    presalesNote:
+      '「同一款交换机分饰三层」是这一屏的钩子。先说三层职责，再点出型号相同——客户会立刻明白「网络设计的关键不是买什么盒子，是怎么接」。',
+  },
 ]

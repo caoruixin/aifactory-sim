@@ -752,6 +752,98 @@ test('桌面·F2 逻辑层徽标三态：播放逻辑步出现 / 物理步消失
   await expect(overlay).toHaveCount(0)
 })
 
+// ═════════════════════ 25~27：v1.3 W2（?tour= 深链 + 场景高亮接线） ═════════════════════
+
+test('桌面·W2 ?tour= 深链：层级/平面/左栏当前站一次到位', async ({ page }, testInfo) => {
+  onlyOn(testInfo, 'desktop')
+  // 手册环节 2.1 的六张练习卡都是这种链接：一步落到「机架级 + 只开一个平面 + 讲解文案」。
+  await gotoAndSettle(page, '/?tour=scene.gb300.learn-plane-nvlink&motion=off', 700)
+
+  // ① 模式/代际/层级：applyScene 强制 tour 模式，场景写的是 rack 级
+  await expect(page.locator('main')).toHaveAttribute('data-mode', 'tour')
+  const anchor = page.locator('[data-level][data-focus-id]')
+  await expect(anchor).toHaveAttribute('data-level', 'rack')
+  await expect(anchor).toHaveAttribute('data-generation', GB300)
+  await expect(anchor).toHaveAttribute('data-focus-id', 'asm.gb300.rack')
+
+  // ② 平面：只开 nvlink，其余五个都关
+  await expect(page.locator(`section ul li:nth-child(${PLANE_ROW.nvlink}) input`)).toBeChecked()
+  for (const plane of ['scaleout', 'business', 'mgmt', 'power', 'cooling'] as const) {
+    await expect(page.locator(`section ul li:nth-child(${PLANE_ROW[plane]}) input`)).not.toBeChecked()
+  }
+
+  // ③ 左栏：对应那一站被高亮，且**只有它**一站
+  await expect(
+    page.locator('[data-tour-scene="scene.gb300.learn-plane-nvlink"]'),
+  ).toHaveAttribute('data-tour-scene-active', '1')
+  await expect(page.locator('[data-tour-scene-active="1"]')).toHaveCount(1)
+  // 讲解站 3 + 练习站 7 = 10 站（手册「3 个讲解站 + 7 个练习站」的文案锚点）
+  await expect(page.locator('[data-tour-scene]')).toHaveCount(10)
+})
+
+test('桌面·W2 场景高亮：开/关导览站，3D 画面必须真的变化（highlightAssemblyIds 不再是死数据）', async ({
+  page,
+}, testInfo) => {
+  onlyOn(testInfo, 'desktop')
+  // learn-switch-layers 是集群级站，点名 Leaf/Spine/汇聚三个交换层。
+  //
+  // ★ 差分口径为什么干净：这一站的 focus 就是装配树根（= reset 之后的焦点），层级也同为
+  //   cluster，而「回到总览」只改 mode 与 tourStopIdx——**相机与平面开关都不动**。
+  //   因此前后两张图的唯一差别就是那三个交换层还亮不亮。
+  //   坏状态（highlightAssemblyIds 无人消费）下这个比值恒为 0。
+  await gotoAndSettle(page, '/?tour=scene.gb300.learn-switch-layers&motion=off', 900)
+  await expect(page.locator('main')).toHaveAttribute('data-mode', 'tour')
+  const canvas = page.locator('canvas').first()
+  const poseBefore = await cameraPose(page)
+  const highlighted = (await canvas.screenshot()).toString('base64')
+
+  await page.locator('aside button', { hasText: '回到总览' }).first().click()
+  await page.waitForTimeout(800)
+  await expect(page.locator('main')).toHaveAttribute('data-mode', 'explore')
+  const plain = (await canvas.screenshot()).toString('base64')
+
+  // 相机没动 —— 否则「画面变了」这件事毫无说服力
+  expect(await cameraPose(page)).toBe(poseBefore)
+  // 三个交换层盒子在集群总览里不大，实测约 0.07%；坏状态恒为 0.0000%。
+  expect(
+    await changedPixelRatio(page, highlighted, plain),
+    '导览站开/关画面没有差异（场景高亮没接上？）',
+  ).toBeGreaterThan(0.0002)
+})
+
+test('桌面·W2 ?gl=off 降级路径同样有场景高亮（结构图 DOM 标记）', async ({ page }, testInfo) => {
+  onlyOn(testInfo, 'desktop')
+  // R2 P1-4：降级路径此前只消费数据流高亮，导览站在结构图上完全没有表现。
+  await gotoAndSettle(page, '/?tour=scene.gb300.learn-plane-nvlink&gl=off&motion=off', 300)
+  await expect(page.locator('[data-fallback-2d]')).toHaveCount(1)
+
+  // 机架立面只画占 U 位的四类档位：nvlink 站点名的计算托盘与交换托盘应当被标上
+  await expect(
+    page.locator('[data-rack-elevation-row="asm.gb300.compute-tray"]').first(),
+  ).toHaveAttribute('data-scene-active', '1')
+  await expect(
+    page.locator('[data-rack-elevation-row="asm.gb300.nvswitch-tray"]').first(),
+  ).toHaveAttribute('data-scene-active', '1')
+  // 没被点名的不能误标
+  await expect(
+    page.locator('[data-rack-elevation-row="asm.gb300.power-shelf"]').first(),
+  ).toHaveAttribute('data-scene-active', '0')
+  await expect(page.locator('[data-scene-active="1"]')).toHaveCount(2)
+
+  // 换到供电站：标记必须跟着换（证明它真的跟着当前站走，不是写死的）
+  await gotoAndSettle(page, '/?tour=scene.gb300.learn-plane-power&gl=off&motion=off', 300)
+  await expect(
+    page.locator('[data-rack-elevation-row="asm.gb300.power-shelf"]').first(),
+  ).toHaveAttribute('data-scene-active', '1')
+  await expect(page.locator('[data-scene-active="1"]')).toHaveCount(1)
+
+  // 集群级站（Leaf/Spine/汇聚）在机架立面上没有对应档位 —— 零标记是正确行为，不是漏标。
+  await gotoAndSettle(page, '/?tour=scene.gb300.learn-switch-layers&gl=off&motion=off', 300)
+  await expect(page.locator('main')).toHaveAttribute('data-mode', 'tour')
+  await expect(page.locator('[data-scene-active="1"]')).toHaveCount(0)
+  await expect(page.locator('[data-rack-elevation-row]').first()).toBeVisible()
+})
+
 test('桌面·F2 逻辑层徽标：比较模式与 ?gl=off 下都不出现', async ({ page }, testInfo) => {
   onlyOn(testInfo, 'desktop')
   // 比较模式有两个视口，徽标贴谁都不对；降级路径根本没有画布可贴。

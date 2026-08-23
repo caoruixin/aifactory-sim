@@ -1671,4 +1671,28 @@ export const VERA_RUBIN_SCENES: ScenePreset[] = [
     presalesNote:
       '代际口径记准：ConnectX-9 与 BlueField-4（不是 CX-8 / BF-3）。另外别把 die 数当卡数——官方一张 Rubin GPU 是一个封装、两颗 die。',
   },
+
+  // ─── 练习站（v1.3 W2）：追加在尾部，前两站的系统内序号被 store.test.ts 锁着 ───
+  {
+    id: 'scene.rubin.learn-gen-delta',
+    systemId: SYSTEM_ID,
+    title: '练习 · 三个代际变化各在哪里（对着 GB300 说）',
+    narration:
+      '① 你应该看到什么：机架结构跟 GB300 一模一样（还是 18 + 9），变化全在盒子里面——同开 NVLink 与 Scale-Out 两个平面，注意交换托盘与网卡这两处。' +
+      '② 谁连谁 + 关键数字：变化一，scale-up 带宽——第六代 NVLink 每卡 3.6 TB/s（3600 GB/s），是 GB300 每卡 1.8 TB/s 的两倍，机架级从 130 TB/s 到 260 TB/s；' +
+      '变化二，网卡——ConnectX-9 取代 ConnectX-8，每个计算托盘 8 张（GB300 是 4 张），每张 GPU 独占 2 张 800 Gb/s 单口卡；' +
+      '变化三，交换芯片——每个交换托盘从 2 颗变 4 颗，托盘数不变仍是 9 个，于是机架内交换芯片从 18 颗变成 36 颗。' +
+      '③ 断了会怎样：这三处正是「换代要不要重新设计机房」的分界——结构上不用（还是 18+9），但功率与配电必须重算，而官方到现在都没公布整机架功率，这一点要如实说。',
+    lodLevel: 'rack',
+    focusAssemblyId: 'asm.rubin.rack',
+    planes: ['nvlink', 'scaleout'],
+    highlightAssemblyIds: [
+      'asm.rubin.nvswitch-tray',
+      'asm.rubin.nvswitch-asic',
+      'asm.rubin.cx9-nic',
+      'asm.rubin.rubin-gpu',
+    ],
+    presalesNote:
+      '三句话版本：「带宽翻倍（1.8→3.6 TB/s 每卡）、网卡换代且翻倍（CX-8×4 → CX-9×8）、交换芯片翻倍（18 → 36 颗）」。三个「翻倍」很好记，但别把 die 数当卡数。',
+  },
 ]
