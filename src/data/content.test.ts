@@ -424,11 +424,20 @@ describe('Vera Rubin NVL72：证据纪律与 null 传播', () => {
 const RU = 'sys.rubin-ultra-nvl576'
 const RU_RACK = 'asm.ru.rack'
 
-describe('Rubin Ultra NVL576：结构（SemiAnalysis 口径）', () => {
-  it('系统为 forecast 状态', () => {
-    expect(RUBIN_ULTRA_SYSTEM.status).toBe('forecast')
+describe('Rubin Ultra NVL576：结构（官方拓扑事实 + SemiAnalysis 结构细节）', () => {
+  it('系统为 announced 状态，产能策略为 analyst-modeled（v1.3：拓扑官方已确认，细节仍是分析师推测）', () => {
+    expect(RUBIN_ULTRA_SYSTEM.status).toBe('announced')
+    expect(RUBIN_ULTRA_SYSTEM.capacityPolicy).toBe('analyst-modeled')
     expect(RUBIN_ULTRA_SYSTEM.generation).toBe('rubin-ultra')
-    expect(systemById(RU)!.sourceIds).toEqual(['src.semianalysis-nvl576'])
+    expect(systemById(RU)!.sourceIds).toEqual(
+      expect.arrayContaining([
+        'src.nvidia-rubin-pod-blog',
+        'src.nvidia-ocp-vera-rubin-blog',
+        'src.nvidia-gtc25-keynote-blog',
+        'src.cnbc-kyber-delay',
+        'src.semianalysis-nvl576',
+      ]),
+    )
   })
 
   it('8 个 Oberon 机架构成**一个** NVLink 域，合计 576 张 GPU', () => {
@@ -485,26 +494,28 @@ describe('Rubin Ultra NVL576：结构（SemiAnalysis 口径）', () => {
   })
 })
 
-describe('★ Rubin Ultra NVL576：证据纪律（全 forecast / analyst_estimate）', () => {
-  const claims = claimsAuthoredIn(
+describe('★ Rubin Ultra NVL576：SemiAnalysis 专项证据纪律（四重锁，只施加于 SemiAnalysis 源 Claim）', () => {
+  const allClaims = claimsAuthoredIn(
     RUBIN_ULTRA_SYSTEM,
     RUBIN_ULTRA_COMPONENTS,
     RUBIN_ULTRA_ASSEMBLIES,
     RUBIN_ULTRA_CONNECTIONS,
   )
+  // v1.3：系统本身已 announced，keySpecs/组件里混入了官方（POD/OCP/GTC25/CNBC）Claim——
+  // 这四重锁只能施加在真正引用 SemiAnalysis 分析师文章的那些 Claim 上，不能再要求
+  // 「这个系统下的每一条 Claim」都是 SemiAnalysis（pack.test.ts 另有通用的跨系统规则）。
+  const claims = allClaims.filter(({ claim }) => claim.sourceId === 'src.semianalysis-nvl576')
 
-  it('每条 Claim 都来自 SemiAnalysis、状态 forecast、证据 ∈ {analyst_estimate, forecast}', () => {
+  it('至少一部分内容仍然是 SemiAnalysis 专属（不能因为官方补了几条 Claim 就把分析师内容全挤没）', () => {
     expect(claims.length).toBeGreaterThan(30)
+    expect(claims.length).toBeLessThan(allClaims.length) // 官方 Claim 确实混入了，两者不相等
+  })
+
+  it('SemiAnalysis 源 Claim 四重锁：状态 forecast、证据 ∈ {analyst_estimate, forecast}、置信度 low、locator 带页码', () => {
     for (const { where, claim } of claims) {
-      expect(claim.sourceId, `${where}.sourceId`).toBe('src.semianalysis-nvl576')
       expect(claim.status, `${where}.status`).toBe('forecast')
       expect(['analyst_estimate', 'forecast'], `${where}.evidence=${claim.evidence}`).toContain(claim.evidence)
       expect(claim.confidence, `${where}.confidence`).toBe('low')
-    }
-  })
-
-  it('有值的 Claim 必须带页码 locator（能回查 PDF 第几页）', () => {
-    for (const { where, claim } of claims) {
       if (claim.value === null) continue
       expect(claim.locator, `${where} 没有 locator`).not.toBeNull()
       expect(/p\.\d+/.test(claim.locator!), `${where}.locator 缺页码：${claim.locator}`).toBe(true)

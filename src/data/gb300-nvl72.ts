@@ -32,6 +32,7 @@ export const GB300_SYSTEM: FactorySystem = {
   name: 'NVIDIA GB300 NVL72',
   vendor: 'NVIDIA',
   status: 'shipping',
+  capacityPolicy: 'standard',
   generation: 'blackwell-ultra',
   referenceUrl: 'https://www.nvidia.com/en-us/data-center/gb300-nvl72/',
   summary:

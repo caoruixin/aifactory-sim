@@ -172,7 +172,9 @@ describe('GB300 ↔ Rubin Ultra：跨两代', () => {
     expect(result.id).toBe('cmpdef.gb300-to-rubin-ultra')
     expect(result.summary.length).toBeGreaterThan(0)
     expect(result.leftStatus).toBe('shipping')
-    expect(result.rightStatus).toBe('forecast')
+    // v1.3：NVL576 系统本身官宣为 announced（拓扑官方已确认），产能仍靠 capacityPolicy
+    // = analyst-modeled 拒绝出数——不能再用 status 判断「这一代是不是可信」。
+    expect(result.rightStatus).toBe('announced')
   })
 
   it('电源架：8 × 33 kW → 4 × 110 kW 被识别为数量 + 规格双变化', () => {

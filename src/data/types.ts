@@ -44,6 +44,7 @@ export type SourceKind =
   | 'analyst_report' // 第三方分析师报告（非官方！）
   | 'earnings_call' // 业绩电话会
   | 'internal_deck' // 内部材料
+  | 'media_report' // 媒体报道（非官方！转述的厂商回应只能作为 note 里的转述出现）
 
 export interface SourceRef {
   id: string // src.*
@@ -164,6 +165,17 @@ export type HardwareComponent =
 
 // ─────────────────────────── 系统（一代机架方案） ───────────────────────────
 
+/**
+ * 产能估算的分支策略（`lib/capacity.ts` 按它决定拒绝门，`v1.3` 新增）：
+ * - `standard`：走常规拒绝门链（GPU 数学参数缺失才拒绝，否则正常出数）；
+ * - `analyst-modeled`：系统本身可能已官宣（`status` 可以是 `announced`），
+ *   但结构/规格主要来自第三方分析师（forecast 证据）——一律拒绝出产能数字，
+ *   不区分「缺哪个字段」，`missing` 恒为空数组（这不是「差一个数」，是「口径不够硬」）；
+ * - `paired-only`：只在与配对系统联合工作时才有产能语义（如推理加速器配 GPU 做
+ *   AFD 组合），本工具不提供该系统的独立产能数字（`v1.4` Groq 3 LPX 起用到）。
+ */
+export type CapacityPolicy = 'standard' | 'analyst-modeled' | 'paired-only'
+
 export interface FactorySystem {
   id: string // sys.*
   name: string
@@ -175,13 +187,21 @@ export interface FactorySystem {
   summary: string
   presalesNote: string
   sourceIds: string[]
-  /** 至少包含 'gpuCount' 与 'rackPowerKW'（后者为 tokens/W 估算输入，未公布则 value: null）。 */
+  /**
+   * 至少包含 'gpuCount' 与 'rackPowerKW'（后者为 tokens/W 估算输入，未公布则 value: null）。
+   * ⚠️ 这两个键名是 GPU 语义的历史命名；`capacityPolicy !== 'standard'` 的系统仍需按
+   * 该约定填写（哪怕值为 null），`lib/capacity.ts` 的拒绝门不靠字段是否存在来判断，
+   * 而是先看 `capacityPolicy`——真正的「非 GPU 加速器」代际（如 paired-only 的 LPU 机架）
+   * 会在 keySpecs 里并行提供语义更准确的键（如 `acceleratorCount`），详见该代际的数据文件。
+   */
   keySpecs: Record<string, Claim>
   /**
    * 机架总高（U），仅供 3D 摆位与 rack-U 不重叠校验使用。
    * ⚠️ 非官方规格 claim——官方未公布逐 U 布局，`AssemblyNode.rackU` 全为示意占位。
    */
   rackUnitsForLayout: number | null
+  /** 产能估算的分支策略，见 `CapacityPolicy`。 */
+  capacityPolicy: CapacityPolicy
 }
 
 // ─────────────────────────── 装配树 ───────────────────────────

@@ -95,12 +95,12 @@ export const COMPARISONS: ComparisonDefinition[] = [
     id: 'cmpdef.vera-rubin-to-rubin-ultra',
     leftSystemId: 'sys.vera-rubin-nvl72',
     rightSystemId: 'sys.rubin-ultra-nvl576',
-    title: 'Vera Rubin NVL72 → Rubin Ultra NVL576（预测）',
+    title: 'Vera Rubin NVL72 → Vera Rubin Ultra NVL576',
     summary: [
-      '★ 分水岭在于 **NVLink 域跨出了机架**：8 个 Oberon 机架经 NPO/CPO 光互连组成 Dragonfly 拓扑，576 张 GPU 变成一个 scale-up 域。机架内仍然是铜背板——铜没有被取代，只是被限制在机架内。',
-      '机架为此重排成 9+18+9：交换托架从 9 个翻倍到 18 个、高度压到 0.75U，计算托架拆成上下两组各 9 个。目的很物理——把最远的计算托架到交换托架的距离压在 22.5U，铜信号才驱动得动。',
-      '功率密度跳档：电源架从 8 × 33 kW 变成 4 × 110 kW（单模块 5.5 → 18.3 kW），单卡 TDP 到 1.8–2.6 kW。',
-      '⚠️ 全部内容来自 SemiAnalysis 2026-08 的分析师文章，**不是 NVIDIA 官方**，且文中自称「规格与架构设计尚处于变动中」。因此本工具对这一代**拒绝出任何产能数字**。',
+      '★ 分水岭在于 **NVLink 域跨出了机架**，且这一点 NVIDIA 官方已经证实（2026-03 POD 博客）：8 个 MGX NVL 机架经「direct optical connections」组成单一 576-GPU NVLink 域。机架内仍然是铜背板——铜没有被取代，只是被限制在机架内。这是本代唯一同时有官方与分析师两个独立来源互相佐证的结构事实。',
+      '★ 规模阶梯与命名口径：NVIDIA 官方给出三档 Vera Rubin Ultra scale-up 域——NVL72、NVL144（新机型 Kyber，单机架）、旗舰 NVL576（本代，8 机架）。Kyber 与 NVL576 是**并列的两条产品线**，不是同一机架的两种叫法；2025-10 OCP 博客还留有编者按「本文已更新，将品牌从 Vera Rubin NVL144 改为 Vera Rubin NVL72」，记录了上一代命名口径的调整。同一篇 OCP 博客提到 Kyber「到 2027 年将容纳 576 张 Rubin Ultra GPU」——这是 2025 年时点的早期措辞，本项目**推断**它是 2026-03 拆分出 Kyber(NVL144)/NVL576 两条线之前的统称，具体对应关系官方未澄清。',
+      '机架内部具体怎么重排（9+18+9 分层、交换托架 9→18 个且高度压到 0.75U）、功率密度跳档（电源架 8×33kW→4×110kW、单卡 TDP 到 1.8–2.6 kW）——这些都只有 SemiAnalysis 一家分析师文章描述，NVIDIA 官方规格表还没出来，**不能当规格数字讲**，只能讲方向。',
+      '⚠️ capacityPolicy = analyst-modeled：即便拓扑骨架已官宣，机架内部规格仍主要来自第三方分析师，本工具对这一代**拒绝出任何产能数字**。',
       '⚠️ 反常识留痕：分析师表格里 Rubin Ultra 的单封装显存是 192 GB HBM4，**比 Rubin 的 288 GB 还少**（且不是 HBM4e）。原样记录，不做「修正」。',
     ],
     rows: [
@@ -114,7 +114,7 @@ export const COMPARISONS: ComparisonDefinition[] = [
         roleKey: 'nvswitch-tray',
         label: 'NVLink 交换托架',
         narrative:
-          '★ 本代最大的结构变化：9 个 1U 托盘 → 18 个 0.75U 托盘（代号 Portia），每托架交换芯片 4 → 4 颗但托架数翻倍，每机架交换芯片 36 → 72 颗。多出来的交换容量全部用于跨机架光互连。',
+          '★ 本代最大的结构变化：9 个 1U 托盘 → 18 个 0.75U 托盘（代号 Portia），每托架交换芯片 4 → 4 颗但托架数翻倍，每机架交换芯片 36 → 72 颗。多出来的交换容量全部用于跨机架光互连。⚠️ 这一层的具体实现（Portia 代号、0.75U、托架数量）仍是 SemiAnalysis 的分析师推测，官方只证实了「交换容量支持跨机架光互连」这个方向。',
       },
       {
         roleKey: 'power-shelf',
@@ -126,7 +126,7 @@ export const COMPARISONS: ComparisonDefinition[] = [
         roleKey: 'scaleup-optics',
         label: 'NPO / CPO 光互连模块',
         narrative:
-          '★ 全新的一层：NPO 版是插槽式模块（每颗交换芯片旁 4 个），CPO 版是芯片内嵌 4 个不可更换光引擎 + 外置激光源。文中判断 NPO 会先上市。运维含义是故障域变了——CPO 版换不了单个光引擎。',
+          '这一层要分两句话讲：**「机架间要走光」是 NVIDIA 官方证实的**（POD 博客「direct optical connections」）；**「NPO 插槽式还是 CPO 共封装」是分析师推测**——NPO 版每颗交换芯片旁 4 个模块，CPO 版是芯片内嵌 4 个不可更换光引擎 + 外置激光源，文中判断 NPO 会先上市。运维含义是故障域变了——CPO 版换不了单个光引擎，但这一点本身也还没有官方规格表验证。',
       },
       {
         roleKey: 'scaleout-nic',
@@ -140,18 +140,23 @@ export const COMPARISONS: ComparisonDefinition[] = [
         narrative: '⚠️ 同上：来源文章未涉及 DPU 与 North/South 网络。',
       },
     ],
-    sourceIds: ['src.nvidia-vera-rubin-page', 'src.semianalysis-nvl576'],
+    sourceIds: [
+      'src.nvidia-vera-rubin-page',
+      'src.nvidia-rubin-pod-blog',
+      'src.nvidia-ocp-vera-rubin-blog',
+      'src.semianalysis-nvl576',
+    ],
   },
   {
     id: 'cmpdef.gb300-to-rubin-ultra',
     leftSystemId: 'sys.gb300-nvl72',
     rightSystemId: 'sys.rubin-ultra-nvl576',
-    title: 'GB300 NVL72 → Rubin Ultra NVL576（跨两代，预测）',
+    title: 'GB300 NVL72 → Vera Rubin Ultra NVL576（跨两代）',
     summary: [
-      '跨两代看，「一台机器」的边界从 72 张 GPU 扩到 576 张：GB300 的 8 个机架是 8 个独立 NVLink 域，NVL576 的 8 个机架是**一个**域。',
-      '供电密度是最直观的对比：8 × 33 kW（264 kW 供电能力，服务最高 142 kW 负载）→ 4 × 110 kW；单个电源模块 5.5 → 18.3 kW；单卡 TDP 从官方未公布（B300）到分析师预期的 1.8–2.6 kW。',
-      '交换层从 9 托盘 × 2 芯片（18 颗）变成 18 托架 × 4 芯片（72 颗），四倍于 GB300。',
-      '⚠️ 证据强度差两级：左侧每个数字都能落到 NVIDIA 官方文档的某一行，右侧全部来自第三方分析师文章。这张对比只能用来讲趋势，不能用来做方案数字。',
+      '跨两代看，「一台机器」的边界从 72 张 GPU 扩到 576 张：GB300 的 8 个机架是 8 个独立 NVLink 域，NVL576 的 8 个机架是**一个**域——这一点已由 NVIDIA 官方证实（2026-03 POD 博客），不再只是分析师推测。',
+      '供电密度是最直观的对比：8 × 33 kW（264 kW 供电能力，服务最高 142 kW 负载）→ 4 × 110 kW；单个电源模块 5.5 → 18.3 kW；单卡 TDP 从官方未公布（B300）到分析师预期的 1.8–2.6 kW。⚠️ 右侧这组数字仍全部来自 SemiAnalysis，官方没有公布 NVL576 的功率规格表。',
+      '交换层从 9 托盘 × 2 芯片（18 颗）变成 18 托架 × 4 芯片（72 颗），四倍于 GB300——这一层的具体托架/芯片数仍是分析师推测。',
+      '⚠️ 证据强度按行拆开看：拓扑骨架（8 机架合一域、机架内铜/机架间光）已经官宣，但绝大多数具体规格（功率、托架层数、连接器型号）仍全部来自第三方分析师文章。这张对比能用来讲趋势与骨架，不能拿具体数字做方案。',
     ],
     rows: [
       {
@@ -177,6 +182,11 @@ export const COMPARISONS: ComparisonDefinition[] = [
         narrative: '⚠️ 「未收录」不等于「取消」：来源文章只谈 scale-up，未涉及 scale-out 网络。',
       },
     ],
-    sourceIds: ['src.nvidia-nvl72-ra', 'src.nvidia-gb300-page', 'src.semianalysis-nvl576'],
+    sourceIds: [
+      'src.nvidia-nvl72-ra',
+      'src.nvidia-gb300-page',
+      'src.nvidia-rubin-pod-blog',
+      'src.semianalysis-nvl576',
+    ],
   },
 ]

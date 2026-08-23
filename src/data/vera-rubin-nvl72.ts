@@ -104,6 +104,7 @@ export const VERA_RUBIN_SYSTEM: FactorySystem = {
   name: 'NVIDIA Vera Rubin NVL72',
   vendor: 'NVIDIA',
   status: 'announced',
+  capacityPolicy: 'standard',
   generation: 'vera-rubin',
   referenceUrl: 'https://www.nvidia.com/en-us/data-center/vera-rubin-nvl72/',
   summary:
@@ -142,6 +143,13 @@ export const VERA_RUBIN_SYSTEM: FactorySystem = {
       'TB/s',
       VR_PAGE,
       '规格表 NVLink Bandwidth 行，「260 TB/s」（发布稿同口径：「the Vera Rubin NVL72 rack provides 260TB/s」）',
+    ),
+    c2cAggregateBandwidthTBs: vr<number>(
+      65,
+      'TB/s',
+      VR_PAGE,
+      '规格表 NVLink-C2C Bandwidth 行：整机架列「65 TB/s」，Vera Rubin Superchip 列「1.8 TB/s」',
+      '= 36 个超级芯片 × 1.8 TB/s ≈ 64.8 TB/s，官方取整为 65 TB/s；不是 GPU↔GPU 的 NVLink 6，而是 CPU↔GPU 的 NVLink-C2C 在整机架尺度上的聚合值。',
     ),
     gpuMemoryTotalTB: vr<number>(20.7, 'TB', VR_PAGE, '规格表 GPU Memory | Bandwidth 行，「20.7 TB HBM4」'),
     gpuMemoryBandwidthTBs: vr<number>(

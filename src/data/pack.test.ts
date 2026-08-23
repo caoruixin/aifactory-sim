@@ -20,6 +20,7 @@ const EVIDENCE_TYPES = new Set([
   'author_opinion',
 ])
 const STATUSES = new Set(['shipping', 'announced', 'forecast'])
+const CAPACITY_POLICIES = new Set(['standard', 'analyst-modeled', 'paired-only'])
 const PLANES = new Set(['nvlink', 'scaleout', 'business', 'mgmt', 'power', 'cooling'])
 
 const sourceById = new Map(pack.sources.map((s) => [s.id, s]))
@@ -41,6 +42,48 @@ function allClaims(): { where: string; claim: Claim }[] {
   }
   for (const c of pack.connections) {
     if (c.bandwidth) out.push({ where: `connection ${c.id}.bandwidth`, claim: c.bandwidth })
+  }
+  return out
+}
+
+/**
+ * 组件 → 使用它的全部系统 ID（通过装配树反查；一个共享组件可能被多个系统引用）。
+ * v1.3 起「非官方源只能用在非 shipping 系统」这条规则要按这个反查结果判断，
+ * 而不是看 Claim 所在文件属于哪一个系统——组件本身可能被复用（如 NVL576 复用
+ * Vera Rubin 官方口径的 Vera CPU 组件）。
+ */
+const systemsUsingComponent = new Map<string, Set<string>>()
+for (const a of pack.assemblies) {
+  const set = systemsUsingComponent.get(a.componentId) ?? new Set<string>()
+  set.add(a.systemId)
+  systemsUsingComponent.set(a.componentId, set)
+}
+
+/**
+ * 通用遍历：每条 Claim 附带「所属系统集合」（v1.3 起替代「Claim 所在文件的系统」这种
+ * 隐式假设）——
+ *   - system.keySpecs：就是该系统自己；
+ *   - component.specs：反查装配树里引用这个组件的全部系统（可能不止一个）；
+ *   - assembly.countClaim / connection.bandwidth：装配节点/连接自身的 systemId。
+ */
+function claimsWithSystems(): { where: string; claim: Claim; systemIds: string[] }[] {
+  const out: { where: string; claim: Claim; systemIds: string[] }[] = []
+  for (const s of pack.systems) {
+    for (const [k, c] of Object.entries(s.keySpecs)) {
+      out.push({ where: `system ${s.id}.keySpecs.${k}`, claim: c, systemIds: [s.id] })
+    }
+  }
+  for (const c of pack.components) {
+    const users = [...(systemsUsingComponent.get(c.id) ?? new Set<string>())]
+    for (const [k, v] of Object.entries(c.specs)) {
+      out.push({ where: `component ${c.id}.specs.${k}`, claim: v, systemIds: users })
+    }
+  }
+  for (const a of pack.assemblies) {
+    if (a.countClaim) out.push({ where: `assembly ${a.id}.countClaim`, claim: a.countClaim, systemIds: [a.systemId] })
+  }
+  for (const c of pack.connections) {
+    if (c.bandwidth) out.push({ where: `connection ${c.id}.bandwidth`, claim: c.bandwidth, systemIds: [c.systemId] })
   }
   return out
 }
@@ -224,6 +267,12 @@ describe('证据纪律', () => {
     }
   })
 
+  it('每个系统的 capacityPolicy 取值合法（v1.3 新增字段）', () => {
+    for (const s of pack.systems) {
+      expect(CAPACITY_POLICIES.has(s.capacityPolicy), `${s.id}.capacityPolicy=${s.capacityPolicy} 非法`).toBe(true)
+    }
+  })
+
   it('★ verified_spec / vendor_claim 只能引用官方源（official_doc / official_press）', () => {
     const officialKinds = new Set<SourceRef['kind']>(OFFICIAL_SOURCE_KINDS)
     for (const { where, claim } of allClaims()) {
@@ -251,47 +300,39 @@ describe('证据纪律', () => {
   })
 
   /**
-   * B4 调整（原 B1 版本一刀切禁止所有非官方源进入 countClaim/specs）：
-   * Rubin Ultra NVL576 这一代**只有** SemiAnalysis 的分析师文章可用，一刀切会让它无法建模。
-   * 因此规则精确化为：
-   *   1. 券商源（Marvell / GS / JPM）仍然绝对禁止（上一条测试）；
-   *   2. 其余非官方源可以承载 countClaim / specs，但**必须**同时满足
-   *      evidence ∈ {analyst_estimate, forecast} 且 status === 'forecast'
-   *      ——即只能出现在预测代际里，且永远不会被渲染成「官方规格」徽章。
+   * v1.3 重写（原规则要求「非官方源所在系统必须是 forecast 状态」——NVL576 v1.3 起
+   * 官宣为 `announced`，但装配树里仍然混着 SemiAnalysis 的分析师 Claim，一刀切的
+   * status 检查会把这些完全合规的 Claim 也判违规）。
+   *
+   * 新规则改为**通用遍历反查 Claim 所属系统集合**（`claimsWithSystems`），
+   * 对每一条引用了非官方源（`analyst_report` / `earnings_call` / `media_report`）
+   * 的 Claim 强制三件事：
+   *   1. `evidence ∈ {analyst_estimate, forecast}`——不能靠非官方源冒充 verified_spec/vendor_claim
+   *      （那条规则在上面单独锁）；
+   *   2. `claim.status === 'forecast'`——Claim 自身的状态，不是它所在系统的状态；
+   *   3. 引用了它的**全部**系统都不是 `shipping`——已经量产的一代不该在装配树/规格里
+   *      掺分析师或媒体数字（哪怕只是被复用组件间接带进来）。
    */
-  it('★ 非官方源进入 countClaim / 组件 specs 时，必须是 forecast 状态的分析师/预测证据', () => {
+  it('★ 非官方源（分析师/业绩会/媒体报道）Claim：证据+状态受限，且不出现在任何 shipping 系统', () => {
     const nonOfficial = new Set(
-      pack.sources.filter((s) => s.kind === 'analyst_report' || s.kind === 'earnings_call').map((s) => s.id),
+      pack.sources
+        .filter((s) => s.kind === 'analyst_report' || s.kind === 'earnings_call' || s.kind === 'media_report')
+        .map((s) => s.id),
     )
     const allowedEvidence = new Set(['analyst_estimate', 'forecast'])
-    const check = (where: string, claim: Claim) => {
-      if (!nonOfficial.has(claim.sourceId)) return
+    const systemStatus = new Map(pack.systems.map((s) => [s.id, s.status]))
+    let checked = 0
+    for (const { where, claim, systemIds: users } of claimsWithSystems()) {
+      if (!nonOfficial.has(claim.sourceId)) continue
+      checked += 1
       expect(allowedEvidence.has(claim.evidence), `${where} 用非官方源却标了 ${claim.evidence}`).toBe(true)
       expect(claim.status, `${where} 用非官方源却不是 forecast 状态`).toBe('forecast')
-    }
-    for (const a of pack.assemblies) {
-      if (a.countClaim) check(`${a.id}.countClaim`, a.countClaim)
-    }
-    for (const c of pack.components) {
-      for (const [k, claim] of Object.entries(c.specs)) check(`${c.id}.specs.${k}`, claim)
-    }
-  })
-
-  it('★ 非官方源只能出现在 forecast 系统的装配树里', () => {
-    const nonOfficial = new Set(
-      pack.sources.filter((s) => s.kind === 'analyst_report' || s.kind === 'earnings_call').map((s) => s.id),
-    )
-    const systemStatus = new Map(pack.systems.map((s) => [s.id, s.status]))
-    for (const a of pack.assemblies) {
-      if (a.countClaim && nonOfficial.has(a.countClaim.sourceId)) {
-        expect(systemStatus.get(a.systemId), `${a.id} 所属系统`).toBe('forecast')
+      for (const sysId of users) {
+        expect(systemStatus.get(sysId), `${where} 被 shipping 系统 ${sysId} 使用`).not.toBe('shipping')
       }
     }
-    for (const c of pack.connections) {
-      if (c.bandwidth && nonOfficial.has(c.bandwidth.sourceId)) {
-        expect(systemStatus.get(c.systemId), `${c.id} 所属系统`).toBe('forecast')
-      }
-    }
+    // 防止规则被静默架空：至少要真的检查到 NVL576 那批 SemiAnalysis Claim。
+    expect(checked).toBeGreaterThan(30)
   })
 
   it('组件与系统的 sourceIds 全部指向已登记的源', () => {

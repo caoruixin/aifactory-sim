@@ -121,7 +121,7 @@ describe('GB300 + deepseek-v3 FP8：手算对照', () => {
   })
 })
 
-describe('★ 拒绝门 1：forecast 系统永不出数', () => {
+describe('★ 拒绝门 1：capacityPolicy 非 standard 的系统按策略拒绝', () => {
   const est = estimateSystemCapacity({ systemId: NVL576, modelId: 'deepseek-v3', quantId: 'fp8' })
 
   it('Rubin Ultra NVL576 被拒绝，且所有数值字段为 null', () => {
@@ -136,19 +136,44 @@ describe('★ 拒绝门 1：forecast 系统永不出数', () => {
     expect(est.memory).toBeNull()
   })
 
-  it('拒绝理由点明「第三方分析师」，caveats 首条仍在', () => {
+  it('拒绝理由点明「第三方分析师」，reasonCode 稳定，caveats 首条仍在', () => {
     expect(est.reason).toContain('forecast')
     expect(est.reason).toContain('分析师')
+    expect(est.reasonCode).toBe('analyst-modeled-policy')
     expect(est.caveats[0]).toBe(CAPACITY_HEADLINE_CAVEAT)
-    expect(est.missing.length).toBeGreaterThan(0)
+    // v1.3 R2 P1-6：capacityPolicy 驱动的策略性拒绝不是「差一个数」，missing 恒为空，
+    // UI 不得渲染「缺少的官方数据」文案。
+    expect(est.missing).toEqual([])
   })
 
   it('无论换什么模型/量化/机架数都拒绝（这道门在最前面）', () => {
     for (const quantId of ['fp16', 'fp8', 'int4'] as const) {
       const e = estimateSystemCapacity({ systemId: NVL576, modelId: 'llama3-70b', quantId, rackCount: 8 })
       expect(e.kind).toBe('refused')
+      expect(e.reasonCode).toBe('analyst-modeled-policy')
       expect(e.tokensPerSec).toBeNull()
     }
+  })
+
+  it('paired-only 策略：以合成 pack 验证——同样拒绝，理由点明「配对」，reasonCode 独立', () => {
+    const packPairedOnly: FactoryContentPack = {
+      ...FACTORY_PACK,
+      systems: FACTORY_PACK.systems.map((s) =>
+        s.id === GB300 ? { ...s, capacityPolicy: 'paired-only' as const } : s,
+      ),
+    }
+    const e = estimateSystemCapacity({ systemId: GB300, modelId: 'deepseek-v3', quantId: 'fp8' }, packPairedOnly)
+    expect(e.kind).toBe('refused')
+    expect(e.reasonCode).toBe('paired-only-policy')
+    expect(e.reason).toContain('配对')
+    expect(e.missing).toEqual([])
+    expect(e.tokensPerSec).toBeNull()
+  })
+
+  it('standard 策略：正常出数时 reasonCode 为 null（三策略拒绝/放行矩阵的「放行」一格）', () => {
+    const gb300 = estimateSystemCapacity({ systemId: GB300, modelId: 'deepseek-v3', quantId: 'fp8' })
+    expect(gb300.kind).toBe('estimate')
+    expect(gb300.reasonCode).toBeNull()
   })
 })
 

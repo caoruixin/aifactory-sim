@@ -11,35 +11,54 @@ import type {
 } from './types'
 
 /**
- * Rubin Ultra NVL576 内容包（`forecast` 代际）。
+ * Rubin Ultra NVL576 内容包（`v1.3` 起：系统 `status: 'announced'`，
+ * `capacityPolicy: 'analyst-modeled'`——**两级证据混用，务必读完再改**）。
  *
- * ★★ 来源纪律（本文件与其余两代**性质完全不同**，务必读完再改）★★
+ * ★★ 来源纪律（v1.3 重构：本文件现在是「官方拓扑事实 + 分析师结构细节」两层叠加）★★
  *
- * 唯一来源是本地 PDF《Rubin Ultra NVL576 架构：快速概览》——
- * **SemiAnalysis 2026-08-10 的第三方分析师文章，不是 NVIDIA 官方材料**。
- * 文中两张路线图表的图注写着「来源：SemiAnalysis, Nvidia」，但全文没有任何
- * 「NVIDIA 宣布/在 GTC 公布」式的直接引用，因此本项目一律按**第三方汇编**对待：
+ * NVIDIA 官方在 2026-03 的 POD 博客（`src.nvidia-rubin-pod-blog`）里首次亲口证实了
+ * NVL576 的存在与骨架：8 个独立 MGX NVL 机架、每机架 72 张 Rubin Ultra GPU、机架内铜
+ * 背板 + 机架间「direct optical connections」组成**一个** 576-GPU NVLink 域、内部原型
+ * 代号 Polyphe、以及 NVL72/NVL144(Kyber)/NVL576 三档 scale-up 域选项——这些是**官方事实**，
+ * `evidence: 'vendor_claim'`、`status: 'announced'`。
  *
- * 1. 本文件里每一条 Claim 的 `evidence` 只能是 `analyst_estimate`（文中作为事实陈述
- *    的结构/图纸数据）或 `forecast`（文中明确写「我们认为/预计/尚在变动中」的判断），
- *    `status` 恒为 `forecast`，`sourceId` 恒为 `src.semianalysis-nvl576`，
- *    `locator` 必须带页码——`content.test.ts` 会逐条强制这几点。
+ * 但机架内部具体怎么排布（9+18+9 托架分层、0.75U 交换托架、PHD2→PHD3 连接器、
+ * NPO/CPO 光模块细节、「Dragonfly」这个拓扑名字本身）通通只出现在本地 PDF
+ * 《Rubin Ultra NVL576 架构：快速概览》——**SemiAnalysis 2026-08-10 的第三方分析师
+ * 文章，不是 NVIDIA 官方材料**。这一层内容仍然一刀切按分析师口径对待：
+ *
+ * 1. 引用 SemiAnalysis 的每条 Claim，`evidence` 只能是 `analyst_estimate`（文中作为
+ *    事实陈述的结构/图纸数据）或 `forecast`（文中明确写「我们认为/预计/尚在变动中」
+ *    的判断），`status` 恒为 `forecast`，`sourceId` 恒为 `src.semianalysis-nvl576`，
+ *    `locator` 必须带页码——`content.test.ts` 里专门只对 SemiAnalysis 源 Claim 强制这几点。
  * 2. **规格表数字禁止流入 `GpuMathSpecs` 与产能估算**：Rubin Ultra GPU 的
- *    `mathSpecs` 显式为 `null`，且 `capacity.ts` 的第一道拒绝门就是「forecast 系统永不出数」。
- *    换句话说，这一代在工具里只能看结构，不能算 token 产能——这是设计意图，不是缺陷。
+ *    `mathSpecs` 显式为 `null`；`capacity.ts` 的第一道拒绝门现在直接读
+ *    `capacityPolicy === 'analyst-modeled'`（不再依赖 `status`）——这一代在工具里
+ *    只能看结构，不能算 token 产能，这是设计意图，不是缺陷。
  * 3. 文中**没有**的内容不要凭印象补：scale-out 网络（ConnectX/BlueField/Spectrum-X）、
- *    CDU 与冷板、机架总功率、系统总算力、出货日期——全文一个字都没有。
+ *    CDU 与冷板、机架总功率、系统总算力——全文一个字都没有。**出货日期同样不建
+ *    带年份的 Claim**：GTC 2025 keynote 的「2027 下半年」与媒体报道的「可能延期」
+ *    都各自独立登记为 Claim（分见 `announceTimeline` / `delayOutlook`），互不相等、
+ *    互不推导。
  *
- * ⚠️ 两处必须随数据一起说出口的冲突/限制：
+ * ⚠️ 三处必须随数据一起说出口的冲突/限制：
  * - 表①把 Rubin Ultra 的显存写作 **192 GB HBM4**（低于 Rubin 的 288 GB，且不是 HBM4e），
  *   与市场上流传的说法相反。本项目原样记录并标注冲突，不做「修正」。
  * - 表①把 Rubin Ultra 归到 **2027** 列，同页表②却把它放在 **2026** 跨度下；两者矛盾，
  *   本项目取表①并留痕。
+ * - 媒体报道里的「延至 2028」说的是**另一个产品** Kyber NVL144，不是 NVL576；
+ *   对 NVL576 原文只说「likely delayed or limited to small volumes」，没有年份。
  */
 
 const SYSTEM_ID = 'sys.rubin-ultra-nvl576'
 const SA = 'src.semianalysis-nvl576'
 const SA_ASOF = '2026-08'
+/** 官方三源：POD 博客（拓扑事实）、GTC 2025 keynote 博客（时间点原话）、OCP 博客（命名沿革）。 */
+const POD = 'src.nvidia-rubin-pod-blog'
+const GTC25 = 'src.nvidia-gtc25-keynote-blog'
+const OCP = 'src.nvidia-ocp-vera-rubin-blog'
+/** 媒体源：CNBC 转引 SemiAnalysis 的延期报道（非官方，`media_report`）。 */
+const CNBC = 'src.cnbc-kyber-delay'
 
 /** 分析师文章里作为事实陈述的结构数据（图纸/表格读数）。 */
 function sa<T extends ClaimValue>(
@@ -87,28 +106,69 @@ function saNull(unit: string | null, note: string): Claim {
   })
 }
 
+/** NVIDIA 官方（POD/GTC25/OCP 博客）亲口证实的事实：`vendor_claim` + `status: 'announced'`。 */
+function official<T extends ClaimValue>(
+  value: T,
+  unit: string | null,
+  sourceId: string,
+  asOf: string,
+  locator: string,
+  note: string | null = null,
+): Claim<T> {
+  return claim<T>({
+    value,
+    unit,
+    sourceId,
+    locator,
+    evidence: 'vendor_claim',
+    status: 'announced',
+    asOf,
+    confidence: 'medium',
+    note,
+  })
+}
+
+/** 媒体报道（CNBC，转引 SemiAnalysis）：定性判断，无具体年份，`forecast` 状态。 */
+function mediaForecast<T extends ClaimValue>(value: T, unit: string | null, locator: string, note: string): Claim<T> {
+  return claim<T>({
+    value,
+    unit,
+    sourceId: CNBC,
+    locator,
+    evidence: 'forecast',
+    status: 'forecast',
+    asOf: '2026-07',
+    confidence: 'low',
+    note,
+  })
+}
+
 const NOT_IN_SOURCE = '该 SemiAnalysis 文章未涉及此项，本项目不从其他代际推测。'
 
 // ─────────────────────────── 系统 ───────────────────────────
 
 export const RUBIN_ULTRA_SYSTEM: FactorySystem = {
   id: SYSTEM_ID,
-  name: 'Vera Rubin Ultra NVL576（预测）',
-  vendor: 'NVIDIA（第三方分析）',
-  status: 'forecast',
+  name: 'NVIDIA Vera Rubin Ultra NVL576',
+  vendor: 'NVIDIA',
+  status: 'announced',
+  capacityPolicy: 'analyst-modeled',
   generation: 'rubin-ultra',
-  referenceUrl: null,
+  referenceUrl:
+    'https://developer.nvidia.com/blog/nvidia-vera-rubin-pod-seven-chips-five-rack-scale-systems-one-ai-supercomputer/',
   summary:
-    '把 8 个 Oberon 机架的 576 张 Rubin Ultra GPU 连成**单一 NVLink 域**的形态：机架内仍是铜背板，机架之间改用 NPO/CPO 光互连走 Dragonfly 拓扑。',
+    'NVIDIA 官方确认的下一档 scale-up 形态：8 个独立 MGX NVL 机架、每机架 72 张 Rubin Ultra GPU，机架内铜背板 + 机架间直接光连接组成**单一 576-GPU NVLink 域**（内部原型代号 Polyphe），是 Vera Rubin Ultra 三档 NVLink 域（NVL72 / NVL144「Kyber」/ 旗舰 NVL576）里最大的一档。',
   presalesNote:
-    '这一代在本工具里只能讲结构、不能讲产能——因为唯一的资料是 SemiAnalysis 的分析师文章，不是 NVIDIA 规格表。对客户可以讲的确定性内容只有一件事：**NVLink 域要跨出机架了**（机架内铜、机架间光），这意味着「一台机器」的边界从 72 卡扩到 576 卡。凡是有人报给你 NVL576 的 PFLOPS 或 token 产能数字，先问一句出处——目前没有官方规格表可以支撑那些数字。',
-  sourceIds: [SA],
+    '这一代要把「官方说了什么」和「分析师推测了什么」分开讲：**官方**（POD 博客）证实的只有拓扑骨架——8 个机架、576 张 GPU、机架内铜/机架间光、一个 NVLink 域、三档 scale-up 域可选（NVL72/NVL144/NVL576）；机架内部具体怎么排布（9+18+9 托架分层、0.75U 交换托架、PHD3 连接器、NPO/CPO 光模块细节、「Dragonfly」这个拓扑名字）通通来自 SemiAnalysis 一篇分析师文章，官方从未证实这些具体数字。因此本工具对这一代**只能讲结构、不能讲产能**——凡是有人报给你 NVL576 的 PFLOPS 或 token 产能数字，先问一句出处，目前没有官方规格表能支撑那些数字。出货节奏也要小心：2025-03 GTC 现场说过「2027 下半年」，但 2026 年的官方材料已经不再给日期；2026-07 有媒体报道说 NVL576「可能延期或仅限小批量」（没给年份，报道里的「2028」说的是另一个产品 Kyber NVL144），NVIDIA 对该报道的回应是「我们的路线图没有问题」——这句话是媒体转述的官方回应，讲给客户听时务必带上这层来源，不要当成独立声明。',
+  sourceIds: [POD, OCP, GTC25, CNBC, SA],
   keySpecs: {
-    gpuCount: sa<number>(
+    gpuCount: official<number>(
       576,
       '张',
-      'p.3 表①「Nvidia Roadmap – Chip and Package Level + System Level and Form Factor」，Vera Rubin Ultra NVL576 列 # of Logical GPUs = 576',
-      '按「逻辑 GPU（封装）」计；同表另给 GPU die 数 1,152（每封装 2 颗 reticle 尺寸 GPU die）。',
+      POD,
+      '2026-03',
+      'NVIDIA Vera Rubin Ultra NVL576 节，「Vera Rubin Ultra NVL576 will combine eight separate MGX NVL racks, each with 72 Rubin Ultra GPUs, all in a single 576-GPU NVLink domain with copper and direct optical connections.」',
+      'SemiAnalysis p.3 表①按「逻辑 GPU（封装）」给出同一数字并独立佐证，另给 GPU die 数 1,152（每封装 2 颗 reticle 尺寸 GPU die，见 gpuDieCount）。',
     ),
     gpuDieCount: sa<number>(
       1152,
@@ -116,15 +176,17 @@ export const RUBIN_ULTRA_SYSTEM: FactorySystem = {
       'p.3 表①，Vera Rubin Ultra NVL576 列 # of GPU dies = 1,152',
     ),
     cpuSocketCount: sa<number>(288, '个', 'p.3 表①，# of CPU Sockets = 288（CPU 型号列为 Vera）'),
-    rackCount: sa<number>(
+    rackCount: official<number>(
       8,
       '个',
-      'p.3 表①，Form Factor =「8x Oberon Racks」；p.4 机架立面图逐个标注为 VRU NVL576 (Rack 1) … (Rack 8)',
-      '★ 与 GB300/Vera Rubin 的「8 个机架 = 8 个互相独立的 NVLink 域」不同：这 8 个机架合起来才是**一个** NVL576 域。',
+      POD,
+      '2026-03',
+      'NVIDIA Vera Rubin Ultra NVL576 节，「combine eight separate MGX NVL racks」；SemiAnalysis p.3 表①独立佐证 Form Factor =「8x Oberon Racks」，p.4 机架立面图逐个标注为 VRU NVL576 (Rack 1) … (Rack 8)',
+      '★ 与 GB300/Vera Rubin 的「8 个机架 = 8 个互相独立的 NVLink 域」不同：这 8 个机架合起来才是**一个** NVL576 域（官方原话：「all in a single 576-GPU NVLink domain」）。',
     ),
     rackPowerKW: saNull(
       'kW',
-      '该文未给出机架级或系统级总功率。立面图上每机架有 4 个 3U 110 kW 电源架（4 × 110 = 440 kW 是本项目的算术推论，不是文中数字），因此本项目取 null，产能估算的 tokens/W 一律不出数。',
+      '官方与分析师文章都未给出机架级或系统级总功率。SemiAnalysis 立面图上每机架有 4 个 3U 110 kW 电源架（4 × 110 = 440 kW 是本项目的算术推论，不是文中数字），因此本项目取 null，产能估算的 tokens/W 一律不出数。',
     ),
     computeTrayCount: sa<number>(
       18,
@@ -151,12 +213,48 @@ export const RUBIN_ULTRA_SYSTEM: FactorySystem = {
       'Direct Connect NPO（机架内铜背板 + 机架间 NPO/CPO Dragonfly）',
       null,
       'p.3 表②，Scale-Up Topology =「Direct Connect NPO」；Within Rack =「Copper Backplane」；Between Racks =「NPO/CPO」（表中黄色高亮）',
+      '官方口径只到「机架内铜、机架间直接光连接」这一层（POD 博客原话「with copper and direct optical connections」）；「NPO/CPO」「Dragonfly」是 SemiAnalysis 自己的说法，NVIDIA 官方材料没有用过这两个词。',
+    ),
+    nvlinkDomainOptions: official<string>(
+      'NVL72 / NVL144（Kyber，单机架）/ NVL576（旗舰，本代）',
+      null,
+      POD,
+      '2026-03',
+      'NVIDIA Kyber NVL1152 节，「providing customers with three options for Vera Rubin Ultra NVLink scale-up domains: NVL72, NVL144, and the flagship NVL576.」',
+      'Kyber 是独立于本代机架壳（MGX NVL/Oberon）的另一款更高密度单机架设计（144 GPU/机架），NVL576 由 8 个标准 MGX NVL 机架组成——两者是并列的产品线，不是同一硬件的两种叫法（也不要把「Kyber」当成 NVL576 机架的代号）。',
+    ),
+    prototypeCodename: official<string>(
+      'Polyphe',
+      null,
+      POD,
+      '2026-03',
+      'NVIDIA Vera Rubin Ultra NVL576 节，「Polyphe is the NVIDIA internal fully functional GB200-based prototype of the multirack NVL576 scale-up architecture.」',
+    ),
+    announceTimeline: official<string>(
+      '2027 下半年（2025-03 GTC 现场原话）',
+      null,
+      GTC25,
+      '2025-03',
+      'Vera Rubin 一节，「Systems built on Rubin Ultra, including the Vera Rubin NVL 144, will arrive in the second half of next year. And due for the second half of 2027: systems built on Rubin Ultra.」',
+      '⚠️ 这是 2025-03 GTC 现场原话，原话没有点名 NVL576（只泛指「systems built on Rubin Ultra」）；2026 年的官方材料（POD/OCP 博客）都不再给出具体交付日期。',
+    ),
+    delayOutlook: mediaForecast<string>(
+      '可能延期或仅限小批量（媒体报道，无具体年份）',
+      null,
+      '「NVL576 — a larger system linking eight racks via optical connections — is also likely delayed or limited to small volumes, the research firm said.」',
+      '⚠️ 同一篇报道里明确写的「延至 2028」说的是另一个产品 **Kyber NVL144**（PCB 中板良率问题），不是 NVL576；对 NVL576 原文没有给出具体年份。文中记录 NVIDIA 对整篇报道的回应「Our roadmap is intact」——这是媒体转述的官方回应，不是独立声明，讲给客户听时要说明这层转述关系。',
+    ),
+    analystStructuralDetail: sa<string>(
+      'Oberon 机架重排为 9+18+9（计算/交换/计算）、0.75U NVLink 交换托架、PHD3 背板连接器、NPO/CPO 光互连模块、「Dragonfly」跨机架拓扑命名——均为 SemiAnalysis 的结构细节推测，NVIDIA 官方材料未证实这些具体实现。',
+      null,
+      'p.4–p.5（机架立面图与机架高度节），p.10（NPO/CPO 与 Dragonfly 拓扑描述）',
+      '这条 Claim 的作用是把「分析师推测的具体实现」与上面几条官方事实（gpuCount/rackCount/nvlinkDomainOptions/prototypeCodename）显式分开，避免两者被当成同一置信等级引用——3D 组件层的官方壳体（机架、机架内背板、跨机架光互连）与分析师规格件（GPU/HBM/托盘细节/交换芯片）也按这条线分层，见组件定义里的 status 字段。',
     ),
     year: sa<string>(
       '2027（表①）',
       null,
       'p.3 表①年份表头 2024 | 2025 | 2026 | 2027，Rubin Ultra 归于 2027 列',
-      '⚠️ 同页表②的年份表头只到 2026，却把 Rubin Ultra 的 NVL72/NVL576 放在 2026 跨度下。两表矛盾，本项目取表①。文中没有任何具体发货日期。',
+      '⚠️ 同页表②的年份表头只到 2026，却把 Rubin Ultra 的 NVL72/NVL576 放在 2026 跨度下。两表矛盾，本项目取表①——这是 SemiAnalysis 文中自己的表格冲突，与上面 announceTimeline 的官方口径是两条独立记录，不互相印证也不互相推翻。',
     ),
   },
   // 立面图 U 轴刻度到 48.5（p.4）；取 49 作为 3D 摆位的示意高度
@@ -368,6 +466,41 @@ export const RUBIN_ULTRA_COMPONENTS: HardwareComponent[] = [
     },
   },
   {
+    id: 'cmp.rubin-ultra.interrack-fabric',
+    kind: 'switch',
+    name: '跨机架 scale-up 光互连（官方确认存在）',
+    vendor: 'NVIDIA',
+    status: 'announced',
+    summary:
+      '★ 组件层证据分层示例：NVIDIA 官方证实 8 个机架之间靠「direct optical connections」组成单一 576-GPU NVLink 域（POD 博客）；这条光互连具体走什么协议/模块形态（NPO 插槽式或 CPO 共封装、「Dragonfly」拓扑名字）是 SemiAnalysis 的分析师推测，见 `cmp.rubin-ultra.optics-module` 与 specs 里的低置信项。',
+    presalesNote:
+      '对客户讲这一层要分两句话：**「NVLink 域要跨出机架了」是官方证实的**——8 个机架经光连接合并成一个 576 卡的 scale-up 域，这决定了「一台机器」的边界从 72 卡扩到 576 卡；**「怎么跨」还是分析师推测**——NPO 还是 CPO、走不走 Dragonfly 拓扑、每机架多少个光模块，这些都等官方规格表出来再报给客户。',
+    visual: { shape: 'switch-box', colorToken: 'plane-nvlink' },
+    imageUrl: null,
+    sourceIds: [POD, SA],
+    specs: {
+      existenceAndMedium: official<string>(
+        '机架间直接光连接（direct optical connections），使 8 个机架组成单一 NVLink 域',
+        null,
+        POD,
+        '2026-03',
+        'NVIDIA Vera Rubin Ultra NVL576 节，「…all in a single 576-GPU NVLink domain with copper and direct optical connections.」',
+      ),
+      topologyName: sa<string>(
+        'Dragonfly（SemiAnalysis 命名，官方材料未使用此术语）',
+        null,
+        'p.3 表①，Scale up links =「Between Racks: Dragonfly NPO/CPO」',
+        '⚠️ 官方只说「direct optical connections」，没有点名任何拓扑算法或标准名字；「Dragonfly」是分析师文章自己的归类。',
+      ),
+      moduleFormFactor: sa<string>(
+        'NPO（插槽式）与 CPO（共封装，芯片内嵌光引擎）两种在研形态，文中判断 NPO 更可能率先量产',
+        null,
+        'p.5 / p.10；NPO 版细节见 p.7–p.8，CPO 版见 p.9–p.10',
+        '具体到「模块」这一级的实现细节，详见 cmp.rubin-ultra.optics-module（板级、分析师口径）。',
+      ),
+    },
+  },
+  {
     id: 'cmp.rubin-ultra.optics-module',
     kind: 'switch',
     name: 'NPO / CPO 光互连模块（预测）',
@@ -429,17 +562,24 @@ export const RUBIN_ULTRA_COMPONENTS: HardwareComponent[] = [
   {
     id: 'cmp.rubin-ultra.oberon-rack',
     kind: 'rack',
-    name: '新 Oberon 机架（9+18+9，预测）',
-    vendor: 'NVIDIA / OEM（第三方分析）',
-    status: 'forecast',
+    name: 'MGX NVL 机架（NVL576 之一，Oberon 形态）',
+    vendor: 'NVIDIA / OEM',
+    status: 'announced',
     summary:
-      '为跨机架扩展重新排布的 Oberon 机架：顶部 9 个计算托架、中部 18 个 0.75U 交换托架、底部 9 个计算托架，立面刻度到 48.5U。',
+      '★ 组件层证据分层示例：这是 8 个机架之一的**壳体本身**——NVIDIA 官方证实它是标准 MGX NVL 机架、装 72 张 Rubin Ultra GPU（POD 博客）；壳体内部具体怎么排布（9+18+9 托架分层、0.75U 交换托架、立面刻度 48.5U）则来自 SemiAnalysis 的分析师推测，规格表见下方 specs。',
     presalesNote:
-      '一句话讲清这代机架为什么要重排：**为了让铜信号还能走得动**。计算托架分到上下两头、交换托架集中在中间，最远的一对之间只有 22.5U（原来的 10+9+8 布局是 19U，但交换托架只有 9 个）。顺带一提，可扩展版与不可扩展版**机架高度和背板完全相同**，只有交换托盘不一样——这对供应链是个明显的降本设计。',
-    visual: { shape: 'rack-frame', colorToken: 'amber', wireframe: true },
+      '这一层要跟客户说清楚「哪些是官方确认的」：机架本身是标准 MGX NVL 家族的一员，与 Vera Rubin NVL72 共享同一套机械/供电/冷却包络（POD 博客原话「built using the same MGX rack-scale ecosystem for fastest time to production」）——这意味着供应链、机房适配这些「壳体级」结论是稳的。但壳体**内部**怎么重排（9+18+9、最远托架间距 22.5U、PHD3 连接器）目前只有 SemiAnalysis 一家分析师文章描述，官方规格表还没出来，讲这些细节时要显式加上「分析师推测」的前缀。',
+    visual: { shape: 'rack-frame', colorToken: null },
     imageUrl: null,
-    sourceIds: [SA],
+    sourceIds: [POD, SA],
     specs: {
+      rackFamily: official<string>(
+        'MGX NVL 机架（与 Vera Rubin NVL72 同代 MGX 机架生态，铜背板 spine）',
+        null,
+        POD,
+        '2026-03',
+        'NVIDIA Vera Rubin Ultra NVL576 节，「Vera Rubin Ultra NVL576 will combine eight separate MGX NVL racks, each with 72 Rubin Ultra GPUs…It will be built using the same MGX rack-scale ecosystem for fastest time to production.」',
+      ),
       trayLayout: sa<string>(
         '9 计算 + 18 交换 + 9 计算（9+18+9）',
         null,
@@ -477,25 +617,30 @@ export const RUBIN_ULTRA_COMPONENTS: HardwareComponent[] = [
   {
     id: 'cmp.rubin-ultra.backplane',
     kind: 'rack',
-    name: '机架内铜背板（PHD3，预测）',
-    vendor: 'NVIDIA / OEM（第三方分析）',
-    status: 'forecast',
-    summary: '机架内部仍然是无源铜背板，连接器从 PHD2 升级到 PHD3；机架之间才改用光。',
+    name: '机架内铜背板',
+    vendor: 'NVIDIA / OEM',
+    status: 'announced',
+    summary:
+      '机架内部是无源铜背板——NVIDIA 官方证实「机架内铜、机架间光」这一分层（POD 博客）；连接器代号从 PHD2 升级到 PHD3 则是 SemiAnalysis 的分析师推测。',
     presalesNote:
-      '这一条对判断成本结构很有用：**铜没有被光取代，只是被限制在机架内**。机架内继续用铜（省电、便宜、可靠），跨机架才上 NPO/CPO 光互连。谁要是说「Rubin Ultra 全面转向光互连」，那是没分清 scale-up 的机架内与机架间。',
-    visual: { shape: 'backplane', colorToken: 'plane-nvlink', wireframe: true },
+      '这一条对判断成本结构很有用，且这次官方也认了账：**铜没有被光取代，只是被限制在机架内**（POD 博客原话「with copper and direct optical connections」）。机架内继续用铜（省电、便宜、可靠），跨机架才上光互连——具体是不是叫 NPO/CPO、连接器是不是升级到 PHD3，那是 SemiAnalysis 一家的推测，官方没确认这些型号细节。谁要是说「Rubin Ultra 全面转向光互连」，那是没分清 scale-up 的机架内与机架间。',
+    visual: { shape: 'backplane', colorToken: 'plane-nvlink' },
     imageUrl: null,
-    sourceIds: [SA],
+    sourceIds: [POD, SA],
     specs: {
-      medium: sa<string>(
+      medium: official<string>(
         '铜背板（机架内）',
         null,
-        'p.3 表①，Scale up links =「Within Rack: Copper Backplane」（表②同口径）',
+        POD,
+        '2026-03',
+        'NVIDIA Vera Rubin Ultra NVL576 节，「…all in a single 576-GPU NVLink domain with copper and direct optical connections.」',
+        'SemiAnalysis p.3 表①独立佐证：Scale up links =「Within Rack: Copper Backplane」（表②同口径）。',
       ),
       connectorGeneration: sa<string>(
-        'PHD3（自 PHD2 升级）',
+        'PHD3（自 PHD2 升级，分析师推测）',
         null,
         'p.10：背板含量将随 PHD2 连接器升级至 PHD3 而增加',
+        '⚠️ 具体连接器型号官方未确认，仅 SemiAnalysis 一家文章提及。',
       ),
       cableCount: saNull('根', NOT_IN_SOURCE),
     },
@@ -589,29 +734,32 @@ export const RUBIN_ULTRA_ASSEMBLIES: AssemblyNode[] = [
     parentId: 'asm.ru.row',
     componentId: 'cmp.rubin-ultra.oberon-rack',
     roleKey: 'rack',
-    label: 'Oberon 机架（NVL576 之一）',
+    label: 'MGX NVL 机架（NVL576 之一）',
     count: 8,
-    countClaim: sa<number>(
+    countClaim: official<number>(
       8,
       '个',
-      'p.3 表①，Form Factor =「8x Oberon Racks」；p.4 立面图标注 VRU NVL576 (Rack 1) … (Rack 8)',
+      POD,
+      '2026-03',
+      'NVIDIA Vera Rubin Ultra NVL576 节，「combine eight separate MGX NVL racks」',
+      'SemiAnalysis p.3 表①独立佐证：Form Factor =「8x Oberon Racks」；p.4 立面图标注 VRU NVL576 (Rack 1) … (Rack 8)。',
     ),
     lodLevel: 'cluster',
     rackU: null,
-    note: '每机架 72 张 Rubin Ultra GPU（18 托架 × 4），8 机架合计 576 张。',
+    note: '每机架 72 张 Rubin Ultra GPU（官方证实），托架内部 18×4 的分布方式是 SemiAnalysis 的分析师推测；8 机架合计 576 张（官方证实）。',
   },
   {
     id: 'asm.ru.interrack-fabric',
     systemId: SYSTEM_ID,
     parentId: 'asm.ru.facility',
-    componentId: 'cmp.rubin-ultra.optics-module',
+    componentId: 'cmp.rubin-ultra.interrack-fabric',
     roleKey: 'interrack-scaleup-fabric',
-    label: '跨机架 scale-up 光互连（Dragonfly）',
+    label: '跨机架 scale-up 光互连',
     count: 1,
     countClaim: null,
     lodLevel: 'cluster',
     rackU: null,
-    note: '★ 本代新增的层：8 个机架之间用 NPO/CPO 光互连组成 Dragonfly 拓扑，把 NVLink 域从 72 卡扩到 576 卡。',
+    note: '★ 本代新增的层：8 个机架之间靠官方证实的直接光连接组成单一 576-GPU NVLink 域；具体走 NPO/CPO 哪种模块、是否叫「Dragonfly」拓扑，是 SemiAnalysis 的分析师推测（见 cmp.rubin-ultra.optics-module）。',
   },
 
   // ── rack 层 ──

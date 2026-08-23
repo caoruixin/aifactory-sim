@@ -102,6 +102,23 @@ export interface CapacityEvidence {
   inputClaims: CapacityInputClaim[]
 }
 
+/**
+ * 拒绝原因的**稳定机读码**（v1.3 新增）——`reason` 是给人看的句子，会随文案调整措辞；
+ * UI 与测试要按「为什么拒绝」分支渲染/断言时，一律认这个字段，不要用 `reason.includes(...)`
+ * 做业务判断（那是给人看的兜底展示用的）。
+ */
+export type CapacityRefusalReasonCode =
+  | 'unknown-system'
+  | 'unknown-model'
+  | 'unknown-quant'
+  | 'analyst-modeled-policy'
+  | 'paired-only-policy'
+  | 'forecast-status'
+  | 'missing-gpu-component'
+  | 'missing-math-specs'
+  | 'missing-gpu-count'
+  | 'missing-dense-tflops'
+
 export interface CapacityEstimate {
   kind: 'estimate' | 'refused'
   systemId: string
@@ -110,9 +127,15 @@ export interface CapacityEstimate {
   quantId: QuantOption['id']
   rackCount: number
   workload: CapacityWorkload
-  /** 拒绝原因（kind==='refused' 时非空）。 */
+  /** 拒绝原因（kind==='refused' 时非空）。给人看的句子，措辞可能变化。 */
   reason: string | null
-  /** 点名缺失的官方数据项；UI 直接列出来告诉用户「差什么才能算」。 */
+  /** 拒绝原因的稳定机读码（kind==='refused' 时非空），见 `CapacityRefusalReasonCode`。 */
+  reasonCode: CapacityRefusalReasonCode | null
+  /**
+   * 点名缺失的官方数据项；UI 直接列出来告诉用户「差什么才能算」。
+   * ⚠️ `capacityPolicy` 驱动的策略性拒绝（analyst-modeled / paired-only）恒为空数组——
+   * 那不是「差一个数」，是「口径本身不够硬/语义不适用」，UI 不得渲染缺数据文案。
+   */
   missing: string[]
   /** 至少能放下一个副本。 */
   feasible: boolean
@@ -173,14 +196,16 @@ const MATH_BACKING_SPEC_KEYS = [
 ] as const
 
 function refusal(
-  base: Omit<CapacityEstimate, 'kind' | 'reason' | 'missing' | 'caveats'>,
+  base: Omit<CapacityEstimate, 'kind' | 'reason' | 'reasonCode' | 'missing' | 'caveats'>,
   reason: string,
   missing: string[],
+  reasonCode: CapacityRefusalReasonCode,
 ): CapacityEstimate {
   return {
     ...base,
     kind: 'refused',
     reason,
+    reasonCode,
     missing,
     feasible: false,
     gpusPerReplica: null,
@@ -199,11 +224,15 @@ function refusal(
 // ─────────────────────────── 主函数 ───────────────────────────
 
 /**
- * 产能粗估。三道拒绝门按序：
- *   1. `forecast` 系统（如 Rubin Ultra NVL576，全部数据来自分析师）→ **永不出数**；
+ * 产能粗估。拒绝门按序：
+ *   1. `capacityPolicy !== 'standard'`（`analyst-modeled`：如 Rubin Ultra NVL576，
+ *      已官宣但结构主要来自第三方分析师；`paired-only`：只在配对系统里有产能语义）
+ *      → **永不出数**，`missing` 恒为空数组；
  *   2. GPU 的 `mathSpecs` 为 null 或关键字段缺失（如 Vera Rubin 的 HBM4 官方未公布）
  *      → 拒绝并点名缺什么；
  *   3. 模型 KV 口径 `unsupported` → TPOT/吞吐降级为 null（TTFT 仍可出，prefill 不依赖 KV）。
+ * 每个拒绝分支都带一个稳定的 `reasonCode`（见 `CapacityRefusalReasonCode`），
+ * UI 按它分支渲染，不要用 `reason` 文本做业务判断。
  */
 export function estimateSystemCapacity(
   input: CapacityInput,
@@ -243,30 +272,53 @@ export function estimateSystemCapacity(
         '副本数 = floor(GPU 总数 ÷ 单副本最少 GPU 数)。',
       inputClaims: [] as CapacityInputClaim[],
     },
-  } satisfies Omit<CapacityEstimate, 'kind' | 'reason' | 'missing' | 'caveats'>
+  } satisfies Omit<CapacityEstimate, 'kind' | 'reason' | 'reasonCode' | 'missing' | 'caveats'>
 
   if (!system) {
-    return refusal(base, `内容包中没有系统 ${input.systemId}。`, ['系统定义'])
+    return refusal(base, `内容包中没有系统 ${input.systemId}。`, ['系统定义'], 'unknown-system')
   }
   if (!model) {
-    return refusal({ ...base }, `内容包中没有模型 ${input.modelId}。`, ['模型定义'])
+    return refusal({ ...base }, `内容包中没有模型 ${input.modelId}。`, ['模型定义'], 'unknown-model')
   }
   if (!quant) {
-    return refusal({ ...base }, `未知的量化口径 ${input.quantId}。`, ['量化口径'])
+    return refusal({ ...base }, `未知的量化口径 ${input.quantId}。`, ['量化口径'], 'unknown-quant')
   }
 
-  // ── 拒绝门 1：forecast 系统永不出数 ──
+  // ── 拒绝门 1：按 capacityPolicy 分支的策略性拒绝（v1.3：不再直接依赖 status） ──
+  // 这一档系统可能已经 `announced`（如 Rubin Ultra NVL576），但结构/规格主要来自
+  // 第三方分析师（forecast 口径）；`missing` 恒为空——这不是「差一个官方数」，
+  // 是这一代整体的口径强度不支持出产能数字，UI 不应该渲染「缺少的官方数据」列表。
+  if (system.capacityPolicy === 'analyst-modeled') {
+    return refusal(
+      base,
+      `${system.name} 已官宣，但结构细节主要来自第三方分析师（forecast 口径），本工具对它一律不出产能数字。`,
+      [],
+      'analyst-modeled-policy',
+    )
+  }
+  if (system.capacityPolicy === 'paired-only') {
+    return refusal(
+      base,
+      `${system.name} 只在与配对系统联合工作时才有产能语义（如与 GPU 机架组成 AFD 配对），本工具不提供它的独立产能数字。`,
+      [],
+      'paired-only-policy',
+    )
+  }
+  // 防御性兜底：数据不一致时（capacityPolicy=standard 但 status 仍是 forecast）
+  // 不应该被当成能正常出数的系统——正常情况下不会走到这里（三代系统的
+  // capacityPolicy 与 status 组合都已在 pack.test.ts 里校验过）。
   if (system.status === 'forecast') {
     return refusal(
       base,
       `${system.name} 是预测（forecast）阶段的系统，其架构数据来自第三方分析师而非厂商规格表——本工具对它一律不出产能数字。`,
       ['NVIDIA 官方发布的规格表（GPU 显存/带宽/算力、机架功率）'],
+      'forecast-status',
     )
   }
 
   const gpu = gpuComponentOf(system.id, pack)
   if (!gpu) {
-    return refusal(base, `${system.name} 的装配树里没有 GPU 组件。`, ['GPU 组件定义'])
+    return refusal(base, `${system.name} 的装配树里没有 GPU 组件。`, ['GPU 组件定义'], 'missing-gpu-component')
   }
 
   // ── 消耗掉的官方 Claim（先收集，拒绝时也能显示「已有哪些」） ──
@@ -292,14 +344,18 @@ export function estimateSystemCapacity(
         `${gpu.name} 单卡显存带宽（TB/s）`,
         `${gpu.name} 单卡稠密算力（FP8 / FP4 TFLOPS）`,
       ],
+      'missing-math-specs',
     )
   }
 
   const gpuCount = typeof gpuCountClaim?.value === 'number' ? gpuCountClaim.value : null
   if (gpuCount === null) {
-    return refusal(withEvidence, `${system.name} 未公布每机架 GPU 数量。`, [
-      `${system.name} keySpecs.gpuCount`,
-    ])
+    return refusal(
+      withEvidence,
+      `${system.name} 未公布每机架 GPU 数量。`,
+      [`${system.name} keySpecs.gpuCount`],
+      'missing-gpu-count',
+    )
   }
 
   const { tflops, basis } = tflopsForQuant(math, input.quantId)
@@ -308,6 +364,7 @@ export function estimateSystemCapacity(
       withEvidence,
       `${gpu.name} 的稠密算力官方未公布（FP8 与 FP4 两个口径都没有），TTFT 无从估算。`,
       [`${gpu.name} 稠密算力（FP8 / FP4 TFLOPS）`],
+      'missing-dense-tflops',
     )
   }
 
@@ -420,6 +477,7 @@ export function estimateSystemCapacity(
     ...withEvidence,
     kind: 'estimate',
     reason: null,
+    reasonCode: null,
     missing: [],
     feasible,
     gpusPerReplica,
