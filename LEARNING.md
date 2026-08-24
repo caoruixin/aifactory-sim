@@ -625,7 +625,7 @@ NVLink 断一条会怎样？/ KV Cache 会把显存吃爆吗？/ MoE 对网络�
 | `tour` | `?tour=scene.gb300.learn-plane-nvlink` | **直达某个导览站**：层级/焦点/平面/讲解文案/3D 高亮一次到位（本手册练习卡用的就是它） |
 | `level` + `focus` | `?level=rack&focus=asm.gb300.rack` | 直达某层级/某部件 |
 | `planes` | `?planes=power,cooling` | 只开指定平面（逗号分隔） |
-| `gen` | `?gen=sys.rubin-ultra-nvl576`、`?gen=sys.groq3-lpx` | 切换代际（四代：`sys.gb300-nvl72` / `sys.vera-rubin-nvl72` / `sys.rubin-ultra-nvl576` / `sys.groq3-lpx`） |
+| `gen` | `?gen=sys.rubin-ultra-nvl576`、`?gen=sys.hgx-b300` | 切换代际（五代：`sys.gb300-nvl72` / `sys.vera-rubin-nvl72` / `sys.rubin-ultra-nvl576` / `sys.groq3-lpx` / `sys.hgx-b300`，v1.4 起） |
 | `mode` + `right` | `?mode=compare&right=sys.vera-rubin-nvl72` | 比较模式。`right` 会被清洗：未知代际或与左侧同代一律回落到一个合法的他系统 |
 | `motion=off` | `?motion=off` | 关动画逐步读文案 |
 | `gl=off` | `?gl=off` | 2D 降级（低配设备/投屏兜底） |
