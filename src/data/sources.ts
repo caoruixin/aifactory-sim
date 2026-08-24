@@ -215,12 +215,13 @@ export const SOURCES: SourceRef[] = [
     title: 'NVIDIA Blackwell Ultra 数据手册（PDF）',
     publisher: 'NVIDIA',
     kind: 'official_doc',
-    url: 'https://dam-cdn.nvd.orangelogic.com/AssetLink/1k0p832eq8r5ca0u5383ie5o4tp3bst1.pdf',
+    url: 'https://resources.nvidia.com/en-us-blackwell-architecture/blackwell-ultra-datasheet',
     localFile: null,
     asOf: '2025-10',
     note:
-      '由 resources.nvidia.com/en-us-blackwell-architecture/blackwell-ultra-datasheet 链接的官方数据手册' +
-      '（页脚版本 OCT25）。Key Offerings 只有两项：GB300 NVL72 与 **HGX B300**。第 5 页 Technical ' +
+      '官方落地页（v1.4 QA 建议：URL 挂落地页而非 DAM 资产直链——直链' +
+      'dam-cdn.nvd.orangelogic.com/AssetLink/1k0p832eq8r5ca0u5383ie5o4tp3bst1.pdf 已实证为该页内嵌的' +
+      '官方 DAM 资产，但资产 ID 会随版本轮换）。页脚版本 OCT25。Key Offerings 只有两项：GB300 NVL72 与 **HGX B300**。第 5 页 Technical ' +
       'Specifications 表是本项目 HGX B300 产能数学的唯一口径来源，且**按平台分列**：HGX B300 列的' +
       '单卡口径为「FP4 Tensor Core 18 PFLOPS | 14 PFLOPS」「FP8/FP6 9 PFLOPS（稀疏）」' +
       '「GPU Memory | Bandwidth 270 GB HBM3E | 7.7 TB/s」「Max TDP Configurable up to 1,100 W」，' +

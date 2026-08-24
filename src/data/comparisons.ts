@@ -344,14 +344,20 @@ export const COMPARISONS: ComparisonDefinition[] = [
       '★ 同一颗芯片，两个平台的**官方规格不同**：数据手册按平台分列——GB300 NVL72 是 279 GB / 8 TB/s / ' +
         'FP4 稠密 15 PFLOPS / TDP 最高 1,400 W，HGX B300 是 270 GB / 7.7 TB/s / FP4 稠密 14 PFLOPS / ' +
         'TDP 最高 1,100 W。差的那约 7% 算力就是「不做液冷改造」的价格。',
+      '★ HGX 家族沿革（H200 → B200 → B300，RA Table 1 三代同表并列）：每 GPU 显存 141 → 180 → 288 GB ' +
+        'HBM3e，带宽 4.8 → 8 → 8 TB/s。带宽跳变在 H200→B200，容量跳变在 B200→B300——' +
+        '从 B200 升 B300 买的是「更大的模型/上下文装进单域」，不是「同模型跑得更快」。' +
+        'H200/B200 不单独建系统，世代对照落在 HGX 基板组件的 specs 里' +
+        '（generationalMemoryPerGpu / generationalBandwidthPerGpu）。',
       '★ 对 MoE 与长上下文推理的含义：万亿参数 MoE 的专家并行、长上下文的张量并行一旦跨出 8 卡，' +
         '每一步 all-to-all / all-reduce 就从 1.8 TB/s 的 NVLink 掉到 800 Gb/s 的以太网（1/18 带宽）。' +
         '反过来，官方自己说单张 B300 SXM 约能装 120B 参数、超出也「will still reside within the same node」' +
         '——≤120B 的推理场景里那 72 卡域是买了用不上的钱，甚至「a compute network may not be necessary」。',
       '⚠️ 口径纪律：HGX 这一代的 `gpuCount` 填的是**每台服务器 8 张**，不是每机架——' +
         'NVIDIA 在三个设计点上都写着「The number of GPU servers per rack depends on available rack power」，' +
-        '官方拒绝给出每机架台数。因此本工具对 HGX 出产能数字时，「机架数」滑杆请读作「服务器台数」，' +
-        '且**不出 tokens/W**（整机架功率同样未公布）。',
+        '官方拒绝给出每机架台数。因此本工具对 HGX 出产能数字时，数量输入框直接显示为「服务器台数」' +
+        '（v1.4 QA 返工点：证据标签与外推 caveat 也全部用每台服务器口径），' +
+        '且**不出 tokens/W**（单台服务器整机功率同样未公布）。',
       '⚠️ 两个 30×/50× 都是厂商营销口径（对比 Hopper 的 AI 工厂综合产出，各自带不同的负载前提），' +
         '不是算力比，不可直接换算成 token 产能——但「机架域 > 服务器域」这个相对关系是真的。',
     ],

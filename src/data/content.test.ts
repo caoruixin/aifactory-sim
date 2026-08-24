@@ -1173,8 +1173,31 @@ describe('HGX B300：NVLink 服务器域（v1.4 W-C）', () => {
     for (const { where, claim } of dgxBacked) {
       expect(claim.value, `${where} 拿 DGX 的数字当了 HGX 的规格`).toBeNull()
     }
+    // ★ 现状比上面的规则更严：DGX 源目前**根本不出现在任何 Claim.sourceId 里**（只进
+    //   sourceIds 清单与 note 正文）。把这一点显式钉住，免得上面的循环因集合为空而恒真、
+    //   读起来像在防守而实际没防守（v1.4 QA 建议 6）；日后若真要用 DGX 源建 value:null
+    //   的参照 Claim，把这行改成新的预期数并说明。
+    expect(dgxBacked.length, 'DGX 源开始出现在 Claim 里了——确认是 value:null 参照并更新此断言').toBe(0)
     // 系统的 presalesNote 要把这个混淆点讲明白
     expect(systemById(HGX)!.presalesNote).toContain('DGX')
+  })
+
+  it('★ H200/B200 沿革以 specs 对照 + 比较 summary 呈现，不建旧代系统（PLAN-v1.4 W-C）', () => {
+    // RA Table 1 三代同表并列是官方自己给的对照——世代变化落在基板 specs 的两条 Claim 里
+    const board = FACTORY_PACK.components.find((c) => c.id === 'cmp.hgx.baseboard')!
+    for (const key of ['generationalMemoryPerGpu', 'generationalBandwidthPerGpu'] as const) {
+      const c = board.specs[key]
+      expect(c, `cmp.hgx.baseboard.specs.${key} 缺失`).toBeDefined()
+      expect(c!.sourceId, key).toBe('src.nvidia-hgx-ra')
+      expect(c!.locator, `${key} 应指向 RA Table 1`).toContain('Table 1')
+      expect(String(c!.value), key).toContain('H200')
+    }
+    const def = FACTORY_PACK.comparisons.find((d) => d.id === 'cmpdef.gb300-to-hgx-b300')!
+    const summary = def.summary.join('\n')
+    expect(summary).toContain('H200')
+    expect(summary).toContain('B200')
+    // 「降级为沿革叙事」说到做到：系统集合里不得出现 H200/B200 系统
+    expect(FACTORY_PACK.systems.some((s) => /h200|b200/i.test(`${s.id} ${s.name}`))).toBe(false)
   })
 
   it('★ 三个导览场景覆盖「服务器解剖 / 机架没有 NVLink / 两种域怎么选」三级视角', () => {

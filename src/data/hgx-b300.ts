@@ -152,8 +152,10 @@ function hgxNull(unit: string | null, sourceId: string, note: string, locator: s
 
 /** 这条口径被官方反复强调的一句话——每机架台数不是规格，是机房功率的函数。 */
 const SERVERS_PER_RACK_NOTE =
-  '★ NVIDIA 在 32 / 64 / 128 三个设计点的「Additional Considerations」里都写了同一句话：' +
-  '「The number of GPU servers per rack depends on available rack power」（另一句是' +
+  '★ NVIDIA 在 32 / 64 / 128 三个设计点的「Additional Considerations」里写了同一条约束' +
+  '（措辞略有出入：32 节点「The number of GPU servers per rack depends on available rack power」、' +
+  '64 节点「HGX B300 servers per rack depends on available rack power」、' +
+  '128 节点「NVIDIA HGX B300 servers per rack depends on available rack power」；另一句是' +
   '「Rack layout must provide power supply redundancy」）。Overview 也说这是' +
   '「Flexible rail-optimized end-of-row network architecture that can accommodate modifications ' +
   'in the rack layout and number of servers per rack」。' +
@@ -180,7 +182,10 @@ const FP4_DENSE_MISMATCH_NOTE =
   '但 NVIDIA 没有解释。' +
   '本项目的处理与 Groq 3 LPX 的「315 vs 32 × 9.6」完全一致：**两条数字各自独立成立、互不推导**，' +
   '产能数学取官方直接给出的单卡值 14 PFLOPS（不用整板值反推），报数时按需要引用其中一条并说明出处，' +
-  '不要拿一条去「验算」另一条。'
+  '不要拿一条去「验算」另一条。' +
+  '⚠️ 另有第三个官方数字：芯片技术博客写单芯片「15 PetaFLOPS dense NVFP4」——那是芯片级满配口径，' +
+  '与数据手册 HGX B300 列的 14（本 SKU 实配）、GB300 NVL72 列的 15 并存，' +
+  '解释同显存三值：「Available SM count and HBM capacity varies by SKU」。'
 
 const SKU_MEMORY_NOTE =
   '★ Blackwell Ultra 的显存有三个并存的官方数字，不是互相矛盾：芯片技术博客写 288 GB HBM3e，' +
@@ -617,6 +622,27 @@ export const HGX_B300_COMPONENTS: HardwareComponent[] = [
           '（HGX 产品页规格表 FP4 Tensor Core「144 PFLOPS | 108 PFLOPS」，脚注 1 声明前者为稀疏）',
         '⚠️ RA 正文这句话没有说明稀疏/稠密口径，对照产品页脚注可知 144 是含稀疏值，稠密为 108。' +
           '对外报数只报 108，或者报 144 时把「含稀疏」一起说。',
+      ),
+      // ── H200/B200 沿革对照（PLAN-v1.4 W-C：不为旧代建系统，世代变化以 specs 对照呈现）──
+      generationalMemoryPerGpu: hgx<string>(
+        'HGX H200 141 GB → B200 180 GB → B300 288 GB HBM3e（每 GPU）；整板 1.1 → 1.44 → 2.30 TB',
+        null,
+        HGX_RA,
+        'Components 节 Table 1「HGX H200, B200 and B300 GPU and per Node & Memory specifications」：' +
+          '「Memory per GPU 141GB HBM3e / 180GB HBM3e / 288GB HBM3e」「Memory per Node 1.1TB / 1.44TB / 2.30TB HBM3e」',
+        '★ HGX 家族三代同表并列是 RA 自己给的对照（H200/B200 不单独建系统，沿革在此呈现）。' +
+          '⚠️ Table 1 的 288 GB 是芯片满配口径；数据手册 HGX B300 列的实配是 270 GB，两者并存的官方解释' +
+          '（HBM capacity varies by SKU）见 B300 SXM 组件的显存 note，产能数学取 270。',
+      ),
+      generationalBandwidthPerGpu: hgx<string>(
+        'HGX H200 4.80 TB/s → B200/B300 up to 8 TB/s（每 GPU）；整板聚合 38.4 → up to 64 TB/s',
+        null,
+        HGX_RA,
+        'Components 节 Table 1「GPU Bandwidth 4.80TB/s / Up to 8TB/s / Up to 8TB/s」' +
+          '「GPU Aggregate Bandwidth per Node 38.4TB/s / Up to 64TB/s / Up to 64 TB/s」',
+        '显存带宽的代际跳变发生在 H200→B200（4.8 → 8 TB/s）；B200→B300 带宽持平，' +
+          '升级点在容量（180 → 288 GB）与 FP4 算力——对推理选型意味着：从 B200 换 B300 买的是' +
+          '「更大的模型/上下文装进单域」，不是「同模型跑得更快」。',
       ),
       nvswitchChipCount: hgxNull(
         '颗',
