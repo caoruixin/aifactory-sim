@@ -15,6 +15,7 @@ const GB300 = 'sys.gb300-nvl72'
 const VERA_RUBIN = 'sys.vera-rubin-nvl72'
 const NVL576 = 'sys.rubin-ultra-nvl576'
 const LPX = 'sys.groq3-lpx'
+const HGX = 'sys.hgx-b300'
 
 function ordered(b: Band | null): boolean {
   return b !== null && b.low <= b.mid && b.mid <= b.high
@@ -330,6 +331,106 @@ describe('★ tokens/W 门：系统未公布机架功率', () => {
     const gb300 = estimateSystemCapacity({ systemId: GB300, modelId: 'deepseek-v3', quantId: 'fp8' })
     expect(est.replicas).toBe(gb300.replicas) // 显存容量相同 ⇒ 副本数相同
     expect(est.tokensPerSec!.mid).toBeGreaterThan(gb300.tokensPerSec!.mid * 2)
+  })
+})
+
+/**
+ * v1.4 W-C：HGX B300 是内容包里**第二个能真正出产能数字**的系统（第一个是 GB300）。
+ *
+ * 它同时是产能模型的一个新形态：`gpuCount` 填的是**每台服务器 8 张**而不是每机架
+ * ——NVIDIA 在 HGX 参考架构的三个设计点上都写着「The number of GPU servers per rack
+ * depends on available rack power」，官方拒绝给每机架台数。8 同时是 NVLink 域的边界，
+ * 因此这是唯一能让「单副本 GPU 数」不跨越域边界的取值。
+ *
+ * 下面这一组锁住四件事：
+ *   ① standard 策略真的放行（reasonCode 为 null，与 LPX/NVL576 的拒绝形成对照）；
+ *   ② 手算对照——用 HGX SKU 的 270 GB / 7.7 TB/s / 4,500 TFLOPS，不是 GB300 的那一套；
+ *   ③ 副本永远装得进一个 NVLink 域（gpusPerReplica ≤ 8）；
+ *   ④ 机架功率未公布 ⇒ tokens/W 不出数。
+ */
+describe('HGX B300：第二个能出产能数字的系统（v1.4 W-C）', () => {
+  const est = estimateSystemCapacity({ systemId: HGX, modelId: 'deepseek-v3', quantId: 'fp8' })
+
+  // 手算（不调用 roofline，避免自证）：
+  //   权重 671B × 1 byte            = 671 GB
+  //   KV   576×61×2 = 70,272 B/token × 4096 ctx × 32 batch / 1e9 = 9.210691584 GB
+  //   开销 671 × 0.1 + 2            = 69.1 GB
+  //   合计 749.310691584 GB；单卡可用 270 × 0.9 = 243 GB ⇒ ceil(3.0836…) = 4 张/副本
+  //   副本 floor(8 / 4) = 2
+  //   TTFT(mid) = 2 × 37e9 × 2048 / (4500e12 × 4 × 0.4) × 1000 = 21.0489 ms
+  //   步长(mid) = (37e9 + 9.210691584e9) / (7.7e12 × 4 × 0.6) × 1000 = 2.500579 ms
+  //   吞吐(mid) = 32 / 2.500579 × 1000 × 2 = 25,594 tokens/s
+  const HAND = {
+    gpusPerReplica: 4,
+    replicas: 2,
+    totalGpus: 8,
+    ttftMid: 21.0489,
+    tpotMid: 2.500579,
+    tpsMid: 25_594,
+  }
+
+  it('★ standard 策略放行：出数而不是拒绝，reasonCode 为 null', () => {
+    expect(est.kind).toBe('estimate')
+    expect(est.feasible).toBe(true)
+    expect(est.reason).toBeNull()
+    expect(est.reasonCode).toBeNull()
+    expect(est.missing).toEqual([])
+  })
+
+  it('★ 手算对照：4 张/副本、2 副本、共 8 张（一台服务器 = 一个 NVLink 域）', () => {
+    expect(est.gpusPerReplica).toBe(HAND.gpusPerReplica)
+    expect(est.replicas).toBe(HAND.replicas)
+    expect(est.totalGpus).toBe(HAND.totalGpus)
+  })
+
+  it('★ 手算对照：TTFT / TPOT / 吞吐的中位值', () => {
+    expect(est.ttftMs!.mid).toBeCloseTo(HAND.ttftMid, 3)
+    expect(est.tpotMs!.mid).toBeCloseTo(HAND.tpotMid, 5)
+    expect(est.tokensPerSec!.mid).toBeCloseTo(HAND.tpsMid, -1)
+  })
+
+  it('★ 四个区间都是 low ≤ mid ≤ high', () => {
+    expect(ordered(est.ttftMs)).toBe(true)
+    expect(ordered(est.tpotMs)).toBe(true)
+    expect(ordered(est.tokensPerSec)).toBe(true)
+  })
+
+  it('★★ 副本永远塞得进一个 NVLink 域（gpusPerReplica ≤ 8）——这正是 gpuCount=8 的意义', () => {
+    // 换几种量化都不该跨域；跨了就说明产能模型在替客户做一个物理上做不到的假设
+    for (const quantId of ['fp8', 'int4'] as const) {
+      const e = estimateSystemCapacity({ systemId: HGX, modelId: 'deepseek-v3', quantId })
+      expect(e.kind).toBe('estimate')
+      if (e.feasible) {
+        expect(e.gpusPerReplica!, `${quantId} 的单副本 GPU 数跨出了 8 卡 NVLink 域`).toBeLessThanOrEqual(8)
+      }
+    }
+  })
+
+  it('★ 机架功率官方未公布 ⇒ tokens/W 不出数，且 caveat 说明原因', () => {
+    expect(est.tokensPerWatt).toBeNull()
+    expect(est.caveats.some((c) => c.includes('未公布整机架功率') && c.includes('tokens/W'))).toBe(true)
+  })
+
+  it('★ 用的是 HGX SKU 的数学参数，不是 GB300 那一套（同芯片、不同平台口径）', () => {
+    const gb300 = estimateSystemCapacity({ systemId: GB300, modelId: 'deepseek-v3', quantId: 'fp8' })
+    // GB300：288 GB/卡 ⇒ 3 张/副本；HGX：270 GB/卡 ⇒ 4 张/副本。若两边一样就说明复用错了组件。
+    expect(est.gpusPerReplica, 'HGX 与 GB300 的单副本 GPU 数应不同（270 vs 288 GB）').not.toBe(
+      gb300.gpusPerReplica,
+    )
+    // 输入 Claim 里必须出现 HGX 自己的系统名，防止拿错系统
+    expect(est.evidence.inputClaims.some((c) => c.label.includes('NVIDIA HGX B300'))).toBe(true)
+  })
+
+  it('★ rackCount 对本代际语义是「服务器台数」：8 台 = 64 张卡，副本线性放大', () => {
+    const eight = estimateSystemCapacity({
+      systemId: HGX,
+      modelId: 'deepseek-v3',
+      quantId: 'fp8',
+      rackCount: 8,
+    })
+    expect(eight.totalGpus).toBe(64)
+    expect(eight.replicas).toBe(est.replicas! * 8)
+    expect(eight.tokensPerSec!.mid).toBeCloseTo(est.tokensPerSec!.mid * 8, -1)
   })
 })
 

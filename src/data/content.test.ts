@@ -6,6 +6,7 @@ import {
   connectionsOfPlane,
   descendantsOf,
   modelById,
+  scenesOfSystem,
   systemById,
   totalInstances,
 } from './index'
@@ -862,13 +863,16 @@ describe('五代并存后的全局不变量', () => {
    * ⚠️ 这里必须精确锁「改的是哪条边」：只断言「存在某条 power 路由」是漏的——
    * 原来的 facility→power-shelf 本来就非退化，不改也照样产出一条路由。
    */
-  it('★ 四代的「机房配电 → 电源架」都从 facility-power 装配节点出发（不是从装配树根）', () => {
+  it('★ 五代的「机房配电 → 机架侧配电」都从 facility-power 装配节点出发（不是从装配树根）', () => {
     const cases = [
       ['sys.gb300-nvl72', 'con.gb300.facility-power-shelf', 'asm.gb300.facility-power', 'asm.gb300.facility'],
       ['sys.vera-rubin-nvl72', 'con.rubin.facility-power-shelf', 'asm.rubin.facility-power', 'asm.rubin.facility'],
       ['sys.rubin-ultra-nvl576', 'con.ru.facility-power-shelf', 'asm.ru.facility-power', 'asm.ru.facility'],
       // v1.3 W3：LPX 保持与前三代同构（机房配电必须有实体盒子，供电线才不会从树根长出来）
       ['sys.groq3-lpx', 'con.lpx.facility-power-shelf', 'asm.lpx.facility-power', 'asm.lpx.facility'],
+      // v1.4 W-C：HGX 的机架侧对端不是电源架而是机架 PDU（风冷机架没有电源架/母排），
+      // 但「配电线必须从一个真实盒子出发」这条不变量对它同样成立。
+      ['sys.hgx-b300', 'con.hgx.facility-power-pdu', 'asm.hgx.facility-power', 'asm.hgx.facility'],
     ] as const
 
     for (const [systemId, conId, powerId, rootId] of cases) {
@@ -892,7 +896,7 @@ describe('五代并存后的全局不变量', () => {
       )
       expect(route, `${systemId}: ${conId} 在 cluster 深度下应有一条非退化路由`).toBeDefined()
       expect(route!.fromAssemblyId, conId).toBe(powerId)
-      // 三代机架都是 count=8 ⇒ 配电线扇出到每一台机架
+      // 五代机架都是 count=8 ⇒ 配电线扇出到每一台机架
       expect(route!.instancePaths.length, `${conId} 的机架扇出`).toBe(8)
     }
   })
@@ -908,7 +912,7 @@ describe('五代并存后的全局不变量', () => {
     expect(comp.sourceIds).toContain('src.nvidia-nvl72-ra')
   })
 
-  it('每代的六平面覆盖情况如实反映来源（GB300/Vera Rubin/LPX 六平面齐全，NVL576 只有四个）', () => {
+  it('每代的六平面覆盖情况如实反映来源（GB300/Vera Rubin/LPX/HGX 六平面齐全，NVL576 只有四个）', () => {
     const planes: NetworkPlane[] = ['nvlink', 'scaleout', 'business', 'mgmt', 'power', 'cooling']
     for (const p of planes) {
       expect(connectionsOfPlane(SYSTEM_ID, p).length, `GB300 ${p}`).toBeGreaterThan(0)
@@ -916,9 +920,296 @@ describe('五代并存后的全局不变量', () => {
       // LPX 的 nvlink 平面装的是 LPU C2C（UI 上经 planeLabel 显示为「C2C scale-up」），
       // scaleout 平面装的是与 Vera Rubin NVL72 之间的 AFD 交换。
       expect(connectionsOfPlane(LPX, p).length, `Groq 3 LPX ${p}`).toBeGreaterThan(0)
+      // v1.4 W-C：HGX 六平面同样齐全——注意 nvlink 平面**在数据层非空**（三条边都在服务器内部），
+      // 「机架里一条线都没有」是**渲染深度**上的结果，由下面的路由用例单独锁定。
+      expect(connectionsOfPlane(HGX, p).length, `HGX B300 ${p}`).toBeGreaterThan(0)
     }
     for (const p of ['nvlink', 'power', 'mgmt', 'cooling'] as NetworkPlane[]) {
       expect(connectionsOfPlane(RU, p).length, `NVL576 ${p}`).toBeGreaterThan(0)
+    }
+  })
+})
+
+/**
+ * v1.4 W-C：HGX B300 = 第五个系统，也是第一个 `nvlink-node-domain` 代际。
+ *
+ * 这一组用例锁的全是「教学主线成立所依赖的事实」——尤其是那条最反直觉的：
+ * **机架级 NVLink 平面必须是空的**。它不是文案，是装配树 + routing 退化边规则的结果，
+ * 因此必须在渲染层面钉死，否则哪天有人把某条 nvlink 边的端点提到 rack 层，
+ * 导览词「切到 NVLink 平面，这个机架里一条线都没有」就会当场变成谎话。
+ */
+describe('HGX B300：NVLink 服务器域（v1.4 W-C）', () => {
+  it('系统存在、shipping、standard 产能策略、nvlink-node-domain 架构', () => {
+    const sys = systemById(HGX)!
+    expect(sys).toBeDefined()
+    expect(sys.status).toBe('shipping')
+    expect(sys.capacityPolicy).toBe('standard')
+    expect(sys.architecture).toBe('nvlink-node-domain')
+    expect(sys.generation).toBe('hgx-b300')
+  })
+
+  it('★★ 机架级与集群级的 nvlink 平面**恰好为空**（域在服务器里面，这就是教学内容本身）', () => {
+    const layout = resolveLayout(HGX)
+    for (const depth of ['cluster', 'rack'] as const) {
+      const nvlink = routeConnections(HGX, layout, depth).filter((r) => r.plane === 'nvlink')
+      expect(
+        nvlink.map((r) => r.connectionId),
+        `HGX 在 ${depth} 深度下不该有任何 nvlink 路由——NVLink 域止步单服务器`,
+      ).toEqual([])
+    }
+  })
+
+  it('★ 但下钻到板级，NVLink 域就出现了（空平面是「域在里面」，不是「没有域」）', () => {
+    const layout = resolveLayout(HGX)
+    const nvlink = routeConnections(HGX, layout, 'board').filter((r) => r.plane === 'nvlink')
+    expect(nvlink.length, 'board 深度下应能看到服务器内部的 NVLink 域').toBeGreaterThan(0)
+    expect(nvlink.map((r) => r.connectionId)).toContain('con.hgx.gpu-nvswitch')
+  })
+
+  it('★ 对照组：同深度下 scaleout 平面在机架级是有线的（证明上面的「空」不是整体没连线）', () => {
+    const layout = resolveLayout(HGX)
+    const rackRoutes = routeConnections(HGX, layout, 'rack')
+    expect(rackRoutes.length, 'rack 深度总路由数').toBeGreaterThan(0)
+    expect(
+      rackRoutes.filter((r) => r.plane === 'scaleout').length,
+      'rack 深度下 scale-out 平面必须有线——出了服务器全靠它',
+    ).toBeGreaterThan(0)
+  })
+
+  it('★ 装配树：每台服务器 1 块基板、8 GPU、2 CPU、8 张 CX-8、1 张 BF-3', () => {
+    const server = 'asm.hgx.gpu-server'
+    expect(totalInstances('asm.hgx.baseboard', server)).toBe(1)
+    expect(totalInstances('asm.hgx.b300-gpu', server)).toBe(8)
+    expect(totalInstances('asm.hgx.host-cpu', server)).toBe(2)
+    expect(totalInstances('asm.hgx.cx8-nic', server)).toBe(8)
+    expect(totalInstances('asm.hgx.bf3-dpu', server)).toBe(1)
+    // 官方口诀 2-8-9-800 里的 9 = 8 张 CX-8 + 1 张 BF-3
+    expect(
+      totalInstances('asm.hgx.cx8-nic', server) + totalInstances('asm.hgx.bf3-dpu', server),
+    ).toBe(9)
+  })
+
+  it('★ GPU 与网卡都挂在 HGX 基板下（官方：SuperNIC integrated onto the baseboard）', () => {
+    expect(assemblyById('asm.hgx.b300-gpu')!.parentId).toBe('asm.hgx.baseboard')
+    expect(assemblyById('asm.hgx.cx8-nic')!.parentId).toBe('asm.hgx.baseboard')
+    expect(assemblyById('asm.hgx.nvswitch')!.parentId).toBe('asm.hgx.baseboard')
+    // 主机 CPU 与 DPU 反过来挂在服务器下——它们是 OEM 主机板的一部分，不在 NVIDIA 的基板上
+    expect(assemblyById('asm.hgx.host-cpu')!.parentId).toBe('asm.hgx.gpu-server')
+    expect(assemblyById('asm.hgx.bf3-dpu')!.parentId).toBe('asm.hgx.gpu-server')
+  })
+
+  it('★ 刻意缺席的角色：没有交换托盘/背板/母排/电源架/液冷链路', () => {
+    const keys = new Set(
+      FACTORY_PACK.assemblies.filter((a) => a.systemId === HGX).map((a) => a.roleKey),
+    )
+    for (const k of [
+      'nvswitch-tray',
+      'nvlink-backplane',
+      'compute-tray',
+      'dc-busbar',
+      'power-shelf',
+      'liquid-manifold',
+      'cold-plate',
+      'nvswitch-cold-plate',
+      'cdu',
+      'facility-water-loop',
+    ]) {
+      expect(keys.has(k), `HGX 不该有 ${k}（风冷 + 服务器级域）`).toBe(false)
+    }
+    // 而这一族的定义特征必须在（pack.test 另有同款强制，这里从内容侧再锁一次）
+    for (const k of ['gpu-server', 'hgx-baseboard', 'nvswitch-asic', 'rack-pdu', 'room-air-handler']) {
+      expect(keys.has(k), `HGX 缺少 ${k}`).toBe(true)
+    }
+  })
+
+  it('★ 风冷：cooling 平面存在 airflow 介质的边，且全包只有 HGX 用它', () => {
+    const airflow = FACTORY_PACK.connections.filter((c) => c.medium === 'airflow')
+    expect(airflow.length, '应存在 airflow 介质的连接').toBeGreaterThan(0)
+    for (const c of airflow) expect(c.systemId, `${c.id} 不该是 HGX 之外的系统`).toBe(HGX)
+    for (const c of airflow) expect(c.plane).toBe('cooling')
+    // 反向：HGX 不该出现任何液冷介质
+    const hgxCooling = FACTORY_PACK.connections.filter((c) => c.systemId === HGX && c.plane === 'cooling')
+    for (const c of hgxCooling) {
+      expect(c.medium, `${c.id} 用了液冷介质`).not.toBe('liquid-loop')
+    }
+  })
+
+  it('★ mathSpecs 取数据手册 HGX B300 列，且与整机官方值自洽（8 卡口径）', () => {
+    const gpu = componentById('cmp.hgx.b300-sxm')!
+    expect(gpu.kind).toBe('gpu')
+    const m = (gpu as Extract<typeof gpu, { kind: 'gpu' }>).mathSpecs!
+    expect(m).not.toBeNull()
+    expect(m.memoryGB).toBe(270)
+    expect(m.bandwidthTBs).toBe(7.7)
+    expect(m.fp4Tflops).toBe(14000)
+    expect(m.fp8Tflops).toBe(4500)
+    // ★ 与 GB300 那一颗刻意不同：同一芯片、不同平台功率档位（1,100 W vs 1,400 W）
+    expect(m.tdpW).toBe(1100)
+    const gb300Gpu = componentById('cmp.gb300.b300-gpu')!
+    const gb300Math = (gb300Gpu as Extract<typeof gb300Gpu, { kind: 'gpu' }>).mathSpecs!
+    expect(m.memoryGB, 'HGX 与 GB300 的单卡显存口径不同（270 vs 288）').not.toBe(gb300Math.memoryGB)
+    expect(m.fp4Tflops, 'HGX 与 GB300 的稠密 FP4 口径不同（14 vs 15 PFLOPS）').not.toBe(gb300Math.fp4Tflops)
+
+    // 整机自洽（数据手册 HGX B300 列内部闭合）：8 × 270 = 2,160 GB ≈ 2.1 TB；8 × 7.7 = 61.6 ≈ 62 TB/s
+    const sys = systemById(HGX)!
+    expect((m.memoryGB * 8) / 1000).toBeCloseTo(sys.keySpecs.gpuMemoryPerNodeTB!.value as number, 0)
+    expect(m.bandwidthTBs * 8).toBeCloseTo(sys.keySpecs.gpuMemoryBandwidthPerNodeTBs!.value as number, 0)
+    // FP8 稠密闭合：8 × 4.5 PFLOPS = 36 PFLOPS = 整板稀疏 72 ÷ 2
+    expect((m.fp8Tflops! * 8) / 1000).toBeCloseTo((sys.keySpecs.fp8SparsePflops!.value as number) / 2, 1)
+  })
+
+  /**
+   * ★ 官方 FP4 口径「稀疏闭合、稠密不闭合」——与 Groq 3 LPX 的「315 vs 32 × 9.6」同类。
+   *
+   * 这条用例的作用是**把不闭合本身钉死**：如果哪天有人「顺手修正」成 13.5 让它闭合，
+   * 或者反过来把整板值改成 112，这里都会红——两个数字都是官方原文，谁都不能改。
+   */
+  it('★ FP4 稠密口径官方不闭合（8 × 14 = 112 ≠ 108），两条各自成立且都已留痕', () => {
+    const sys = systemById(HGX)!
+    const gpu = componentById('cmp.hgx.b300-sxm')!
+    const m = (gpu as Extract<typeof gpu, { kind: 'gpu' }>).mathSpecs!
+
+    const perGpuDensePflops = m.fp4Tflops! / 1000 // 14
+    const boardDensePflops = sys.keySpecs.fp4DensePflops!.value as number // 108
+    expect(perGpuDensePflops).toBe(14)
+    expect(boardDensePflops).toBe(108)
+    expect(perGpuDensePflops * 8, '这两个官方数字确实不闭合，本项目不互推').not.toBe(boardDensePflops)
+
+    // 但稀疏侧是闭合的（8 × 18 = 144），说明差异只出在稠密行的取整上
+    expect(gpu.specs.fp4DenseTflops!.value).toBe(14000)
+
+    // 两条 Claim 都必须解释这个不闭合，否则读内容包的人会以为是录入错误
+    for (const note of [sys.keySpecs.fp4DensePflops!.note, gpu.specs.fp4DenseTflops!.note]) {
+      expect(note, 'FP4 稠密不闭合必须留痕').not.toBeNull()
+      expect(note!).toContain('112')
+    }
+    // mathSpecs.derivation 也要说明「取单卡行、不用整板反推」
+    expect(m.derivation).toContain('112')
+  })
+
+  it('★ 每卡 NVLink 带宽与 GB300 完全相同——变的是域里有几张卡，不是链路速度', () => {
+    const sys = systemById(HGX)!
+    const gb300 = systemById(SYSTEM_ID)!
+    expect(sys.keySpecs.gpuToGpuBandwidthGBs!.value).toBe(1800)
+    // 域聚合带宽之比 = 卡数之比：130 / 14.4 ≈ 72 / 8 = 9
+    const hgxAgg = sys.keySpecs.nvlinkAggregateBandwidthTBs!.value as number
+    const gb300Agg = gb300.keySpecs.nvlinkAggregateBandwidthTBs!.value as number
+    expect(gb300Agg / hgxAgg).toBeCloseTo(72 / 8, 0)
+  })
+
+  it('★ gpuCount 是「每台服务器 8 张」，note 必须交代口径与「官方不给每机架台数」', () => {
+    const sys = systemById(HGX)!
+    expect(sys.keySpecs.gpuCount!.value).toBe(8)
+    expect(sys.keySpecs.gpuCount!.note).toContain('每台')
+    expect(sys.keySpecs.gpuCount!.note).toContain('available rack power')
+    // 整机架功率官方未公布 ⇒ 产能不出 tokens/W
+    expect(sys.keySpecs.rackPowerKW!.value).toBeNull()
+    expect(sys.keySpecs.rackPowerKW!.note).not.toBeNull()
+  })
+
+  it('★ 示意数量一律没有 countClaim（每机架台数/NVSwitch 颗数/PDU 路数/空调台数）', () => {
+    for (const id of [
+      'asm.hgx.rack',
+      'asm.hgx.gpu-server',
+      'asm.hgx.nvswitch',
+      'asm.hgx.rack-pdu',
+      'asm.hgx.air-handler',
+      'asm.hgx.local-nvme',
+    ]) {
+      const node = assemblyById(id)!
+      expect(node.countClaim, `${id} 是示意数量，不该有 countClaim`).toBeNull()
+      expect(node.note, `${id} 缺少「为什么是示意」的说明`).not.toBeNull()
+    }
+  })
+
+  it('★ 官方有数的数量都带 countClaim，且引用的是 HGX 自己的官方源', () => {
+    const officialSources = new Set([
+      'src.nvidia-hgx-ra',
+      'src.nvidia-hgx-page',
+      'src.nvidia-blackwell-ultra-datasheet',
+      'src.nvidia-blackwell-ultra-blog',
+    ])
+    for (const id of [
+      'asm.hgx.baseboard',
+      'asm.hgx.b300-gpu',
+      'asm.hgx.host-cpu',
+      'asm.hgx.cx8-nic',
+      'asm.hgx.bf3-dpu',
+      'asm.hgx.hbm',
+      'asm.hgx.scaleout-leaf',
+      'asm.hgx.scaleout-spine',
+      'asm.hgx.converged-switch',
+      'asm.hgx.oob-fabric-switch',
+      'asm.hgx.control-plane-node',
+      'asm.hgx.boot-nvme',
+    ]) {
+      const node = assemblyById(id)!
+      expect(node.countClaim, `${id} 应有 countClaim`).not.toBeNull()
+      expect(node.countClaim!.value, `${id} 的 countClaim 与 count 不一致`).toBe(node.count)
+      expect(node.countClaim!.locator, `${id} 的 countClaim 缺 locator`).not.toBeNull()
+      expect(
+        officialSources.has(node.countClaim!.sourceId),
+        `${id} 的 countClaim 引用了非 HGX 官方源 ${node.countClaim!.sourceId}`,
+      ).toBe(true)
+    }
+  })
+
+  it('★ 三个官方显存数字（288 / 270）并存且各自留痕，不互相覆盖', () => {
+    const gpu = componentById('cmp.hgx.b300-sxm')!
+    expect(gpu.specs.hbmPerGpuGB!.value).toBe(270)
+    expect(gpu.specs.hbmPerGpuRaGB!.value).toBe(288)
+    // 两条都必须解释「为什么并存」——官方脚注 varies by SKU
+    for (const key of ['hbmPerGpuGB', 'hbmPerGpuRaGB'] as const) {
+      expect(gpu.specs[key]!.note, `${key} 缺少 SKU 口径说明`).toContain('SKU')
+    }
+  })
+
+  it('★ HGX vs DGX：DGX 源只出现在明确标注为参照的 note 里，不当 HGX 规格', () => {
+    // 内容包里凡是引用 DGX 页的 Claim，value 必须为 null（只借它的措辞做参照说明）
+    const dgxBacked = FACTORY_PACK.components
+      .filter((c) => c.id.startsWith('cmp.hgx.'))
+      .flatMap((c) => Object.entries(c.specs).map(([k, v]) => ({ where: `${c.id}.${k}`, claim: v })))
+      .filter((x) => x.claim.sourceId === 'src.nvidia-dgx-b300-page')
+    for (const { where, claim } of dgxBacked) {
+      expect(claim.value, `${where} 拿 DGX 的数字当了 HGX 的规格`).toBeNull()
+    }
+    // 系统的 presalesNote 要把这个混淆点讲明白
+    expect(systemById(HGX)!.presalesNote).toContain('DGX')
+  })
+
+  it('★ 三个导览场景覆盖「服务器解剖 / 机架没有 NVLink / 两种域怎么选」三级视角', () => {
+    const scenes = scenesOfSystem(HGX)
+    expect(scenes.map((s) => s.id)).toEqual([
+      'scene.hgx.server-anatomy',
+      'scene.hgx.rack-no-nvlink',
+      'scene.hgx.two-domains',
+    ])
+    expect(scenes.map((s) => s.lodLevel)).toEqual(['board', 'rack', 'cluster'])
+    for (const s of scenes) {
+      expect(s.presalesNote, `${s.id} 缺售前话术`).not.toBeNull()
+      expect(s.narration.length, `${s.id} 导览词过短`).toBeGreaterThan(120)
+    }
+    // 第二站必须真的把 nvlink 平面打开——「一条线都没有」得让用户亲眼看到
+    const noNvlink = scenes.find((s) => s.id === 'scene.hgx.rack-no-nvlink')!
+    expect(noNvlink.planes).toContain('nvlink')
+    expect(noNvlink.narration).toContain('一条线都没有')
+  })
+
+  it('★ GB300 → HGX 的比较定义存在，且把域大小、冷却方式、选型讲清楚了', () => {
+    const def = FACTORY_PACK.comparisons.find((c) => c.id === 'cmpdef.gb300-to-hgx-b300')!
+    expect(def).toBeDefined()
+    expect(def.leftSystemId).toBe(SYSTEM_ID)
+    expect(def.rightSystemId).toBe(HGX)
+    const summary = def.summary.join(' ')
+    expect(summary).toContain('72')
+    expect(summary).toContain('8 卡')
+    expect(summary).toContain('风冷')
+    expect(summary).toContain('MoE')
+    // gpu-server（added）与 compute-tray（removed）是最容易被误读的两行，必须有 narrative
+    for (const key of ['gpu-server', 'compute-tray', 'nvswitch-asic', 'room-air-handler']) {
+      const row = def.rows.find((r) => r.roleKey === key)
+      expect(row, `${key} 行缺失`).toBeDefined()
+      expect(row!.narrative, `${key} 行缺 narrative`).not.toBeNull()
     }
   })
 })

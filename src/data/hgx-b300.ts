@@ -168,6 +168,20 @@ const RACK_AS_SU_NOTE =
   '4 台约 56 kW，是当下风冷高密机架的常见档位。' +
   `⚠️ 但这只是示意，不是官方规格。${SERVERS_PER_RACK_NOTE}`
 
+/**
+ * ⚠️ 官方 FP4 **稠密**口径在整板与单卡两行之间不闭合（稀疏口径闭合）。
+ * 与 LPX 的「315 vs 32×9.6」同类问题：两条各自独立成立，本项目不互推、不加相等不变量。
+ */
+const FP4_DENSE_MISMATCH_NOTE =
+  '⚠️ 官方 FP4 口径**稀疏闭合、稠密不闭合**：数据手册第 5 页 HGX B300 列，' +
+  '整板「Total FP4 Tensor Core 144 PFLOPS | 108 PFLOPS」、单卡「FP4 Tensor Core 18 PFLOPS | 14 PFLOPS」。' +
+  '稀疏侧 8 × 18 = 144 ✓ 完全闭合；稠密侧 8 × 14 = **112 ≠ 108**，差 4 PFLOPS。' +
+  '按整板稠密反推的单卡值应是 108 ÷ 8 = 13.5 PFLOPS，官方单卡行写的是 14——大概率是各自取整所致，' +
+  '但 NVIDIA 没有解释。' +
+  '本项目的处理与 Groq 3 LPX 的「315 vs 32 × 9.6」完全一致：**两条数字各自独立成立、互不推导**，' +
+  '产能数学取官方直接给出的单卡值 14 PFLOPS（不用整板值反推），报数时按需要引用其中一条并说明出处，' +
+  '不要拿一条去「验算」另一条。'
+
 const SKU_MEMORY_NOTE =
   '★ Blackwell Ultra 的显存有三个并存的官方数字，不是互相矛盾：芯片技术博客写 288 GB HBM3e，' +
   '数据手册第 5 页 GB300 NVL72 列写 279 GB、HGX B300 列写 270 GB。官方自己给了解释——' +
@@ -308,7 +322,7 @@ export const HGX_B300_SYSTEM: FactorySystem = {
       HGX_PAGE,
       'HGX 规格表 NVIDIA Blackwell 一栏 HGX B300 列「FP4 Tensor Core | 144 PFLOPS | 108 PFLOPS」' +
         '+ 脚注 1「Specification in Sparse | Dense」（数据手册第 5 页同值）',
-      '144 为含稀疏口径，108 为稠密口径（均为**整块基板 8 卡**合计）。产能估算只用稠密值。',
+      `144 为含稀疏口径，108 为稠密口径（均为**整块基板 8 卡**合计）。产能估算只用稠密值。${FP4_DENSE_MISMATCH_NOTE}`,
     ),
     fp8SparsePflops: hgx<number>(
       72,
@@ -423,7 +437,9 @@ export const HGX_B300_COMPONENTS: HardwareComponent[] = [
         'TDP 1,100 W 取「Max Thermal Design Power (TDP) | Configurable up to 1,100 W」——官方措辞是' +
         '「configurable up to」（可配置上限），不是典型工况功率。' +
         '⚠️ RA Table 1 的「288GB HBM3e / Up to 8TB/s」是另一套口径（芯片上限而非 HGX SKU 实配），' +
-        '不进产能数学，只作为规格 Claim 并列登记。',
+        '不进产能数学，只作为规格 Claim 并列登记。' +
+        '⚠️ FP4 稠密取的是官方**单卡行**的 14 PFLOPS，不是整板 108 ÷ 8 = 13.5——' +
+        '这两个官方数字本身就不闭合（8 × 14 = 112 ≠ 108），本项目不互推，详见该 Claim 的 note。',
     },
     specs: {
       hbmPerGpuGB: hgx<number>(
@@ -463,7 +479,7 @@ export const HGX_B300_COMPONENTS: HardwareComponent[] = [
         'TFLOPS',
         BU_DATASHEET,
         '第 5 页 Individual Blackwell Ultra GPU Specifications，HGX B300 列「FP4 Tensor Core | 18 PFLOPS | 14 PFLOPS」+ 脚注 1「Specification in Sparse | Dense」',
-        '同表 GB300 NVL72 列为「20 PFLOPS | 15 PFLOPS」——同一颗芯片、不同平台功率档位。',
+        `同表 GB300 NVL72 列为「20 PFLOPS | 15 PFLOPS」——同一颗芯片、不同平台功率档位。${FP4_DENSE_MISMATCH_NOTE}`,
       ),
       fp8DenseTflops: hgx<number>(
         4500,

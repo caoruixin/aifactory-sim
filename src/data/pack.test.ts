@@ -547,9 +547,18 @@ describe('★ 跨代比较的前提：roleKey 在系统内唯一', () => {
     /** LPU 直连架构（Groq 3 LPX）的定义特征：托盘、托盘内扩展逻辑、机架内 scale-up 底板。 */
     const lpuFabricCore = ['lpu-tray', 'fabric-expansion', 'nvlink-backplane']
 
+    /**
+     * v1.4 W-C：记录实际走到过的分型，用例末尾断言三支**都**被覆盖到。
+     * 没有这一步，`switch` 里任何一支都可能因为「暂时没有该族系统」而静默失效——
+     * `nvlink-node-domain` 这一支在 v1.4 预备提交里就空转了整整一个提交。
+     */
+    const seenArchitectures = new Set<string>()
+
     for (const sys of pack.systems) {
       const keys = new Set(pack.assemblies.filter((a) => a.systemId === sys.id).map((a) => a.roleKey))
       for (const k of sharedCore) expect(keys.has(k), `${sys.id} 缺少各代共有的核心 roleKey ${k}`).toBe(true)
+
+      seenArchitectures.add(sys.architecture)
 
       switch (sys.architecture) {
         case 'nvlink-rack-domain':
@@ -574,6 +583,45 @@ describe('★ 跨代比较的前提：roleKey 在系统内唯一', () => {
           break
       }
     }
+
+    // ★ 防止分支被静默架空：三支分型都必须真的有系统走到。
+    expect([...seenArchitectures].sort()).toEqual([
+      'lpu-direct-fabric',
+      'nvlink-node-domain',
+      'nvlink-rack-domain',
+    ])
+  })
+
+  /**
+   * v1.4 W-C：`nvlink-node-domain` 这一族的**禁用**规则最容易被写成一句空话——
+   * 如果哪天有人给 HGX 加了 nvswitch-tray，上面的 switch 会红；但如果有人把 HGX 的
+   * architecture 悄悄改成 rack-domain，禁用规则就绕过去了。这里从反面再钉一次：
+   * 「域止步服务器」的系统必须**同时**满足「有 gpu-server / 无机架级交换结构」。
+   */
+  it('★ nvlink-node-domain 一族：有 gpu-server 的系统必然没有机架级 NVLink 结构，反之亦然', () => {
+    const keysOf = (systemId: string) =>
+      new Set(pack.assemblies.filter((a) => a.systemId === systemId).map((a) => a.roleKey))
+
+    let nodeDomainCount = 0
+    for (const sys of pack.systems) {
+      const keys = keysOf(sys.id)
+      const hasServer = keys.has('gpu-server')
+      const hasRackScaleUp = keys.has('nvswitch-tray') || keys.has('nvlink-backplane')
+      if (hasServer) {
+        nodeDomainCount += 1
+        expect(sys.architecture, `${sys.id} 有 gpu-server 却不是 nvlink-node-domain`).toBe(
+          'nvlink-node-domain',
+        )
+        expect(
+          hasRackScaleUp,
+          `${sys.id} 既有 gpu-server 又有机架级 scale-up 结构——两种域架构不能并存`,
+        ).toBe(false)
+      }
+      if (sys.architecture === 'nvlink-node-domain') {
+        expect(hasServer, `${sys.id} 声明为服务器域却没有 gpu-server`).toBe(true)
+      }
+    }
+    expect(nodeDomainCount, '内容包里应至少有一个服务器域系统（HGX B300）').toBeGreaterThan(0)
   })
 })
 

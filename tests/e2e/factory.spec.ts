@@ -26,9 +26,10 @@ const GB300 = 'sys.gb300-nvl72'
 const VERA_RUBIN = 'sys.vera-rubin-nvl72'
 const NVL576 = 'sys.rubin-ultra-nvl576'
 const LPX = 'sys.groq3-lpx'
+const HGX = 'sys.hgx-b300'
 
-/** 四个代际（v1.3 W3）。扫查类用例按它遍历，新增代际会自动被覆盖到。 */
-const ALL_SYSTEMS = [GB300, VERA_RUBIN, NVL576, LPX] as const
+/** 五个代际（v1.3 W3 四个 → v1.4 W-C 加入 HGX B300）。扫查类用例按它遍历，新增代际会自动被覆盖到。 */
+const ALL_SYSTEMS = [GB300, VERA_RUBIN, NVL576, LPX, HGX] as const
 
 /** `PlaneToggles` 的复选框次序 = `PLANE_ORDER`（1 起算，给 `li:nth-child` 用）。 */
 const PLANE_ROW = {
@@ -890,9 +891,11 @@ test('桌面·W3 LPX 机架级 3D 基线 + 平面开关按代际改名（C2C sca
   await expect(page).toHaveScreenshot('lpx-rack.png')
 })
 
-test('桌面·W3 平面显示名只在 LPX 改，其余三代仍是 NVLink（helper 没有误伤）', async ({ page }, testInfo) => {
+test('桌面·W3 平面显示名只在 LPX 改，其余四代仍是 NVLink（helper 没有误伤）', async ({ page }, testInfo) => {
   onlyOn(testInfo, 'desktop')
-  for (const gen of [GB300, VERA_RUBIN, NVL576]) {
+  // ★ HGX 也在这一组：它的 scale-up 确确实实是 NVLink（只是域止步单服务器），
+  //   planeLabel 不该因为「域小」就给它改名——改名的判据是「不是 NVLink」，不是「域多大」。
+  for (const gen of [GB300, VERA_RUBIN, NVL576, HGX]) {
     await gotoAndSettle(page, `/?gen=${gen}&motion=off`, 300)
     await expect(page.locator('[data-plane-toggle="nvlink"]'), gen).toContainText('NVLink')
     await expect(page.locator('[data-plane-toggle="nvlink"]'), gen).not.toContainText('C2C scale-up')
@@ -956,9 +959,9 @@ test('桌面·W3 比较模式 VR ↔ LPX：diff 计数 + 配对叙述 + 交换�
   // accelerator 行必须警告「72 → 256 没有可比性」
   await expect(page.locator('[data-diff-role="accelerator"]')).toContainText('没有可比性')
 
-  // ③ 右侧下拉恰好 3 个选项，且不含左侧自己
+  // ③ 右侧下拉恰好 4 个选项，且不含左侧自己（v1.4 W-C 起五系统，原为 3）
   const options = page.locator('[data-compare-right-select] option')
-  await expect(options).toHaveCount(3)
+  await expect(options).toHaveCount(4)
   expect(await options.evaluateAll((els) => els.map((e) => (e as HTMLOptionElement).value))).not.toContain(
     VERA_RUBIN,
   )
@@ -974,7 +977,7 @@ test('桌面·W3 比较模式 VR ↔ LPX：diff 计数 + 配对叙述 + 交换�
   await expect(page.locator('[data-compare-left]')).toHaveAttribute('data-compare-right', LPX)
 })
 
-test('/report：四系统动态渲染 + VR↔LPX 配对段 + LPX 拒绝卡 + 国产超节点对照（内容断言，不只截图）', async ({
+test('/report：五系统动态渲染 + VR↔LPX 配对段 + LPX 拒绝卡 + 国产超节点对照（内容断言，不只截图）', async ({
   page,
 }, testInfo) => {
   onlyOn(testInfo, 'desktop')
@@ -985,7 +988,7 @@ test('/report：四系统动态渲染 + VR↔LPX 配对段 + LPX 拒绝卡 + 国
   // v1.4 W-B 新增第 6 节「国产超节点对照」，七节标题 = 7 个 h2。
   await expect(page.locator('h2')).toHaveCount(7)
 
-  // ① 产能卡与系统清单按内容包动态渲染：四个系统一个不少
+  // ① 产能卡与系统清单按内容包动态渲染：五个系统一个不少
   await expect(page.locator('[data-report-capacity] [data-capacity-card]')).toHaveCount(
     FACTORY_PACK.systems.length,
   )
@@ -994,8 +997,8 @@ test('/report：四系统动态渲染 + VR↔LPX 配对段 + LPX 拒绝卡 + 国
     await expect(page.locator(`[data-report-system="${s.id}"]`)).toContainText(s.capacityPolicy)
   }
 
-  // ② 产能四态：两代出数、NVL576 与 LPX 各自因不同理由拒绝
-  for (const id of [GB300, VERA_RUBIN]) {
+  // ② 产能四态：三代出数（v1.4 W-C 起 HGX B300 加入出数一侧）、NVL576 与 LPX 各自因不同理由拒绝
+  for (const id of [GB300, VERA_RUBIN, HGX]) {
     await expect(page.locator(`[data-capacity-card="${id}"]`)).toHaveAttribute(
       'data-capacity-kind',
       'estimate',
@@ -1050,7 +1053,7 @@ test('/report：四系统动态渲染 + VR↔LPX 配对段 + LPX 拒绝卡 + 国
   expect(requestedUrls.some((u) => u.includes('three-vendor'))).toBe(false)
 })
 
-test('桌面·W3 四系统 × ?gl=off 扫查：三页签都出内容 + 全程不加载 three-vendor', async ({
+test('桌面·W-C 五系统 × ?gl=off 扫查：三页签都出内容 + 全程不加载 three-vendor', async ({
   page,
 }, testInfo) => {
   onlyOn(testInfo, 'desktop')
@@ -1084,14 +1087,14 @@ test('桌面·W3 四系统 × ?gl=off 扫查：三页签都出内容 + 全程不
     }
   }
 
-  // ★ 四代 × 三页签走完，一次 three-vendor 请求都不该有
+  // ★ 五代 × 三页签走完，一次 three-vendor 请求都不该有
   expect(
     requestedUrls.filter((u) => u.includes('three-vendor')),
     '?gl=off 路径加载了 three-vendor',
   ).toEqual([])
 })
 
-test('移动·W3 四系统切换：根节点/站数跟着换，且窄屏不横向溢出', async ({ page }, testInfo) => {
+test('移动·W-C 五系统切换：根节点/站数跟着换，且窄屏不横向溢出', async ({ page }, testInfo) => {
   onlyOn(testInfo, 'mobile')
   await gotoAndSettle(page, '/?motion=off', 500)
   await expect(page.locator('[data-mobile-view]')).toHaveCount(1)
@@ -1117,7 +1120,7 @@ test('移动·W3 四系统切换：根节点/站数跟着换，且窄屏不横�
       String(sceneCount),
     )
 
-    // ③ 窄屏不横向溢出——第四个代际正是最容易把顶栏撑宽的那一下
+    // ③ 窄屏不横向溢出——顶栏每多一个代际按钮就更容易撑宽，第五个尤其危险
     const overflow = await page.evaluate(() => ({
       doc: document.documentElement.scrollWidth,
       win: window.innerWidth,
@@ -1140,4 +1143,197 @@ test('移动·W3 导览站在 LPX 下同样可推进（第四代没有掉出移�
   await expect(page.locator('[data-tour-stop]')).toHaveAttribute('data-tour-stop', '1')
   // 第 2 站是 AFD 讲解，叙述里必须出现三段流的关键词
   await expect(page.locator('[data-tour-stop]')).toContainText('AFD')
+})
+
+// ─────────────────────────── v1.4 W-C：HGX B300（NVLink 服务器域） ───────────────────────────
+//
+// 这一组的主角是一条**反直觉**的断言：机架级 NVLink 平面必须是**空的**。
+// 它是本代际的全部教学内容——域在服务器里面，机架只是家具。
+// 单测侧已在 `content.test.ts` 用 routeConnections 锁了路由条数，这里补的是
+// 「用户真的切了那个开关、屏幕上真的什么都没发生」这一层。
+
+test('桌面·W-C HGX 机架级 NVLink 平面必须是空的（切开关画面纹丝不动 = 正确行为）', async ({
+  page,
+}, testInfo) => {
+  onlyOn(testInfo, 'desktop')
+  // ★ 与 GB300 那条「nvlink 必须画得出线」用例是**刻意的镜像**：
+  //   同样的操作（机架级 + 勾掉 nvlink），GB300 期望画面变化 > 0.02%，
+  //   HGX 期望画面**逐像素相同**。两条一起才说明「空」是建模结果而不是渲染坏了。
+  await gotoAndSettle(page, `/?gen=${HGX}&motion=off&level=rack&focus=asm.hgx.rack&planes=nvlink`, 900)
+  await expect(page.locator('[data-fallback-2d]')).toHaveCount(0)
+  const canvas = page.locator('canvas').first()
+  const poseBefore = await cameraPose(page)
+
+  const withNvlink = (await canvas.screenshot()).toString('base64')
+  await page.locator(`section ul li:nth-child(${PLANE_ROW.nvlink}) input`).uncheck()
+  await page.waitForTimeout(600)
+  const withoutNvlink = (await canvas.screenshot()).toString('base64')
+
+  // 相机没动，否则「画面没变」这件事没有说服力
+  expect(await cameraPose(page)).toBe(poseBefore)
+  // ★ 关键断言：机架级根本没有 nvlink 线可画 ⇒ 开关它不改变任何像素。
+  //   若哪天有人给 HGX 加了机架级的 nvlink 边（例如把某条边的端点提到 rack 层），
+  //   这里会立刻红——那正是本代际叙事被破坏的时刻。
+  expect(
+    await changedPixelRatio(page, withNvlink, withoutNvlink),
+    'HGX 机架级出现了 NVLink 线——NVLink 域应止步单服务器',
+  ).toBeLessThan(0.0002)
+
+  // 对照组：同一屏切 scale-out，画面必须真的变（证明不是整个连线层坏了）
+  await page.locator(`section ul li:nth-child(${PLANE_ROW.scaleout}) input`).check()
+  await page.waitForTimeout(600)
+  const withScaleout = (await canvas.screenshot()).toString('base64')
+  expect(
+    await changedPixelRatio(page, withoutNvlink, withScaleout),
+    'HGX 机架级 scale-out 也没线——说明是连线层坏了，不是「域在服务器里」',
+  ).toBeGreaterThan(0.0002)
+})
+
+test('桌面·W-C HGX 下钻到基板：NVLink 域在这一层才出现（空平面 ≠ 没有域）', async ({
+  page,
+}, testInfo) => {
+  onlyOn(testInfo, 'desktop')
+  await gotoAndSettle(page, `/?gen=${HGX}&motion=off&level=board&focus=asm.hgx.baseboard&planes=nvlink`, 900)
+  await expect(page.locator('[data-fallback-2d]')).toHaveCount(0)
+  const canvas = page.locator('canvas').first()
+
+  const withNvlink = (await canvas.screenshot()).toString('base64')
+  await page.locator(`section ul li:nth-child(${PLANE_ROW.nvlink}) input`).uncheck()
+  await page.waitForTimeout(600)
+  const withoutNvlink = (await canvas.screenshot()).toString('base64')
+
+  // 板级必须画得出线——「机架里没有」讲的是域的边界，不是「这台机器没有 NVLink」
+  expect(
+    await changedPixelRatio(page, withNvlink, withoutNvlink),
+    'HGX 板级也画不出 NVLink——那就不是「域在服务器里」而是压根没建模',
+  ).toBeGreaterThan(0.0002)
+})
+
+test('桌面·W-C HGX 三个导览站的 ?tour= 深链一次到位（层级/平面/焦点/当前站）', async ({
+  page,
+}, testInfo) => {
+  onlyOn(testInfo, 'desktop')
+  const stops = [
+    { id: 'scene.hgx.server-anatomy', level: 'board', focus: 'asm.hgx.baseboard' },
+    { id: 'scene.hgx.rack-no-nvlink', level: 'rack', focus: 'asm.hgx.rack' },
+    { id: 'scene.hgx.two-domains', level: 'cluster', focus: 'asm.hgx.facility' },
+  ] as const
+
+  for (const [idx, stop] of stops.entries()) {
+    await gotoAndSettle(page, `/?tour=${stop.id}&motion=off`, 700)
+
+    // ① 深链把代际也切过来了（HGX 不是默认代际）
+    await expect(page.locator('main'), stop.id).toHaveAttribute('data-mode', 'tour')
+    const anchor = page.locator('[data-level][data-focus-id]')
+    await expect(anchor, stop.id).toHaveAttribute('data-generation', HGX)
+    await expect(anchor, stop.id).toHaveAttribute('data-level', stop.level)
+    await expect(anchor, stop.id).toHaveAttribute('data-focus-id', stop.focus)
+
+    // ② 左栏：该站高亮且只有它一站；HGX 一共三站
+    await expect(page.locator(`[data-tour-scene="${stop.id}"]`), stop.id).toHaveAttribute(
+      'data-tour-scene-active',
+      '1',
+    )
+    await expect(page.locator('[data-tour-scene-active="1"]'), stop.id).toHaveCount(1)
+    await expect(page.locator('[data-tour-scene]'), stop.id).toHaveCount(stops.length)
+
+    // ③ 第 2 站是本代际的主题站：nvlink 平面必须真的被打开
+    //    （导览词写着「切到 NVLink 平面，这个机架里一条线都没有」——平面没开就无从谈起）
+    if (idx === 1) {
+      await expect(page.locator(`section ul li:nth-child(${PLANE_ROW.nvlink}) input`)).toBeChecked()
+    }
+  }
+})
+
+test('桌面·W-C HGX 产能出数：standard 放行、能效因机架功率未公布而不出数', async ({
+  page,
+}, testInfo) => {
+  onlyOn(testInfo, 'desktop')
+  await gotoAndSettle(page, `/?gen=${HGX}&motion=off`, 400)
+
+  // 产能卡在右栏的「产能粗估」页签下（默认是「部件详情」）
+  await page.click('[data-right-tab="capacity"]')
+  await page.waitForTimeout(200)
+
+  const card = page.locator(`[data-capacity-card="${HGX}"]`).first()
+  // ★ 与 LPX（paired-only）/ NVL576（analyst-modeled）的拒绝态形成对照：这一代真的出数。
+  //   HGX 是内容包里第二个能出产能数字的系统。
+  await expect(card).toHaveAttribute('data-capacity-kind', 'estimate')
+  await expect(card).not.toContainText('仅提供配对产能语境')
+  await expect(card).not.toContainText('第三方分析师')
+
+  // ★ 但能效一栏必须缺数：整机架功率官方刻意不公布
+  //  （RA 把「每机架几台」写成「可用机架功率」的函数）。
+  await expect(card).toContainText('能效')
+  await expect(card).toContainText('整机架功率官方未公布')
+})
+
+test('桌面·W-C 比较模式 GB300 ↔ HGX：diff 计数 + 域架构叙述 + 交换两次复原', async ({
+  page,
+}, testInfo) => {
+  onlyOn(testInfo, 'desktop')
+  await gotoAndSettle(page, `/?gen=${GB300}&mode=compare&right=${HGX}&motion=off`, 900)
+
+  const panel = page.locator('[data-compare-left]')
+  await expect(panel).toHaveAttribute('data-compare-left', GB300)
+  await expect(panel).toHaveAttribute('data-compare-right', HGX)
+
+  // ① DOM diff 计数与纯函数逐位核对（不是拍脑袋数字）
+  const result = compareSystems(GB300, HGX)
+  await expect(page.locator('[data-diff-role]')).toHaveCount(result.rows.length)
+  for (const kind of DIFF_KINDS) {
+    await expect(page.locator(`[data-diff-kind="${kind}"]`)).toHaveCount(result.counts[kind])
+  }
+  // 这一对的特征：既有新增（服务器/基板/PDU/空调）也有大量未收录（托盘/背板/母排/液冷链路）
+  expect(result.counts.added, 'GB300→HGX 应有新增角色').toBeGreaterThan(0)
+  expect(result.counts.removed, 'GB300→HGX 应有未收录角色').toBeGreaterThan(0)
+
+  // ② 关键行的类别与防误读叙述（这张表最容易被读成「HGX 是缩水版」）
+  await expect(page.locator('[data-diff-role="gpu-server"]')).toHaveAttribute('data-diff-kind', 'added')
+  await expect(page.locator('[data-diff-role="hgx-baseboard"]')).toHaveAttribute('data-diff-kind', 'added')
+  await expect(page.locator('[data-diff-role="compute-tray"]')).toHaveAttribute('data-diff-kind', 'removed')
+  await expect(page.locator('[data-diff-role="nvswitch-tray"]')).toHaveAttribute('data-diff-kind', 'removed')
+  // nvswitch-asic 两侧都在——「同名角色搬了家」正是本代际最该看的一行
+  await expect(page.locator('[data-diff-role="nvswitch-asic"]')).toHaveCount(1)
+  await expect(page.locator('[data-diff-role="nvswitch-asic"]')).toContainText('基板')
+  // 选型要点：域大小与冷却方式
+  await expect(panel).toContainText('72')
+  await expect(panel).toContainText('风冷')
+
+  // ③ 右侧下拉 4 个选项，且不含左侧自己
+  const options = page.locator('[data-compare-right-select] option')
+  await expect(options).toHaveCount(4)
+  expect(await options.evaluateAll((els) => els.map((e) => (e as HTMLOptionElement).value))).not.toContain(
+    GB300,
+  )
+
+  // ④ 交换左右：一次对调、两次复原（旧左必须成为新右）
+  await page.click('[data-compare-swap="1"]')
+  await page.waitForTimeout(500)
+  await expect(page.locator('[data-compare-left]')).toHaveAttribute('data-compare-left', HGX)
+  await expect(page.locator('[data-compare-left]')).toHaveAttribute('data-compare-right', GB300)
+  await page.click('[data-compare-swap="1"]')
+  await page.waitForTimeout(500)
+  await expect(page.locator('[data-compare-left]')).toHaveAttribute('data-compare-left', GB300)
+  await expect(page.locator('[data-compare-left]')).toHaveAttribute('data-compare-right', HGX)
+})
+
+test('移动·W-C HGX 导览站可推进（第五代没有掉出移动端主流程）', async ({ page }, testInfo) => {
+  onlyOn(testInfo, 'mobile')
+  await gotoAndSettle(page, `/?gen=${HGX}&motion=off`, 700)
+  await expect(page.locator('[data-mobile-view]')).toHaveAttribute('data-generation', HGX)
+  await expect(page.locator('[data-tour-stop]')).toHaveAttribute('data-tour-total', '3')
+  await expect(page.locator('[data-tour-stop]')).toHaveAttribute('data-tour-stop', '0')
+
+  await page.click('[data-tour-next]')
+  await page.waitForTimeout(400)
+  await expect(page.locator('[data-tour-stop]')).toHaveAttribute('data-tour-stop', '1')
+  // 第 2 站就是本代际的主题：机架里没有 NVLink
+  await expect(page.locator('[data-tour-stop]')).toContainText('一条线都没有')
+
+  await page.click('[data-tour-next]')
+  await page.waitForTimeout(400)
+  await expect(page.locator('[data-tour-stop]')).toHaveAttribute('data-tour-stop', '2')
+  // 第 3 站是选型站
+  await expect(page.locator('[data-tour-stop]')).toContainText('域')
 })
