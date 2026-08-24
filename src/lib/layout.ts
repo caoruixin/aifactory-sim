@@ -171,6 +171,19 @@ const PLACEMENTS: Record<string, Placement> = {
     size: [0.52, 0.09, 0.9],
     slots: (count) => column(count, 0.11, -2.6, -4.4, 0.05),
   },
+  // 机房级空调/送风单元（CRAH，v1.4 HGX 起用）。液冷三代把「机房侧散热」画成
+  // CDU（x=-5.4）+ 一次侧水路（x=-7.0），风冷这一代没有这两样东西——热量直接由
+  // 机房空调从热通道抽走，因此它必须是**另一个盒子**、摆在**另一个位置**：
+  // x=-4.4 落在 CDU（-5.85~-4.95）与机架列（±3.6）之间的空档，两族即使并排看
+  // 也不会重叠；沿 Z 排开则读作「贴着热通道端墙站成一排的空调」。
+  'room-air-handler': {
+    size: [1.0, 2.4, 1.8],
+    slots: (count) => {
+      const out: Vec3[] = []
+      for (let i = 0; i < count; i += 1) out.push([-4.4, 1.2, (i - (count - 1) / 2) * 2.2])
+      return out
+    },
+  },
 
   // ── rack 层：占 U 位的走 rackU，纵向贯穿件单独摆 ──
   'compute-tray': { size: [0, 0, 0], slots: rackUSlots },
@@ -192,8 +205,42 @@ const PLACEMENTS: Record<string, Placement> = {
     size: [RACK_WIDTH * 0.86, 0.9, 0.035],
     slots: () => [[0, 0.1, -RACK_DEPTH / 2 + 0.17]],
   },
+  // HGX B300 的 8–10U 风冷整机服务器（v1.4）。与 compute-tray / lpu-tray 走**同一条**
+  // rackUSlots 路径——占 U 位的东西摆位规则本来就一样，差别只在 rackU 跨度：
+  // NVL72 的计算托盘一台 1U，HGX 服务器一台 10U（asm.hgx.gpu-server 的 rackU 是
+  // {start:3, height:40} = 4 台 × 10U）。用独立 roleKey 而不是复用 compute-tray：
+  // 「整机服务器」和「机架级机器里的一个抽屉」在跨代比较里必须是两行，硬配对只会
+  // 制造「托盘 18 → 4」这种误导性的数量变化行。
+  'gpu-server': { size: [0, 0, 0], slots: rackUSlots },
+  // 机架 PDU（v1.4）：克隆 dc-busbar 的「竖直贯穿机架背部、不占 U 位」规则，
+  // 但摆在背部**两侧**（±0.24，A/B 双路），与液冷代际的 dc-busbar（单条，+0.22）
+  // 一眼可分——风冷机架里没有直流母排，服务器靠自带电源从 PDU 插排取交流电。
+  //
+  // ⚠️ 高度写死 1.83 m 而不是像 dc-busbar 那样跟随 rackUnitsForLayout：那条跟随逻辑在
+  //    `resolveLayout` 的 size 分支里，本批次约定 `src/lib` 只允许在 PLACEMENTS 表内追加。
+  //    1.83 ≈ 48U × 0.04445 × 0.86，与 dc-busbar 在 48U 机架下的实际高度一致。
+  'rack-pdu': {
+    size: [0.07, 1.83, 0.07],
+    slots: (count) => {
+      const out: Vec3[] = []
+      for (let i = 0; i < count; i += 1) {
+        out.push([i % 2 === 0 ? -0.24 : 0.24, 0, -RACK_DEPTH / 2 + 0.07])
+      }
+      return out
+    },
+  },
 
   // ── 计算托盘内部（board 级） ──
+  // HGX 基板（v1.4）：「HGX 到底是什么」这个问题的答案就是这块板——NVIDIA 卖给 OEM 的
+  // 不是整机，是 8 颗 SXM GPU + 板载 NVSwitch + 8 张 ConnectX-8 焊在一起的这一块。
+  // 它是服务器（10U，rackUSize ⇒ 0.54 × 0.356 × 1.032 m）内部的一层，因此尺寸取
+  // 「比机箱略小、明显是一块板」的比例；+Z 偏 0.06 让它落在机箱前半部，与后部的
+  // host-cpu（z=-0.1）/ DPU（z=-0.3）分区，下钻时能一眼看出「前面是 GPU 板、后面是主机」。
+  'hgx-baseboard': {
+    size: [0.5, 0.016, 0.72],
+    slots: () => [[0, -0.055, 0.06]],
+    explode: { lift: 0.02, spread: 1 },
+  },
   accelerator: {
     size: [0.086, 0.012, 0.086],
     // ≤4 颗排一排（GB300 / Vera Rubin / NVL576 都是 4，摆位与 v1.2 逐位相同）；

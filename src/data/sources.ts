@@ -172,6 +172,102 @@ export const SOURCES: SourceRef[] = [
     note: 'Groq 官方新闻室（2025-12-24）。三句原话决定了「Groq 3 LPX 为什么会挂 NVIDIA 的名字」：「entered into a non-exclusive licensing agreement with Nvidia for Groq\'s inference technology」、「Jonathan Ross, Groq\'s Founder, Sunny Madra, Groq\'s President, and other members of the Groq team will join Nvidia」、「Groq will continue to operate as an independent company with Simon Edwards stepping into the role of Chief Executive Officer」+「GroqCloud will continue to operate without interruption」。⚠️ 是**收购以外**的另一种关系（非排他技术许可 + 团队加入），对外讲的时候不要说成「NVIDIA 收购了 Groq」。发布稿没有提到金额，本项目因此不建任何金额 Claim。',
   },
   {
+    id: 'src.nvidia-hgx-ra',
+    title: 'NVIDIA HGX AI Factory Enterprise Reference Architecture',
+    publisher: 'NVIDIA',
+    kind: 'official_doc',
+    url: 'https://docs.nvidia.com/enterprise-reference-architectures/hgx-ai-factory/latest/components.html',
+    localFile: null,
+    asOf: '2026-08',
+    note:
+      'HGX B300（第五个代际）的部件清单/网络拓扑/规模设计点母版。抓取于 2026-08，含 abstract、overview、' +
+      'components、network-logical-architecture、networking-hardware、networking-physical-topologies、' +
+      'appendix-node-configurations 等页。核心口径：**2-8-9-800**（Abstract 原文「a 2-8-9-800 infrastructure ' +
+      'configuration (2 CPUs, 8 GPUs, 9 NICs at 800 Gb/s bandwidth per GPU)」）、8 张 ConnectX-8 SuperNIC ' +
+      '焊在 HGX 基板上 + 每台 1 张 BlueField-3、Spectrum-X 以太网、**风冷**（「industry-leading performance ' +
+      'in an air-cooled form factor」）、4 节点 SU、32/64/128 节点三个设计点。' +
+      '⚠️ 已发现三处该文档自身的内部不一致，引用时须留痕：① components.html Table 2 的「CPU」「CPU sockets」' +
+      '两行被误填成 NVLink 的值（「Total Aggregate Bandwidth 14.4TB/s」「GPU-to-GPU Bandwidth 1800GB/s」）；' +
+      '② CPU 核数下限 Table 2 写「Minimum of 48 physical CPU cores per socket」、appendix Table 8 写' +
+      '「Minimum of 32 physical CPU cores per socket」；③ 交换机型号 network-logical-architecture Table 5 与 ' +
+      'appendix Table 9 写 SN5600（128-port 400 GbE / Spectrum-4），networking-hardware 一节写 SN5610' +
+      '（64 × 800 Gbps）。另：appendix Table 8 的标题误写成「RTX PRO Server system components」。',
+  },
+  {
+    id: 'src.nvidia-hgx-page',
+    title: 'NVIDIA HGX Platform 产品页规格表',
+    publisher: 'NVIDIA',
+    kind: 'official_doc',
+    url: 'https://www.nvidia.com/en-us/data-center/hgx/',
+    localFile: null,
+    asOf: '2026-08',
+    note:
+      'HGX 平台页的「NVIDIA Blackwell」规格表给出 HGX B300 / HGX B200 的**整板（8 GPU）**口径：' +
+      'FP4 Tensor Core「144 PFLOPS | 108 PFLOPS」、FP8/FP6「72 PFLOPS」、Total Memory「2.1 TB」、' +
+      'NVLink 第五代 + NVLink 5 Switch、GPU-to-GPU 1.8 TB/s、Total NVLink Bandwidth 14.4 TB/s、' +
+      'Networking Bandwidth 1.6 TB/s。脚注 1「Specification in Sparse | Dense」、脚注 2「Specification in ' +
+      'Sparse. Dense is ½ sparse spec shown.」、脚注 4「HGX B300 and HGX B200 shipping now.」' +
+      '——本项目只把带稠密标注的值送进产能数学，并据脚注 4 把 HGX B300 记为 shipping。' +
+      '同页另有 Rubin NVL8 一栏（HGX 的下一代），本项目不据此建系统。',
+  },
+  {
+    id: 'src.nvidia-blackwell-ultra-datasheet',
+    title: 'NVIDIA Blackwell Ultra 数据手册（PDF）',
+    publisher: 'NVIDIA',
+    kind: 'official_doc',
+    url: 'https://dam-cdn.nvd.orangelogic.com/AssetLink/1k0p832eq8r5ca0u5383ie5o4tp3bst1.pdf',
+    localFile: null,
+    asOf: '2025-10',
+    note:
+      '由 resources.nvidia.com/en-us-blackwell-architecture/blackwell-ultra-datasheet 链接的官方数据手册' +
+      '（页脚版本 OCT25）。Key Offerings 只有两项：GB300 NVL72 与 **HGX B300**。第 5 页 Technical ' +
+      'Specifications 表是本项目 HGX B300 产能数学的唯一口径来源，且**按平台分列**：HGX B300 列的' +
+      '单卡口径为「FP4 Tensor Core 18 PFLOPS | 14 PFLOPS」「FP8/FP6 9 PFLOPS（稀疏）」' +
+      '「GPU Memory | Bandwidth 270 GB HBM3E | 7.7 TB/s」「Max TDP Configurable up to 1,100 W」，' +
+      '而同表 GB300 NVL72 列是 20|15 PFLOPS / 279 GB / 8 TB/s / up to 1,400 W。' +
+      '★ 同一颗 Blackwell Ultra 芯片在两个平台上的官方数字不同（风冷 vs 液冷的功率档位差异），' +
+      '本项目因此为 HGX B300 单独建 GPU 组件，不复用 GB300 那一份 mathSpecs。' +
+      '第 3 页 HGX B300 Key Features：「8 NVIDIA Blackwell Ultra GPUs」「Over 2 TB of HBM3E memory」' +
+      '「1,800 GBps NVLink between GPUs via NVSwitch™ chip」「2.6x faster training performance (vs. H100)」。',
+  },
+  {
+    id: 'src.nvidia-blackwell-ultra-blog',
+    title: 'Inside NVIDIA Blackwell Ultra: The Chip Powering the AI Factory Era',
+    publisher: 'NVIDIA Technical Blog',
+    kind: 'official_doc',
+    url: 'https://developer.nvidia.com/blog/inside-nvidia-blackwell-ultra-the-chip-powering-the-ai-factory-era/',
+    localFile: null,
+    asOf: '2025-08',
+    note:
+      'NVIDIA 官方技术博客（2025-08-22，作者 Kyle Aubrey / Nick Stam）。Blackwell Ultra **芯片级**口径的出处：' +
+      '双 reticle 双 die 经 NV-HBI（10 TB/s）合封为一颗 CUDA GPU、TSMC 4NP、208B 晶体管、160 SM / ' +
+      '640 个第五代 Tensor Core、每 SM 256 KB TMEM、NVFP4 稠密 15 PFLOPS、注意力层 SFU 吞吐翻倍' +
+      '（「up to 2x faster attention-layer compute compared to Blackwell GPUs」）、' +
+      'HBM3e「Eight 12-Hi stacks, 16 × 512-bit controllers (8,192-bit total width)」、8 TB/s、' +
+      'NVLink 5「1.8 TB/s bidirectional (18 links x 100 GB/s)」、PCIe Gen6 ×16 256 GB/s。' +
+      '★ 图 1 脚注是本项目解释「288 / 279 / 270 GB 三个官方显存数字并存」的关键出处：' +
+      '「Blackwell Ultra GPUs contain up to 160 SMs and 288GB HBM3E Memory. Available SM count and ' +
+      'HBM capacity varies by SKU.」——官方明说容量随 SKU 变，因此三个数字不是互相矛盾，是不同 SKU 口径。',
+  },
+  {
+    id: 'src.nvidia-dgx-b300-page',
+    title: 'NVIDIA DGX B300 产品页规格表',
+    publisher: 'NVIDIA',
+    kind: 'official_doc',
+    url: 'https://www.nvidia.com/en-us/data-center/dgx-b300/',
+    localFile: null,
+    asOf: '2026-08',
+    note:
+      '★ 只用于两件事：① 讲清 HGX（NVIDIA 卖基板、OEM 出整机）vs DGX（NVIDIA 自己出整机）这个售前常见混淆点；' +
+      '② 为「HGX 服务器有多高、多耗电」提供**唯一一个官方数量级参照**——HGX 参考架构自身没有机架立面，' +
+      '也没有单机功率。规格表原文：「Rack Units | 10U」「Power Consumption | ~14 kW」' +
+      '「NVIDIA NVLink™ Switch System | 2x」「Total GPU Memory | 2.1 TB」「CPU | Intel® Xeon® 6776P Processors」' +
+      '「8x OSFP ports serving 8x single-port NVIDIA ConnectX-8 VPI」「2x dual-port QSFP112 NVIDIA BlueField-3 DPU」。' +
+      '⚠️ DGX B300 ≠ HGX B300：DGX 是 2 张 BF-3、固定 Intel Xeon 6776P、10U 固定形态，' +
+      'HGX 参考架构则是 1 张 BF-3、CPU 由 OEM 选型、机箱高度未规定。' +
+      '本项目**不拿 DGX 的数字当 HGX 的规格**，只在明确标注「DGX 参照」的 Claim 里出现。',
+  },
+  {
     id: 'src.semianalysis-nvl576',
     title: 'Rubin Ultra NVL576 架构：快速概览',
     publisher: 'SemiAnalysis',
