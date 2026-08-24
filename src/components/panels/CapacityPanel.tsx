@@ -10,7 +10,7 @@
 
 import { useMemo, useState } from 'react'
 import { FACTORY_PACK } from '../../data'
-import { DEFAULT_WORKLOAD, estimateSystemCapacity } from '../../lib/capacity'
+import { DEFAULT_WORKLOAD, capacityUnitWordingFor, estimateSystemCapacity } from '../../lib/capacity'
 import type { CapacityWorkload } from '../../lib/capacity'
 import { QUANTS } from '../../lib/roofline'
 import type { QuantOption } from '../../lib/roofline'
@@ -53,6 +53,9 @@ export default function CapacityPanel({ systemIds, rackCount = 1, compact = fals
   const [racks, setRacks] = useState(rackCount)
 
   const workload = WORKLOAD_PRESETS.find((p) => p.id === presetId)!.workload
+  // 数量输入框的标签按域架构分型；比较模式下两个系统架构不同时用合并措辞。
+  const counterLabels = [...new Set(systemIds.map((id) => capacityUnitWordingFor(id).counterLabel))]
+  const counterLabel = counterLabels.length === 1 ? counterLabels[0] : '机架 / 服务器数'
   const estimates = useMemo(
     () =>
       systemIds.map((systemId) =>
@@ -114,7 +117,7 @@ export default function CapacityPanel({ systemIds, rackCount = 1, compact = fals
         </span>
 
         <label className="flex items-center gap-1.5">
-          <span className="text-dim">机架数</span>
+          <span className="text-dim">{counterLabel}</span>
           <input
             type="number"
             min={1}

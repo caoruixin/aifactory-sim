@@ -19,7 +19,14 @@
  */
 
 import { FACTORY_PACK, modelById, systemById } from '../data'
-import type { Claim, EvidenceType, FactoryContentPack, HardwareComponent, ModelSpec } from '../data/types'
+import type {
+  Claim,
+  EvidenceType,
+  FactoryContentPack,
+  FactorySystem,
+  HardwareComponent,
+  ModelSpec,
+} from '../data/types'
 import {
   DEFAULT_MBU,
   DEFAULT_MFU,
@@ -223,6 +230,73 @@ function refusal(
 
 // ─────────────────────────── 主函数 ───────────────────────────
 
+// ─────────────────────────── 产能单位措辞（按域架构分型） ───────────────────────────
+
+/**
+ * 产能外推单位的显示措辞（v1.4 W-C QA 返工点 1）。
+ *
+ * `keySpecs.gpuCount` 在不同域架构下计的**不是同一种单位**：
+ *   - `nvlink-rack-domain`（GB300 / Vera Rubin / NVL576）：一个机架就是一台机器，
+ *     单位是「机架」——沿用历来措辞；
+ *   - `nvlink-node-domain`（HGX B300）：NVLink 域止步单服务器，gpuCount=8 是
+ *     **每台服务器**口径（每机架装几台由客户机房功率决定，官方刻意不给数，
+ *     见 hgx-b300.ts 的 SERVERS_PER_RACK note）。把它渲染成「每机架 GPU 数」
+ *     会与「机架里没有 NVLink」的教学主线正面冲突，还把错误口径贴进
+ *     「用到的官方数据」证据溯源区。
+ *
+ * 与 `planeLabel` 同理：纯展示层措辞、不建 Claim；键（keySpecs.gpuCount /
+ * rackCount 入参名）保持不变，只有给人看的名字按架构变。数据层 note 已写明读法，
+ * 这里是它在 UI 的唯一出口。
+ */
+export interface CapacityUnitWording {
+  /** 单位名（不带量词），用于 `×N 机架` / `×N 服务器` 后缀。 */
+  unitNoun: string
+  /** 量词（「个」/「台」），用于 `8 个机架` / `8 台服务器` 这类句子。 */
+  measure: string
+  /** 数量输入框与「增加……」句式的标签（「机架数」/「服务器台数」）。 */
+  counterLabel: string
+  /** `keySpecs.gpuCount` 的证据/文案标签。 */
+  perUnitGpuLabel: string
+  /** `keySpecs.rackPowerKW` 的证据/文案标签。 */
+  unitPowerLabel: string
+  /** 多单位线性外推 caveat 里「每个副本仍在……」的域范围说法。 */
+  replicaScope: string
+}
+
+const RACK_UNIT_WORDING: CapacityUnitWording = {
+  unitNoun: '机架',
+  measure: '个',
+  counterLabel: '机架数',
+  perUnitGpuLabel: '每机架 GPU 数',
+  unitPowerLabel: '整机架功率',
+  replicaScope: '单机架 NVLink 域内',
+}
+
+const NODE_UNIT_WORDING: CapacityUnitWording = {
+  unitNoun: '服务器',
+  measure: '台',
+  counterLabel: '服务器台数',
+  perUnitGpuLabel: '每台服务器 GPU 数',
+  unitPowerLabel: '单台服务器整机功率',
+  replicaScope: '单台服务器的 NVLink 域内',
+}
+
+/** 按域架构取产能单位措辞；未知架构回落到「机架」（对旧数据总是安全的）。 */
+export function capacityUnitWording(
+  architecture: FactorySystem['architecture'] | null | undefined,
+): CapacityUnitWording {
+  return architecture === 'nvlink-node-domain' ? NODE_UNIT_WORDING : RACK_UNIT_WORDING
+}
+
+/** 便捷封装：按系统 ID 取单位措辞（UI 组件用）。 */
+export function capacityUnitWordingFor(
+  systemId: string,
+  pack: FactoryContentPack = FACTORY_PACK,
+): CapacityUnitWording {
+  const system = pack === FACTORY_PACK ? systemById(systemId) : pack.systems.find((s) => s.id === systemId)
+  return capacityUnitWording(system?.architecture)
+}
+
 /**
  * 产能粗估。拒绝门按序：
  *   1. `capacityPolicy !== 'standard'`（`analyst-modeled`：如 Rubin Ultra NVL576，
@@ -242,6 +316,7 @@ export function estimateSystemCapacity(
   const workload = input.workload ?? DEFAULT_WORKLOAD
   const usePack = pack === FACTORY_PACK
   const system = usePack ? systemById(input.systemId) : pack.systems.find((s) => s.id === input.systemId)
+  const unit = capacityUnitWording(system?.architecture)
   const model: ModelSpec | undefined = usePack
     ? modelById(input.modelId)
     : pack.models.find((m) => m.id === input.modelId)
@@ -324,9 +399,9 @@ export function estimateSystemCapacity(
   // ── 消耗掉的官方 Claim（先收集，拒绝时也能显示「已有哪些」） ──
   const inputClaims: CapacityInputClaim[] = []
   const gpuCountClaim = system.keySpecs.gpuCount
-  if (gpuCountClaim) inputClaims.push({ label: `${system.name} 每机架 GPU 数`, claim: gpuCountClaim })
+  if (gpuCountClaim) inputClaims.push({ label: `${system.name} ${unit.perUnitGpuLabel}`, claim: gpuCountClaim })
   const powerClaim = system.keySpecs.rackPowerKW
-  if (powerClaim) inputClaims.push({ label: `${system.name} 整机架功率`, claim: powerClaim })
+  if (powerClaim) inputClaims.push({ label: `${system.name} ${unit.unitPowerLabel}`, claim: powerClaim })
   for (const key of MATH_BACKING_SPEC_KEYS) {
     const c = gpu.specs[key]
     if (c && c.value !== null) inputClaims.push({ label: `${gpu.name} · ${key}`, claim: c })
@@ -352,7 +427,7 @@ export function estimateSystemCapacity(
   if (gpuCount === null) {
     return refusal(
       withEvidence,
-      `${system.name} 未公布每机架 GPU 数量。`,
+      `${system.name} 未公布${unit.perUnitGpuLabel}量。`,
       [`${system.name} keySpecs.gpuCount`],
       'missing-gpu-count',
     )
@@ -400,15 +475,15 @@ export function estimateSystemCapacity(
 
   if (rackCount > 1) {
     caveats.push(
-      `${rackCount} 个机架按**数据并行副本**线性外推（每个副本仍在单机架 NVLink 域内），` +
-        '没有建模跨机架张量/专家并行的通信代价——真实多机架吞吐会低于线性值。',
+      `${rackCount} ${unit.measure}${unit.unitNoun}按**数据并行副本**线性外推（每个副本仍在${unit.replicaScope}），` +
+        `没有建模跨${unit.unitNoun}张量/专家并行的通信代价——真实多${unit.unitNoun}吞吐会低于线性值。`,
     )
   }
 
   if (!feasible) {
     caveats.push(
       `按 ${quant.label} 与当前上下文，单副本至少需要 ${gpusPerReplica} 张 GPU，` +
-        `超过了参与估算的 ${totalGpus} 张——该配置放不下这个模型，需要增加机架数或换更激进的量化。`,
+        `超过了参与估算的 ${totalGpus} 张——该配置放不下这个模型，需要增加${unit.counterLabel}或换更激进的量化。`,
     )
   }
 
@@ -460,14 +535,14 @@ export function estimateSystemCapacity(
   let tokensPerWatt: Band | null = null
   if (rackPowerKW === null) {
     caveats.push(
-      `${system.name} 未公布整机架功率（keySpecs.rackPowerKW 为「官方未公布」），tokens/W 不出数。`,
+      `${system.name} 未公布${unit.unitPowerLabel}（keySpecs.rackPowerKW 为「官方未公布」），tokens/W 不出数。`,
     )
   } else if (tokensPerSec !== null) {
     const watts = rackPowerKW * 1000 * rackCount
     tokensPerWatt = bandOf(tokensPerSec.low / watts, tokensPerSec.mid / watts, tokensPerSec.high / watts)
     caveats.push(
-      `tokens/W 用官方机架功率 ${rackPowerKW} kW（${powerClaim?.note?.includes('up to') ? '「最高」口径，不是典型工况' : '官方口径'}）` +
-        '× 机架数，未计入 CDU、机架外交换机与机房 PUE。',
+      `tokens/W 用官方${unit.unitPowerLabel} ${rackPowerKW} kW（${powerClaim?.note?.includes('up to') ? '「最高」口径，不是典型工况' : '官方口径'}）` +
+        `× ${unit.counterLabel}，未计入 CDU、机架外交换机与机房 PUE。`,
     )
   }
 

@@ -406,9 +406,32 @@ describe('HGX B300：第二个能出产能数字的系统（v1.4 W-C）', () => 
     }
   })
 
-  it('★ 机架功率官方未公布 ⇒ tokens/W 不出数，且 caveat 说明原因', () => {
+  it('★ 功率官方未公布 ⇒ tokens/W 不出数，且 caveat 用「服务器」口径说明原因', () => {
     expect(est.tokensPerWatt).toBeNull()
-    expect(est.caveats.some((c) => c.includes('未公布整机架功率') && c.includes('tokens/W'))).toBe(true)
+    // v1.4 QA 返工点 1：HGX 的功率单位是每台服务器（gpuCount=8 的同一口径），
+    // 写「整机架功率」会把「机架=机器」的误解带回产能面板。
+    expect(est.caveats.some((c) => c.includes('未公布单台服务器整机功率') && c.includes('tokens/W'))).toBe(true)
+  })
+
+  it('★ 单位措辞按域架构分型：HGX 证据标签与 caveat 全用「服务器」口径，零「每机架」（v1.4 QA 返工点 1）', () => {
+    const labels = est.evidence.inputClaims.map((c) => c.label)
+    expect(labels.some((l) => l.includes('每台服务器 GPU 数'))).toBe(true)
+    for (const l of labels) expect(l, l).not.toContain('每机架')
+    const multi = estimateSystemCapacity({ systemId: HGX, modelId: 'deepseek-v3', quantId: 'fp8', rackCount: 8 })
+    const caveat = multi.caveats.find((c) => c.includes('数据并行'))
+    expect(caveat).toBeDefined()
+    expect(caveat!).toContain('8 台服务器')
+    expect(caveat!).toContain('单台服务器的 NVLink 域内')
+    expect(caveat!).not.toContain('个机架')
+  })
+
+  it('★ 对照：GB300 的单位措辞仍是「机架」口径（分型没有误伤机架域三代）', () => {
+    const gb = estimateSystemCapacity({ systemId: GB300, modelId: 'deepseek-v3', quantId: 'fp8', rackCount: 2 })
+    expect(gb.evidence.inputClaims.some((c) => c.label.includes('每机架 GPU 数'))).toBe(true)
+    const caveat = gb.caveats.find((c) => c.includes('数据并行'))
+    expect(caveat).toBeDefined()
+    expect(caveat!).toContain('2 个机架')
+    expect(caveat!).toContain('单机架 NVLink 域内')
   })
 
   it('★ 用的是 HGX SKU 的数学参数，不是 GB300 那一套（同芯片、不同平台口径）', () => {

@@ -31,6 +31,15 @@ const SYSTEM_PLANE_LABEL: Record<string, Partial<Record<NetworkPlane, string>>> 
     nvlink: 'C2C scale-up（LPU 直连）',
     scaleout: 'AFD 配对（与 Vera Rubin NVL72 交换激活）',
   },
+  // HGX B300（v1.4 W-C QA 返工点）：它的 scale-up **是** NVLink，所以保留「NVLink」
+  // 字样（改名判据是「不是 NVLink」，不是「域多大」，见 factory.spec.ts 的五代扫查注释）；
+  // 但默认名里的「机架内」限定词对这一代是明确的事实错误——NVLink 域止步单服务器，
+  // 机架级 nvlink 平面刻意为空正是本代际的教学内容。cooling 同理：这一代是风冷
+  // （medium 'airflow' 就是为它加的），写「液冷」与右栏「风冷机架」详情自相矛盾。
+  'sys.hgx-b300': {
+    nvlink: 'NVLink（服务器内 scale-up）',
+    cooling: '风冷（机房空调）',
+  },
 }
 
 /**

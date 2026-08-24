@@ -10,6 +10,7 @@
  */
 
 import type { CapacityEstimate, Band, CapacityRefusalReasonCode } from '../../lib/capacity'
+import { capacityUnitWordingFor } from '../../lib/capacity'
 import { MetaChip } from '../ui/Chips'
 
 /**
@@ -93,6 +94,8 @@ function BandRow({ label, band, unit, format, lowerIsBetter = false, hint, nullN
 
 export default function CapacityBands({ estimate, compact = false }: CapacityBandsProps) {
   const refused = estimate.kind === 'refused'
+  // 外推单位措辞按域架构分型（HGX 的 gpuCount 是每台服务器口径，不能写「机架」）。
+  const unit = capacityUnitWordingFor(estimate.systemId)
 
   return (
     <section
@@ -112,7 +115,9 @@ export default function CapacityBands({ estimate, compact = false }: CapacityBan
         <p className="mt-1 flex flex-wrap items-center gap-1 text-[11px] text-dim">
           <MetaChip title="参考模型">{estimate.modelId}</MetaChip>
           <MetaChip title="量化口径">{estimate.quantId.toUpperCase()}</MetaChip>
-          <MetaChip title="参与估算的机架数">×{estimate.rackCount} 机架</MetaChip>
+          <MetaChip title={`参与估算的${unit.counterLabel}`}>
+            ×{estimate.rackCount} {unit.unitNoun}
+          </MetaChip>
           {estimate.basis ? (
             <MetaChip title="算力口径（roofline 用的是稠密值）">按 {estimate.basis.toUpperCase()} 算力</MetaChip>
           ) : null}
@@ -198,8 +203,8 @@ export default function CapacityBands({ estimate, compact = false }: CapacityBan
               band={estimate.tokensPerWatt}
               unit="tokens/s/W"
               format={(v) => v.toFixed(2)}
-              hint="集群吞吐 ÷ (官方机架功率 × 机架数)。未计入 CDU、机架外交换与 PUE。"
-              nullNote="该系统的整机架功率官方未公布，本项目不编数。"
+              hint={`集群吞吐 ÷ (官方${unit.unitPowerLabel} × ${unit.counterLabel})。未计入 CDU、机架外交换与 PUE。`}
+              nullNote={`该系统的${unit.unitPowerLabel}官方未公布，本项目不编数。`}
             />
           </div>
         </>

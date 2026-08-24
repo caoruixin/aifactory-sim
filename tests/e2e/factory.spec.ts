@@ -1268,10 +1268,16 @@ test('桌面·W-C HGX 产能出数：standard 放行、能效因机架功率未�
   await expect(card).not.toContainText('仅提供配对产能语境')
   await expect(card).not.toContainText('第三方分析师')
 
-  // ★ 但能效一栏必须缺数：整机架功率官方刻意不公布
+  // ★ 但能效一栏必须缺数：功率官方刻意不公布
   //  （RA 把「每机架几台」写成「可用机架功率」的函数）。
+  //   v1.4 QA 返工点 1 后措辞按域架构分型：HGX 的功率单位是每台服务器,
+  //   与 gpuCount=8 同口径——「整机架功率」字样在这一代不该再出现。
   await expect(card).toContainText('能效')
-  await expect(card).toContainText('整机架功率官方未公布')
+  await expect(card).toContainText('单台服务器整机功率官方未公布')
+  await expect(card).not.toContainText('整机架功率')
+  // 同屏顺带锁「×N 服务器」与数量输入框标签(每机架/机架数字样在 HGX 下清零)
+  await expect(card).toContainText('×1 服务器')
+  await expect(page.locator('text=服务器台数')).toHaveCount(1)
 })
 
 test('桌面·W-C 比较模式 GB300 ↔ HGX：diff 计数 + 域架构叙述 + 交换两次复原', async ({
