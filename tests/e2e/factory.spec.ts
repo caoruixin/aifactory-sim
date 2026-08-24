@@ -670,31 +670,31 @@ test('桌面·F2 kv-write 脉冲：播放中真的在呼吸，暂停后回到基
   const canvas = page.locator('canvas').first()
   const t0 = (await canvas.screenshot()).toString('base64')
 
-  // ★ 三点采样而不是「峰 0.35 / 谷 1.05 两点」：截图本身有 100~300 ms 延迟，会把相位
-  //   整体推移 δ；两点固定相隔半周期时，差异按 cos(2πδ/PULSE_PERIOD) 衰减，δ≈0.35 s
-  //   时正好归零 —— 那是纯粹由采样时机造成的假红。三点跨 3/4 周期取逐对最大值，
-  //   无论 δ 多少都至少有一对处在 ≥¼ 周期的相位差上。
+  // ★ v1.4 合并阶段重写采样策略（原三点固定相位采样在机器变慢时会全部落在
+  //   判定阈值之下——v1.3 基线提交 545bc70 上同样复现，属测试健壮性缺陷而非功能回归；
+  //   功能侧经独立诊断确认播放真实启动、逐帧画面持续变化）：
+  //   改为滚动采样——至多 10 帧、每帧间隔 ~300 ms，逐对累计最大差异，两项指标一达标
+  //   即提前退出。断言语义不变（「播放中真的在呼吸」+「与静止基线不同」），阈值不变，
+  //   只是不再赌三个固定相位点的运气；动画真坏时 10 帧后照样红。
+  // 先降到 0.5×：kv-write 的 durationHint = 4，0.5× 下这一步持续 8 s——滚动采样
+  // 加上截图延迟最多 ~6 s，保证全部采样与后面的暂停复位对比都发生在同一步之内。
+  await page.click('footer button:has-text("0.5×")')
   await page.click('footer button:has-text("播放")')
-  await page.waitForTimeout(350)
-  const t1 = (await canvas.screenshot()).toString('base64')
-  await page.waitForTimeout(350)
-  const t2 = (await canvas.screenshot()).toString('base64')
-  await page.waitForTimeout(350)
-  const t3 = (await canvas.screenshot()).toString('base64')
+  const samples: string[] = []
+  let pulsing = 0
+  let vsBase = 0
+  for (let i = 0; i < 10 && (pulsing <= 0.001 || vsBase <= 0.001); i++) {
+    await page.waitForTimeout(300)
+    // 防御：若步进意外跨段（机器极端卡顿），停止采样——跨段画面差异会假冒「脉冲」。
+    const stepNow = await page.locator('footer[data-flow-step]').getAttribute('data-flow-step')
+    if (stepNow !== String(kvIdx)) break
+    const t = (await canvas.screenshot()).toString('base64')
+    for (const prev of samples) pulsing = Math.max(pulsing, await changedPixelRatio(page, prev, t))
+    vsBase = Math.max(vsBase, await changedPixelRatio(page, t0, t))
+    samples.push(t)
+  }
 
-  // kv-write 的 durationHint = 4，上面全部采样都在这一段之内（不会跨段污染差分）
   await expect(page.locator('footer[data-flow-step]')).toHaveAttribute('data-flow-step', String(kvIdx))
-
-  const pulsing = Math.max(
-    await changedPixelRatio(page, t1, t2),
-    await changedPixelRatio(page, t1, t3),
-    await changedPixelRatio(page, t2, t3),
-  )
-  const vsBase = Math.max(
-    await changedPixelRatio(page, t0, t1),
-    await changedPixelRatio(page, t0, t2),
-    await changedPixelRatio(page, t0, t3),
-  )
   // ① 播放中的两帧之间必须有差异 —— 它真的在脉动
   expect(pulsing, `播放中的采样帧之间没有差异（脉冲没生效？）`).toBeGreaterThan(0.001)
   // ② 且与静止基线也不同 —— 否则「把高亮恒定压暗一档」这种坏实现也能骗过 ①
@@ -1161,6 +1161,9 @@ test('桌面·W-C HGX 机架级 NVLink 平面必须是空的（切开关画面�
   //   HGX 期望画面**逐像素相同**。两条一起才说明「空」是建模结果而不是渲染坏了。
   await gotoAndSettle(page, `/?gen=${HGX}&motion=off&level=rack&focus=asm.hgx.rack&planes=nvlink`, 900)
   await expect(page.locator('[data-fallback-2d]')).toHaveCount(0)
+  // 第五代的第一张 WebGL 基线（PLAN-v1.4.md W-C 提交 3）：8 台 gpu-server + rack-pdu，
+  // nvlink 平面开着但画面里没有一条线——「空」本身就是这张基线要锁的内容。
+  await expect(page).toHaveScreenshot('hgx-rack.png')
   const canvas = page.locator('canvas').first()
   const poseBefore = await cameraPose(page)
 
@@ -1195,6 +1198,9 @@ test('桌面·W-C HGX 下钻到基板：NVLink 域在这一层才出现（空平
   onlyOn(testInfo, 'desktop')
   await gotoAndSettle(page, `/?gen=${HGX}&motion=off&level=board&focus=asm.hgx.baseboard&planes=nvlink`, 900)
   await expect(page.locator('[data-fallback-2d]')).toHaveCount(0)
+  // HGX 基板板级基线：8 GPU + 2 颗板载 NVSwitch ASIC 与板内 nvlink 线——
+  // 与上一条 rack 基线合起来构成「域在服务器里面」的正反两面。
+  await expect(page).toHaveScreenshot('hgx-board.png')
   const canvas = page.locator('canvas').first()
 
   const withNvlink = (await canvas.screenshot()).toString('base64')
