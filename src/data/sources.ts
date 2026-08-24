@@ -189,7 +189,7 @@ export const SOURCES: SourceRef[] = [
     url: null,
     localFile: 'sources/超节点-WAIC2026.pptx',
     asOf: '2026-07',
-    note: '导览文案、MoE 数据流叙述与「能跑→跑对→跑快→跑稳→跑省」售前话术来源。B3 批次使用。',
+    note: '导览文案、MoE 数据流叙述与「能跑→跑对→跑快→跑稳→跑省」售前话术来源（B3 批次）；v1.4 W-B 起另供 /report「国产超节点对照」段与 LEARNING.md 七问章纯文案转述。仅限文案层——content.test 有锁：本源不得出现在任何 Claim.sourceId。',
   },
   {
     id: 'src.marvell-fy27q1-call',
