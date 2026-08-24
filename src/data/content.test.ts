@@ -23,6 +23,7 @@ import {
   RUBIN_ULTRA_ASSEMBLIES,
   RUBIN_ULTRA_COMPONENTS,
   RUBIN_ULTRA_CONNECTIONS,
+  RUBIN_ULTRA_SCENES,
   RUBIN_ULTRA_SYSTEM,
 } from './rubin-ultra-nvl576'
 import {
@@ -499,6 +500,44 @@ describe('Rubin Ultra NVL576：结构（官方拓扑事实 + SemiAnalysis 结构
     expect(connectionsOfPlane(RU, 'scaleout').length).toBe(0)
     expect(connectionsOfPlane(RU, 'business').length).toBe(0)
   })
+
+  // v1.4 W-A：把 rubin-ultra-nvl576.ts 里「CPO 是互斥在研版本，同树并存=建了一台不存在的机器」
+  // 这条裁决（原来只在注释里）升级为可执行锁——CPO 只能出现在讲解站与 specs 里，
+  // 不能进装配树、不能有自己的 roleKey，装配树与 nvlink 平面连接集必须原样保持 NPO 版建模。
+  it('★ CPO 只做讲解不建实体：装配树没有 cpo 类角色，光模块仍是 NPO 16 个，nvlink 平面连接集恰为现有 5 条', () => {
+    const roleKeys = [...new Set(RUBIN_ULTRA_ASSEMBLIES.map((a) => a.roleKey))]
+    for (const rk of roleKeys) {
+      expect(rk.toLowerCase(), `roleKey ${rk} 不应含 cpo`).not.toContain('cpo')
+    }
+    expect(assemblyById('asm.ru.optics')!.count).toBe(16)
+    const nvlinkConnIds = connectionsOfPlane(RU, 'nvlink').map((c) => c.id)
+    expect(nvlinkConnIds).toEqual([
+      'con.ru.gpu-nvswitch',
+      'con.ru.nvswitch-backplane',
+      'con.ru.tray-backplane',
+      'con.ru.nvswitch-optics',
+      'con.ru.optics-interrack',
+    ])
+  })
+
+  it('第 3 站 scene.ru.optics-formfactor：CPO vs NPO 讲解站结构与三段式证据分层措辞', () => {
+    const scenes = RUBIN_ULTRA_SCENES
+    expect(scenes.length).toBe(3)
+    const ids = RUBIN_ULTRA_ASSEMBLIES.map((a) => a.id)
+    for (const s of scenes) {
+      expect(s.systemId).toBe(RU)
+      for (const h of s.highlightAssemblyIds) expect(ids, `${s.id} → ${h}`).toContain(h)
+      if (s.focusAssemblyId) expect(ids).toContain(s.focusAssemblyId)
+    }
+    const optics = scenes.find((s) => s.id === 'scene.ru.optics-formfactor')!
+    expect(optics.lodLevel).toBe('board')
+    expect(optics.focusAssemblyId).toBe('asm.ru.nvswitch-tray')
+    expect(optics.planes).toEqual(['nvlink'])
+    expect(optics.highlightAssemblyIds).toEqual(['asm.ru.nvswitch-asic', 'asm.ru.optics'])
+    expect(optics.narration).toContain('NPO')
+    expect(optics.narration).toContain('CPO')
+    expect(optics.narration).toContain('不可更换')
+  })
 })
 
 describe('★ Rubin Ultra NVL576：SemiAnalysis 专项证据纪律（四重锁，只施加于 SemiAnalysis 源 Claim）', () => {
@@ -552,6 +591,26 @@ describe('★ Rubin Ultra NVL576：SemiAnalysis 专项证据纪律（四重锁�
 
   it('年份口径冲突已留痕（表① 2027 / 表② 2026）', () => {
     expect(RUBIN_ULTRA_SYSTEM.keySpecs.year!.note).toContain('矛盾')
+  })
+
+  // v1.4 W-A：对比事实各归其位——两条新增的 CPO 讲解 Claim 走的是与其余 SemiAnalysis
+  // Claim 相同的四重锁（已被上面的循环覆盖），这里另外钉住三点内容纪律：
+  // ① 两条新 Claim 确实存在且 sourceId 是 SemiAnalysis；② NPO 先上市是分析师判断（forecast）；
+  // ③ 光模块带宽占位符「x.xT」续锁不编数。
+  it('★ CPO 讲解只在 specs/场景里，不在实体：两条新 Claim 都是 SemiAnalysis 源，firstToMarket 为分析师判断，带宽占位符不编数', () => {
+    const optics = componentById('cmp.rubin-ultra.optics-module')!
+    expect(optics.specs.cpoExternalLaserSource!.sourceId).toBe('src.semianalysis-nvl576')
+    expect(optics.specs.cpoExternalLaserSource!.locator).toContain('p.9')
+    expect(optics.specs.fieldReplaceability!.sourceId).toBe('src.semianalysis-nvl576')
+    expect(optics.specs.fieldReplaceability!.locator).toContain('p.10')
+    expect(String(optics.specs.fieldReplaceability!.value)).toContain('不可更换')
+
+    const tray = componentById('cmp.rubin-ultra.nvswitch-tray')!
+    expect(tray.specs.firstToMarket!.evidence).toBe('forecast')
+    expect(String(tray.specs.firstToMarket!.value)).toContain('NPO')
+
+    expect(optics.specs.bandwidthTbs!.value).toBeNull()
+    expect(optics.specs.bandwidthTbs!.note).toContain('x.xT')
   })
 })
 

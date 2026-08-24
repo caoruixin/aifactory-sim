@@ -524,6 +524,20 @@ export const RUBIN_ULTRA_COMPONENTS: HardwareComponent[] = [
         null,
         'p.10；图见 p.9–p.10（External Laser Source Module）',
       ),
+      // ★ v1.4 W-A：CPO 只做讲解、不建 3D 实体——这两条 Claim 是「讲解站」的数据支撑，
+      // 不进装配树（见 asm.ru.optics 仍按 NPO 16 个建模，content.test.ts 有可执行锁）。
+      cpoExternalLaserSource: sa<string>(
+        'CPO 版本额外配一个外置激光源模块（External Laser Source Module），为托架内嵌的光引擎供光；NPO 版本没有这个独立模块，激光随插槽式模块本身',
+        null,
+        'p.9–p.10（CPO 版托架俯视图标出 External Laser Source Module）',
+        '⚠️ 具体数量（每托架/每颗 ASIC 各几个）原图未标注数字，本项目不补。',
+      ),
+      fieldReplaceability: sa<string>(
+        'NPO 模块插槽式安装、单个可现场更换；CPO 光引擎与 ASIC 共封装，4 个不可更换，坏一颗大概率要连整颗 ASIC 一起处理',
+        null,
+        'p.10（NPO/CPO 差异描述）',
+        '售前含义：故障域从「换一个模块」变成「换一颗芯片」，维保口径不同，谈保修条款前要先问清楚客户拿到的是哪个版本。',
+      ),
       interRackTopology: sa<string>(
         'Dragonfly（机架之间）',
         null,
@@ -1220,5 +1234,29 @@ export const RUBIN_ULTRA_SCENES: ScenePreset[] = [
     highlightAssemblyIds: ['asm.ru.nvswitch-tray', 'asm.ru.compute-tray', 'asm.ru.power-shelf'],
     presalesNote:
       '这一屏最能体现「结构服从物理」：客户如果问「为什么不直接堆更多卡」，答案就是铜的驱动距离和电源密度——4 个 110 kW 电源架也是同一个约束链上的结果。',
+  },
+  {
+    // v1.4 W-A：CPO 是互斥在研版本，同树并存=建了一台不存在的机器（PLAN-v1.4.md Context）。
+    // 本站只做讲解，不建 CPO 实体——3D 里看到的仍然是 NPO 版（asm.ru.optics 16 个模块）。
+    id: 'scene.ru.optics-formfactor',
+    systemId: SYSTEM_ID,
+    title: 'NPO vs CPO：光模块两种在研形态',
+    narration:
+      '① 你应该看到什么：板级视角聚焦一个 NVSwitch 7 交换托架，16 个 NPO 光模块按 4×4 网格排布——' +
+      '4 颗 NVLink 7 交换芯片，每颗旁边 4 个插槽式模块。' +
+      '② 谁连谁 + 关键差异：这一屏看到的是 NPO 版本——每颗 ASIC 旁 4 个可插拔模块；CPO 版本没有插槽，' +
+      '是每颗 ASIC 内嵌 4 个不可更换的光引擎，另配一个外置激光源模块。SemiAnalysis 判断 NPO 封装形态更成熟，' +
+      '会先于 CPO 投入市场——这是分析师原文的判断，不是官方口径。' +
+      '③ 断了会怎样：⚠️ 这一句是本手册的解读，不是 SemiAnalysis 原文陈述——NPO 坏一个模块换一个模块，' +
+      '维护是插拔级的；CPO 的光引擎焊死在芯片上，坏一颗大概率要连整颗 ASIC 一起处理，维保口径从' +
+      '「换模块」变成「换芯片/换托架」。全屏内容仍然是 SemiAnalysis 分析师文章的结构细节推测，不是 NVIDIA 官方规格。',
+    lodLevel: 'board',
+    focusAssemblyId: 'asm.ru.nvswitch-tray',
+    planes: ['nvlink'],
+    highlightAssemblyIds: ['asm.ru.nvswitch-asic', 'asm.ru.optics'],
+    presalesNote:
+      '开口先说证据级别：光模块这一层全部来自 SemiAnalysis 一篇分析师文章，NVIDIA 官方材料至今没有证实 NPO/CPO ' +
+      '任何具体细节。讲完这句再讲 NPO/CPO 差异，客户才不会把结构推测当成官方承诺；第③段「断了会怎样」是本手册' +
+      '自己的推演，不是原文，讲给客户前务必单独说明这层区别。',
   },
 ]

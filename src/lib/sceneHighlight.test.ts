@@ -91,6 +91,19 @@ describe('sceneHighlightFocus：原始 ID → 当前深度下真的挂载的节�
     ])
   })
 
+  it('v1.4 W-A：RU 光模块形态站——板级件在机架深度折叠成所在的交换托架，板级深度保留原 ID', () => {
+    const scene = sceneById('scene.ru.optics-formfactor')!
+    // 场景写的是「交换芯片 + 光模块」两件，两者都挂在同一个交换托架下
+    expect(scene.highlightAssemblyIds).toEqual(['asm.ru.nvswitch-asic', 'asm.ru.optics'])
+    // 机架深度下两者都没挂载 → 折叠到同一个交换托架，去重后只剩一个
+    expect(sceneHighlightFocus(scene, 'rack').sceneHighlightIds).toEqual(['asm.ru.nvswitch-tray'])
+    // 板级深度下两者本身就在场景里，都点亮
+    expect(sceneHighlightFocus(scene, 'board').sceneHighlightIds).toEqual([
+      'asm.ru.nvswitch-asic',
+      'asm.ru.optics',
+    ])
+  })
+
   it('集群级件（Leaf/Spine/汇聚）在任何深度都折叠回自身——它们本来就挂在集群层', () => {
     const scene = sceneById('scene.gb300.learn-switch-layers')!
     for (const depth of ['cluster', 'rack', 'board'] as const) {
