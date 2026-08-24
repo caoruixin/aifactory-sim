@@ -693,8 +693,9 @@ test('桌面·F2 kv-write 脉冲：播放中真的在呼吸，暂停后回到基
     vsBase = Math.max(vsBase, await changedPixelRatio(page, t0, t))
     samples.push(t)
   }
-
-  await expect(page.locator('footer[data-flow-step]')).toHaveAttribute('data-flow-step', String(kvIdx))
+  // 不再断言「此刻仍停在 kv-write」——循环内的逐帧守卫已保证**每个参与差分的采样**
+  // 都摄于 kv-write 步内；机器极端卡顿导致采样窗尾部跨段时，跨段本身不是被测行为
+  //（QA 建议 8：原断言在负载下会把环境卡顿误报成功能失败）。
   // ① 播放中的两帧之间必须有差异 —— 它真的在脉动
   expect(pulsing, `播放中的采样帧之间没有差异（脉冲没生效？）`).toBeGreaterThan(0.001)
   // ② 且与静止基线也不同 —— 否则「把高亮恒定压暗一档」这种坏实现也能骗过 ①
@@ -703,6 +704,9 @@ test('桌面·F2 kv-write 脉冲：播放中真的在呼吸，暂停后回到基
   // ③ 暂停必须复位回 base：frameloop 切回 demand 后 useFrame 可能永远不再执行，
   //    复位若写在 useFrame 的 else 分支里，材质会冻结在暂停那一刻的脉冲值上。
   await page.click('footer button:has-text("暂停")')
+  // 暂停后显式点回 kv-write 步再对比：若采样窗尾部曾跨段，这一步把画面拉回与 t0
+  // 同一静止状态，让「复位回 base」的对比在任何时序下都成立（已在 kv-write 时是无操作）。
+  await page.click(`[data-flow-step-button="${kvIdx}"]`)
   await page.waitForTimeout(500)
   const t4 = (await canvas.screenshot()).toString('base64')
   expect(
