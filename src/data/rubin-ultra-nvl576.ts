@@ -530,7 +530,7 @@ export const RUBIN_ULTRA_COMPONENTS: HardwareComponent[] = [
         'CPO 版本额外配一个外置激光源模块（External Laser Source Module），为托架内嵌的光引擎供光；NPO 版本没有这个独立模块，激光随插槽式模块本身',
         null,
         'p.9–p.10（CPO 版托架俯视图标出 External Laser Source Module）',
-        '⚠️ 具体数量（每托架/每颗 ASIC 各几个）原图未标注数字，本项目不补。',
+        '⚠️ 具体数量（每托架/每颗 ASIC 各几个）原图未标注数字，本项目不补。后半句「NPO 无独立激光源模块」系据 NPO（p.7–p.8）/CPO（p.9–p.10）两组俯视图对比推断，原文无逐字陈述。',
       ),
       fieldReplaceability: sa<string>(
         'NPO 模块插槽式安装、单个可现场更换；CPO 光引擎与 ASIC 共封装，4 个不可更换，坏一颗大概率要连整颗 ASIC 一起处理',
