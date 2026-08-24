@@ -225,6 +225,31 @@ test('桌面·集群视图（Rubin Ultra NVL576）截图——v1.3 组件层证�
   await expect(page).toHaveScreenshot('nvl576-cluster.png')
 })
 
+test('桌面·W-A NVL576 第 3 站 CPO vs NPO 讲解站：?tour= 深链 DOM 断言（?gl=off，不重拍截图）', async ({
+  page,
+}, testInfo) => {
+  onlyOn(testInfo, 'desktop')
+  // v1.4 W-A：Rubin Ultra 站数从 2 变 3（新增 scene.ru.optics-formfactor）。
+  // 本用例只做 DOM 断言，**不重拍** nvl576-cluster.png——那张基线的左栏站数会跟着变，
+  // 按批次纪律留给主循环在合并阶段统一重拍（PLAN-v1.4.md「截图基线是二进制」）。
+  await gotoAndSettle(page, `/?tour=scene.ru.optics-formfactor&gl=off`, 400)
+  await expect(page.locator('main')).toHaveAttribute('data-mode', 'tour')
+  await expect(page.locator('[data-generation][data-mode]')).toHaveAttribute('data-generation', NVL576)
+
+  // 左栏：这一站被唯一高亮
+  await expect(
+    page.locator('[data-tour-scene="scene.ru.optics-formfactor"]'),
+  ).toHaveAttribute('data-tour-scene-active', '1')
+  await expect(page.locator('[data-tour-scene-active="1"]')).toHaveCount(1)
+  // 新增第 3 站后，NVL576 一共 3 站
+  await expect(page.locator('[data-tour-scene]')).toHaveCount(3)
+
+  // 讲解文案必须带出 CPO——证据分层练习的核心内容
+  await expect(
+    page.locator('[data-tour-narration="scene.ru.optics-formfactor"]'),
+  ).toContainText('CPO')
+})
+
 // ─────────────────────────── 4：比较模式 ───────────────────────────
 
 test('桌面·比较模式（GB300 vs Vera Rubin）：截图 + diff 计数 + showDiffOnly ghost', async ({
