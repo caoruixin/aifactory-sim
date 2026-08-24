@@ -267,8 +267,10 @@ describe('Vera Rubin ↔ Groq 3 LPX：配对（不是换代）', () => {
 
 describe('比较定义与 3D 索引', () => {
   // v1.3 W3：第四条定义是 Vera Rubin ↔ Groq 3 LPX——**配对**关系而不是换代关系。
-  it('内容包里四组比较定义都能构建出结果，且 narrative 覆盖生效', () => {
-    expect(FACTORY_PACK.comparisons.length).toBe(4)
+  // v1.4 W-C：第五条是 GB300 NVL72 ↔ HGX B300——**同代同芯片的两种域架构**比较，
+  //           既不是换代也不是配对（左右两侧同为 shipping、同为 Blackwell Ultra）。
+  it('内容包里五组比较定义都能构建出结果，且 narrative 覆盖生效', () => {
+    expect(FACTORY_PACK.comparisons.length).toBe(5)
     for (const def of FACTORY_PACK.comparisons) {
       const result = buildComparison(def)
       expect(result.rows.length).toBeGreaterThan(0)
@@ -311,19 +313,20 @@ describe('比较定义与 3D 索引', () => {
 })
 
 /**
- * v1.3 W3：四个系统 ⇒ 4 × 3 = 12 个**有序**组合。比较视图允许用户任意组合左右
- * （代际按钮 + 右侧下拉 + 交换按钮），因此每一格都必须能算出结果，不能只测有
- * 人工定义的那四条。
+ * v1.3 W3：四个系统 ⇒ 4 × 3 = 12 个**有序**组合；
+ * v1.4 W-C：HGX B300 加入后是五个系统 ⇒ 5 × 4 = 20 个有序组合。
+ * 比较视图允许用户任意组合左右（代际按钮 + 右侧下拉 + 交换按钮），因此每一格都必须
+ * 能算出结果，不能只测有人工定义的那五条。
  */
-describe('★ 全部 12 个有序组合都能比较（参数化）', () => {
+describe('★ 全部 20 个有序组合都能比较（参数化）', () => {
   const ids = FACTORY_PACK.systems.map((s) => s.id)
   const orderedPairs: Array<[string, string]> = ids.flatMap((l) =>
     ids.filter((r) => r !== l).map((r) => [l, r] as [string, string]),
   )
 
-  it('4 个系统恰好产生 12 个有序组合', () => {
-    expect(ids.length).toBe(4)
-    expect(orderedPairs.length).toBe(12)
+  it('5 个系统恰好产生 20 个有序组合', () => {
+    expect(ids.length).toBe(5)
+    expect(orderedPairs.length).toBe(20)
   })
 
   it.each(orderedPairs)('%s → %s：行非空、roleKey 不重复、counts 与行数自洽', (left, right) => {
@@ -377,14 +380,15 @@ describe('★ 全部 12 个有序组合都能比较（参数化）', () => {
 
   /**
    * ComparePanel 的右侧下拉用的就是这个表达式（`systems.filter(s => s.id !== generation)`）。
-   * 这里锁住「每个左侧恰好三个右侧选项、且不含自己」——DOM 层的实际渲染数量由 E2E 断言。
+   * 这里锁住「每个左侧恰好四个右侧选项、且不含自己」（v1.4 W-C 起五系统，原为三个）
+   * ——DOM 层的实际渲染数量由 E2E 断言。
    */
-  it('★ ComparePanel 的右侧选项：每个左侧恰三个，且不含自己', () => {
+  it('★ ComparePanel 的右侧选项：每个左侧恰四个，且不含自己', () => {
     for (const left of ids) {
       const options = FACTORY_PACK.systems.filter((s) => s.id !== left).map((s) => s.id)
-      expect(options.length, `${left} 的右侧选项数`).toBe(3)
+      expect(options.length, `${left} 的右侧选项数`).toBe(4)
       expect(options, `${left} 的右侧选项不该含自己`).not.toContain(left)
-      expect(new Set(options).size).toBe(3)
+      expect(new Set(options).size).toBe(4)
     }
   })
 })

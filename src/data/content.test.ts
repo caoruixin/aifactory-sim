@@ -822,12 +822,21 @@ describe('Groq 3 LPX：机架/托盘/芯片三级数量与容量', () => {
   })
 })
 
-describe('四代并存后的全局不变量', () => {
-  // v1.3 W3：Groq 3 LPX 作为第四个系统**追加在尾部**——`systems[0]` 是默认代际、
-  // `systems[1]` 是比较模式默认右侧，中间插入会让这两个约定连同全部截图基线一起漂移。
-  it('四个系统各自成树，且默认代际（systems[0]）是唯一 shipping 的一代', () => {
-    expect(FACTORY_PACK.systems.map((s) => s.id)).toEqual([SYSTEM_ID, VR, RU, LPX])
-    expect(FACTORY_PACK.systems.filter((s) => s.status === 'shipping').map((s) => s.id)).toEqual([SYSTEM_ID])
+const HGX = 'sys.hgx-b300'
+
+describe('五代并存后的全局不变量', () => {
+  // v1.3 W3：Groq 3 LPX 作为第四个系统**追加在尾部**；v1.4 W-C：HGX B300 作为第五个同样追加在尾部
+  // ——`systems[0]` 是默认代际、`systems[1]` 是比较模式默认右侧，中间插入会让这两个约定
+  // 连同全部截图基线一起漂移。
+  it('五个系统各自成树，顺序不漂移，且 shipping 的恰好是 GB300 与 HGX B300', () => {
+    expect(FACTORY_PACK.systems.map((s) => s.id)).toEqual([SYSTEM_ID, VR, RU, LPX, HGX])
+    // v1.4 W-C 起 shipping 不再唯一：HGX B300 同样在售（HGX 产品页规格表脚注 4
+    //「HGX B300 and HGX B200 shipping now.」）。但 systems[0] 仍必须是默认代际 GB300。
+    expect(FACTORY_PACK.systems.filter((s) => s.status === 'shipping').map((s) => s.id)).toEqual([
+      SYSTEM_ID,
+      HGX,
+    ])
+    expect(FACTORY_PACK.systems[0]!.id).toBe(SYSTEM_ID)
   })
 
   it('每代都有导览场景，且场景按系统分组连续排列（TourPanel 按系统内序号取用）', () => {

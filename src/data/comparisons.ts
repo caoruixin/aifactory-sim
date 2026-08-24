@@ -321,4 +321,285 @@ export const COMPARISONS: ComparisonDefinition[] = [
       'src.semianalysis-nvl576',
     ],
   },
+  {
+    /**
+     * v1.4 W-C：这一条**不是换代比较**，是**同代同芯片的两种域架构比较**。
+     *
+     * 左右两侧用的是同一颗 Blackwell Ultra，同一年在售，都是 shipping。
+     * 变量只有一个：NVLink 域做到 72 卡（机架级）还是 8 卡（服务器级）。
+     * 因此这张表里那一大排 `removed` 全部来自「机架级机器 → 普通服务器」这一个原因，
+     * 每一条都写了 narrative——否则会被读成「HGX 是个缩水版」，那是彻底的误读。
+     */
+    id: 'cmpdef.gb300-to-hgx-b300',
+    leftSystemId: 'sys.gb300-nvl72',
+    rightSystemId: 'sys.hgx-b300',
+    title: 'GB300 NVL72 → HGX B300（同一颗 B300，两种 NVLink 域）',
+    summary: [
+      '★ 唯一的变量是**域有多大**：72 卡机架域 vs 8 卡服务器域。每卡 NVLink 带宽两边**完全相同**（1.8 TB/s），' +
+        '变的不是链路速度，是「这条链路通到多少张卡」——机架级 130 TB/s vs 服务器级 14.4 TB/s，' +
+        '比值 9 : 1 正好等于 72 : 8。',
+      '★ 结构上这是「机架级机器 → 普通服务器」：计算托盘 / 交换托盘 / NVLink 铜背板 / 直流母排 / 电源架 / ' +
+        '分液歧管 / 冷板 / CDU / 一次侧水路**全部消失**，换成 4 台 8–10U 风冷整机 + A/B 双路 PDU + 机房空调。' +
+        'NVSwitch 没有消失，它从机架的交换托盘搬进了服务器的 HGX 基板。',
+      '★ 同一颗芯片，两个平台的**官方规格不同**：数据手册按平台分列——GB300 NVL72 是 279 GB / 8 TB/s / ' +
+        'FP4 稠密 15 PFLOPS / TDP 最高 1,400 W，HGX B300 是 270 GB / 7.7 TB/s / FP4 稠密 14 PFLOPS / ' +
+        'TDP 最高 1,100 W。差的那约 7% 算力就是「不做液冷改造」的价格。',
+      '★ 对 MoE 与长上下文推理的含义：万亿参数 MoE 的专家并行、长上下文的张量并行一旦跨出 8 卡，' +
+        '每一步 all-to-all / all-reduce 就从 1.8 TB/s 的 NVLink 掉到 800 Gb/s 的以太网（1/18 带宽）。' +
+        '反过来，官方自己说单张 B300 SXM 约能装 120B 参数、超出也「will still reside within the same node」' +
+        '——≤120B 的推理场景里那 72 卡域是买了用不上的钱，甚至「a compute network may not be necessary」。',
+      '⚠️ 口径纪律：HGX 这一代的 `gpuCount` 填的是**每台服务器 8 张**，不是每机架——' +
+        'NVIDIA 在三个设计点上都写着「The number of GPU servers per rack depends on available rack power」，' +
+        '官方拒绝给出每机架台数。因此本工具对 HGX 出产能数字时，「机架数」滑杆请读作「服务器台数」，' +
+        '且**不出 tokens/W**（整机架功率同样未公布）。',
+      '⚠️ 两个 30×/50× 都是厂商营销口径（对比 Hopper 的 AI 工厂综合产出，各自带不同的负载前提），' +
+        '不是算力比，不可直接换算成 token 产能——但「机架域 > 服务器域」这个相对关系是真的。',
+    ],
+    rows: [
+      {
+        roleKey: 'accelerator',
+        label: '加速器（GPU）',
+        narrative:
+          '★ **同一颗 Blackwell Ultra，但两侧官方数字不同**，这不是数据错误：Blackwell Ultra 数据手册第 5 页' +
+          '按平台分列——GB300 NVL72 列 279 GB / 8 TB/s / FP4 稠密 15 PFLOPS / 最高 1,400 W，' +
+          'HGX B300 列 270 GB / 7.7 TB/s / FP4 稠密 14 PFLOPS / 最高 1,100 W。' +
+          '原因是功率档位（液冷 vs 风冷）。另外芯片技术博客还有第三个显存数字 288 GB，' +
+          '官方脚注已说明「Available SM count and HBM capacity varies by SKU」。' +
+          '★ 顺带一提：HGX 这一侧是本项目**第一个有官方单卡 TDP 的加速器**（前四代官方都没给）。',
+      },
+      {
+        roleKey: 'nvswitch-asic',
+        label: 'NVLink 交换芯片',
+        narrative:
+          '★★ 整张表最该看的一行：**同名角色，位置从机架级交换托盘搬进了服务器基板**。' +
+          'GB300 是 9 个交换托盘 × 2 颗 = 每机架 18 颗，把 72 张卡连成 130 TB/s 的域；' +
+          'HGX 是基板上的板载 NVSwitch，把 8 张卡连成 14.4 TB/s 的域。' +
+          '⚠️ HGX 侧的数量是**示意**：RA 只说「a combination of fifth-generation NVSwitch and ' +
+          'fifth-generation NVLink」，数据手册用单数「via NVSwitch chip」，官方都没给数量' +
+          '（DGX B300 规格表写 2x，但那是 DGX 整机口径）。所以这一行的「数量变化」不要当规格引用。',
+      },
+      {
+        roleKey: 'gpu-server',
+        label: 'GPU 服务器（整机）',
+        narrative:
+          '★ 「新增」在这里的正确读法是**形态回退，不是能力升级**：GB300 那一代根本没有「服务器」这个概念' +
+          '——整个机架就是一台机器，18 个计算托盘是它的抽屉。HGX 这一代退回成一台台独立的 8 卡服务器' +
+          '（官方口诀 2-8-9-800：2 CPU / 8 GPU / 9 网卡 / 每 GPU 800 Gb/s），每台自成一个 NVLink 域。' +
+          '⚠️ 每机架放几台官方**刻意不给**（「depends on available rack power」），' +
+          '本项目按「1 机架 = 1 个 4 节点 SU」示意画 4 台，不是规格。',
+      },
+      {
+        roleKey: 'compute-tray',
+        label: '计算托盘',
+        narrative:
+          '★ 「未收录」在这里既不是「官方没公布」也不是「缩水」，而是**这个部件在 HGX 上不存在**：' +
+          '计算托盘是「机架即计算机」形态的产物——18 个抽屉共享一个机架级 NVLink 域。' +
+          'HGX 的对应物是上一行的 `gpu-server`（整机服务器），两者刻意用不同 roleKey，' +
+          '因为把「1U 抽屉」和「10U 整机」配成一行会得出「托盘 18 → 4」这种毫无意义的数量变化。',
+      },
+      {
+        roleKey: 'nvswitch-tray',
+        label: 'NVLink 交换托盘',
+        narrative:
+          '★ 这一行的消失就是本代际的定义特征，`pack.test.ts` 甚至对 nvlink-node-domain 这一族' +
+          '**强制禁用** nvswitch-tray 与 nvlink-backplane 两个 roleKey——写进来反而是建模错误。' +
+          '交换芯片本身没消失（见 nvswitch-asic 行），消失的是「机架级交换层」这个层次。',
+      },
+      {
+        roleKey: 'nvlink-backplane',
+        label: '机架内 scale-up 互连底板',
+        narrative:
+          '★ 同上，属于「机架级 NVLink 域」的配套物：GB300 用无源铜背板把 18 个计算托盘与 9 个交换托盘' +
+          '连成一个域。HGX 的域止步于基板 PCB 走线，机架背部只剩 PDU。' +
+          '**切到 NVLink 平面看机架，会发现一条线都没有——这就是这一代最该讲的一张图。**',
+      },
+      {
+        roleKey: 'hgx-baseboard',
+        label: 'HGX 基板',
+        narrative:
+          '★ 「新增」的这一块板，就是「HGX 到底是什么」的答案：NVIDIA 卖给 OEM 的不是整机，' +
+          '是 8 颗 B300 SXM + 板载 NVSwitch + 8 张 ConnectX-8 焊在一起的这一块，' +
+          '经 8 条 PCIe Gen5 ×16 挂到 OEM 主机板上。' +
+          'GB300 NVL72 那一代没有对应物——那一代 NVIDIA 卖的是整个机架。' +
+          '★ 售前顺带澄清 HGX vs DGX：DGX B300 是 NVIDIA 用同类基板做的自有整机（固定 10U、' +
+          'Intel Xeon 6776P、2 张 BF-3、~14 kW），HGX 是基板方案、整机由 OEM 做成 NVIDIA-Certified System。',
+      },
+      {
+        roleKey: 'host-cpu',
+        label: '主机 CPU',
+        narrative:
+          '★ 这一行的变化比看上去大得多：**Grace（Arm）+ NVLink-C2C → x86 + PCIe Gen5**。' +
+          'GB300 每托盘 2 颗 Grace 经 900 GB/s C2C 与 GPU 一致寻址（官方「37 TB 快内存」由此而来）；' +
+          'HGX 每台 2 颗 x86，与基板之间只有 PCIe，主机内存与显存是两个独立地址空间。' +
+          '**「快内存」话术在 HGX 上一句都不能用。**' +
+          '⚠️ HGX 侧型号由 OEM 选型，RA 只给下限（≥48 核/插槽、推荐 56、≥2 TB 内存、≥500 GB/s 带宽、' +
+          'balanced PCIe topology）——最后那条最容易被 OEM 配置单踩坑。',
+      },
+      {
+        roleKey: 'scaleout-nic',
+        label: 'Scale-out 网卡',
+        narrative:
+          '★ 同为 ConnectX-8、同为 1:1 GPU:NIC，差别在**装在哪、怎么拆口**：' +
+          'GB300 是每托盘 4 张双口 CX-8 装在夹层板上（每机架 72 张）；' +
+          'HGX 是每块基板 8 张单口 CX-8 **焊在 GPU 基板上**（官方「integrated onto the NVIDIA HGX B300 baseboard」），' +
+          '双平面下把 800 Gb/s 拆成 2×400 Gb/s 接到两张独立 fabric。' +
+          '★ 真正的差异不在网卡本身，而在**它承担什么**：GB300 里跨机架流量才走它，' +
+          'HGX 里出了 8 卡的一切都走它。',
+      },
+      {
+        roleKey: 'nic-mezzanine',
+        label: '网卡夹层板',
+        narrative:
+          '★ 「未收录」= 这个部件在 HGX 上不存在，不是没公布：网卡直接焊在 HGX 基板上，' +
+          '不需要夹层板这一层。参见上一行。',
+      },
+      {
+        roleKey: 'north-south-dpu',
+        label: 'North/South DPU',
+        narrative:
+          '★ 两侧**复用同一个组件定义**（BlueField-3 B3240，双 400 GbE），因此判为无变化——' +
+          '这是两代之间少数几个真正没变的部件。' +
+          '差别只在数量口径：GB300 每计算托盘 1 张（每机架 18 张），HGX 每台服务器 1 张。' +
+          '⚠️ HGX 的 RA 特意加了一条选型提示：推荐 B3240 而不是 HGX H100/H200/B200 上常见的 B3220，' +
+          '理由是要为「分布式推理把 KV cache 卸载到高速网络存储」这类未来负载留突发 I/O 余量。' +
+          '⚠️ 另注意 DGX B300 是 2 张 BF-3，与 HGX 参考架构的 1 张不同。',
+      },
+      {
+        roleKey: 'gpu-hbm',
+        label: 'GPU 显存堆栈',
+        narrative:
+          '★ 数量看起来都是 8，但证据强度不同：GB300 那一侧的 8 是**视觉示意**（官方未公布堆栈数），' +
+          'HGX 这一侧的 8 是**官方数字**——Blackwell Ultra 技术博客写明「Eight 12-Hi stacks, ' +
+          '16 × 512-bit controllers (8,192-bit total width)」。' +
+          '容量口径两侧不同（288 GB vs 270 GB），原因见 accelerator 行。',
+      },
+      {
+        roleKey: 'power-shelf',
+        label: '机架电源架',
+        narrative:
+          '★ 「未收录」= 不存在：GB300 机架里有 8 个电源架（每架 6 × 5.5 kW PSU）把交流转成直流上母排；' +
+          'HGX 是普通服务器形态，每台自带电源，机架里只有 PDU。' +
+          '运维含义是正面的——换电源就是换普通服务器电源，不需要学机架级供电那套。',
+      },
+      {
+        roleKey: 'dc-busbar',
+        label: '直流母排',
+        narrative:
+          '★ 「未收录」= 不存在，与上一行同源。GB300 的托盘盲插到母排即取电；' +
+          'HGX 服务器插的是普通电源线。' +
+          '⚠️ 代价是这一代**没有**机架级功率调度与智能削峰能力（那是 NVL72 / Vera Rubin 那条线在做的事）。',
+      },
+      {
+        roleKey: 'rack-pdu',
+        label: '机架 PDU',
+        narrative:
+          '★ 「新增」的其实是最普通的东西——A/B 双路交流配电插排。' +
+          'NVIDIA 对这一层只有一条硬要求：「Rack layout must provide power supply redundancy」，' +
+          '型号、路数、容量一概不给，因为整机架功率本身就交还给客户机房了。' +
+          '⚠️ 本项目画 2 路是示意，不是规格。',
+      },
+      {
+        roleKey: 'liquid-manifold',
+        label: '分液歧管',
+        narrative:
+          '★ 「未收录」= 不存在：这一代是风冷。官方 RA 原话「industry-leading performance in an ' +
+          'air-cooled form factor」，整篇文档里没有 CDU、歧管、冷板或进液温度要求。',
+      },
+      {
+        roleKey: 'cold-plate',
+        label: '冷板',
+        narrative:
+          '★ 「未收录」= 不存在，同为风冷所致。HGX 的对应物是机箱散热器 + 风扇——' +
+          '内容包里那条 `con.hgx.gpu-chassis-air`（GPU → 机箱风道）就是它。' +
+          '⚠️ 这也解释了两侧 TDP 档位的差别：液冷 1,400 W vs 风冷 1,100 W。',
+      },
+      {
+        roleKey: 'nvswitch-cold-plate',
+        label: 'NVSwitch 冷板',
+        narrative: '★ 「未收录」= 不存在：板载 NVSwitch 与 GPU 共用机箱风冷，没有专属液冷回路。',
+      },
+      {
+        roleKey: 'cdu',
+        label: 'CDU 冷量分配单元',
+        narrative:
+          '★ 「未收录」= 不存在。这一行与下一行合起来是 HGX 最大的**商务**卖点：' +
+          '整条二次侧液冷链路（冷板 → 歧管 → CDU → 机房一次侧水）在这一代全部不需要，' +
+          '现有风冷机房大概率不用改造。液冷改造按季度排期，风冷方案按周排期——' +
+          '很多单子最后卡在这里，而不是算力。',
+      },
+      {
+        roleKey: 'facility-water-loop',
+        label: '机房一次侧冷却水回路',
+        narrative:
+          '★ 「未收录」= 不存在，同上。HGX 这一侧的对应物是 `room-air-handler`（机房空调），' +
+          'cooling 平面只有一段「服务器 → 空调」。',
+      },
+      {
+        roleKey: 'room-air-handler',
+        label: '机房空调（CRAH）',
+        narrative:
+          '★ 「新增」的这一格代表整条散热链：服务器风扇 → 热通道 → 机房空调，完。' +
+          '⚠️ NVIDIA 的 HGX 参考架构对机房侧散热**只有一句话**（Abstract 的「air-cooled form factor」），' +
+          '没有送风温度、风量与气流组织要求，因此本项目这一层的数量与形态完全是示意，全部规格为 null。' +
+          '客户真正要算的「每机架 40–60 kW 风冷散热撑不撑得住」，要交给机电顾问。',
+      },
+      {
+        roleKey: 'inrack-mgmt-switch',
+        label: '机架内管理交换机',
+        narrative:
+          '⚠️ 这一行是**资料差异**，不是产品差异：GB300 参考架构明写每机架 2 台 SN2201；' +
+          'HGX 参考架构只描述「SN2201 汇聚全部 BMC/OOB 1 Gb 端口，再经 25/100 Gbps spine 层扩展」' +
+          '（32 节点设计点共 4 台，每 2 个 SU 一台），没有把它放进机架。' +
+          '本项目因此把 HGX 的 SN2201 建在集群层（`oob-mgmt-switch`），机架内不建——' +
+          '「未收录」在这里是如实反映来源，不代表 HGX 机架里没有管理交换机。',
+      },
+      {
+        roleKey: 'control-plane-node',
+        label: '控制面管理节点',
+        narrative:
+          '★ 两侧都有，但数字不同、别记混：GB300 参考架构是 **12 台**（x86 或 Grace 两种配置皆可）；' +
+          'HGX 参考架构是 **7 台示例 / 8 台上限**，纯 x86，各配 1 张 BlueField-3 B3220（双 200G）与 4 TB 本地盘。' +
+          'HGX 的 7 台拆解是官方明写的：2 台 Base Command Manager（高可用）+ 2 台 Slurm head + ' +
+          '3 台 Kubernetes 控制面。这是报价单必须单列的一项。',
+      },
+      {
+        roleKey: 'os-storage',
+        label: '本地系统盘',
+        narrative:
+          '两侧都有 1 块本地启动盘。GB300 侧是 M.2 NVMe；HGX 侧 RA 只写「1 TB NVMe boot drive」，' +
+          '未规定形态（M.2 / E1.S / U.2 由 OEM 定），因此这一行的规格差异有一部分是「未公布」而非「不同」。',
+      },
+      {
+        roleKey: 'cache-storage',
+        label: '本地缓存 / 数据盘',
+        narrative:
+          '★ 口径不同，别直接比数量：GB300 是每托盘 4 块 E1.S（参考架构正文口径，Table 10 另写 8 块，' +
+          '该冲突已在 GB300 侧留痕）；HGX 是**按 CPU 插槽给容量下限**——推理 ≥1 TB/插槽、' +
+          '训练/DL ≥2 TB/插槽、HPC ≥1 TB/插槽，官方没有直接给盘数，本项目按 2 插槽画 2 块。' +
+          '★ 需求澄清阶段就要问清「以后要不要训练」：按推理档配完事后加盘意味着停机。',
+      },
+      {
+        roleKey: 'scaleout-leaf',
+        label: '计算网 Leaf',
+        narrative:
+          '★ 两侧都有 leaf，但**在体系里的分量完全不同**：GB300 里 leaf/spine 只管跨机架，' +
+          '机架内 72 卡的集合通信走 NVLink；HGX 里出了 8 卡的一切都走 leaf/spine，' +
+          '它直接决定多机训练/推理能不能跑。' +
+          'HGX 的 32 节点设计点是双平面合计 8 台 leaf + 4 台 spine，每平面 4 台 leaf、' +
+          '每台承载 2 条 rail（1+5, 2+6, 3+7, 4+8）。' +
+          '⚠️ 型号一栏两侧写法不同（SN5610 vs SN5600）源自官方文档本身：HGX 的 RA 里 Table 5 / ' +
+          'appendix Table 9 写 SN5600（128×400 GbE，Spectrum-4），networking-hardware 一节写 SN5610' +
+          '（64×800 Gbps）——两者总容量一致，对客户说「Spectrum-4，51.2 Tb/s 那一档」最安全。',
+      },
+    ],
+    sourceIds: [
+      'src.nvidia-hgx-ra',
+      'src.nvidia-hgx-page',
+      'src.nvidia-blackwell-ultra-datasheet',
+      'src.nvidia-blackwell-ultra-blog',
+      'src.nvidia-dgx-b300-page',
+      'src.nvidia-nvl72-ra',
+      'src.nvidia-gb300-page',
+    ],
+  },
 ]

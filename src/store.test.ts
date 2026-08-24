@@ -191,11 +191,11 @@ describe('store 转移', () => {
     expect(s.tourStopIdx).toBe(1)
   })
 
-  // ─────────── v1.3 W3：四系统轮转 + 比较双方的清洗与原子交换 ───────────
+  // ─────────── 代际轮转 + 比较双方的清洗与原子交换（v1.3 W3 起；v1.4 W-C 扩到五系统） ───────────
 
-  it('★ 四系统轮转：切到任何一代，右侧都自动落在一个合法的他系统上', () => {
+  it('★ 五系统轮转：切到任何一代，右侧都自动落在一个合法的他系统上', () => {
     const ids = FACTORY_PACK.systems.map((s) => s.id)
-    expect(ids.length).toBe(4)
+    expect(ids.length).toBe(5)
     for (const id of ids) {
       useFactoryStore.getState().setGeneration(id)
       const s = useFactoryStore.getState()
@@ -227,12 +227,12 @@ describe('store 转移', () => {
   })
 
   /**
-   * 12 个有序组合（4 系统 × 3 个他系统）逐个验证 swap 的两条性质：
+   * 20 个有序组合（5 系统 × 4 个他系统）逐个验证 swap 的两条性质：
    *   ① 一次交换 = 左右恰好对调（**旧左必须成为新右**——这正是两步写法
    *      setGeneration + setCompare 做不到的，setGeneration 会把旧左冲掉）；
    *   ② 交换两次必然复原（对合性）。
    */
-  it('★ swapCompareSides：全部 12 个有序组合，交换一次对调、交换两次复原', () => {
+  it('★ swapCompareSides：全部 20 个有序组合，交换一次对调、交换两次复原', () => {
     const ids = FACTORY_PACK.systems.map((s) => s.id)
     let pairs = 0
     for (const left of ids) {
@@ -258,7 +258,7 @@ describe('store 转移', () => {
         expect(twice.compare.right, `${left}|${right} 复原右侧`).toBe(right)
       }
     }
-    expect(pairs, '4 个系统应有 12 个有序组合').toBe(12)
+    expect(pairs, '5 个系统应有 20 个有序组合').toBe(20)
   })
 
   it('swapCompareSides 重置下钻状态（换系统 = 换整棵装配树），但保留 mode 与 showDiffOnly', () => {
