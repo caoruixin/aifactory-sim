@@ -292,7 +292,9 @@ test('桌面·比较模式（GB300 vs Vera Rubin）：截图 + diff 计数 + sho
 // ⚠️ `/report` 的用例在 v1.3 W3 被**替换**成下面「四系统动态渲染 + 配对段 + LPX 拒绝卡」
 //    那一条（同一张 `report-page.png` 基线）：原用例硬编码三个系统 ID 与「产能三态」，
 //    第四代加进来后既漏检新内容、命名也不再准确。新用例是它的超集
-//    （六节标题 / 产能态 / 截图 / 不加载 three-vendor 四项断言全部保留）。
+//    （七节标题 / 产能态 / 截图 / 不加载 three-vendor 四项断言全部保留）。
+//    v1.4 W-B：新增第 6 节「国产超节点对照（WAIC 2026）」，h2 计数从 6 升到 7；
+//    该节涉及的截图基线重拍由主循环在合并阶段统一处理，这里只加内容断言。
 
 test('未知路由：给 404 页而不是白屏，且不加载 three-vendor', async ({ page }, testInfo) => {
   onlyOn(testInfo, 'desktop')
@@ -972,7 +974,7 @@ test('桌面·W3 比较模式 VR ↔ LPX：diff 计数 + 配对叙述 + 交换�
   await expect(page.locator('[data-compare-left]')).toHaveAttribute('data-compare-right', LPX)
 })
 
-test('/report：四系统动态渲染 + VR↔LPX 配对段 + LPX 拒绝卡（内容断言，不只截图）', async ({
+test('/report：四系统动态渲染 + VR↔LPX 配对段 + LPX 拒绝卡 + 国产超节点对照（内容断言，不只截图）', async ({
   page,
 }, testInfo) => {
   onlyOn(testInfo, 'desktop')
@@ -980,7 +982,8 @@ test('/report：四系统动态渲染 + VR↔LPX 配对段 + LPX 拒绝卡（内
   page.on('request', (req) => requestedUrls.push(req.url()))
 
   await page.goto('/report')
-  await expect(page.locator('h2')).toHaveCount(6)
+  // v1.4 W-B 新增第 6 节「国产超节点对照」，七节标题 = 7 个 h2。
+  await expect(page.locator('h2')).toHaveCount(7)
 
   // ① 产能卡与系统清单按内容包动态渲染：四个系统一个不少
   await expect(page.locator('[data-report-capacity] [data-capacity-card]')).toHaveCount(
@@ -1022,6 +1025,23 @@ test('/report：四系统动态渲染 + VR↔LPX 配对段 + LPX 拒绝卡（内
   await expect(refusal).toContainText('paired-only')
   await expect(refusal).toContainText('不是')
   await expect(refusal).toContainText('0 项')
+
+  // ⑥ 国产超节点对照（WAIC 2026）：段标题 + 非官方口径徽标 + 规模阶梯 + 结构差异要点
+  const cnSupernode = page.locator('[data-report-cn-supernode]')
+  await expect(cnSupernode).toHaveCount(1)
+  await expect(page.locator('h2', { hasText: '国产超节点对照' })).toHaveCount(1)
+  await expect(cnSupernode).toContainText('内部材料转述')
+  await expect(cnSupernode).toContainText('非官方口径')
+  await expect(cnSupernode).toContainText('不构成规格')
+  await expect(cnSupernode).toContainText('32–128 卡')
+  await expect(cnSupernode).toContainText('256–1,024 卡')
+  await expect(cnSupernode).toContainText('万卡+')
+  await expect(cnSupernode).toContainText('平台型')
+  await expect(cnSupernode).toContainText('华为')
+  await expect(cnSupernode).toContainText('阿里')
+  await expect(cnSupernode).toContainText('百度昆仑芯')
+  await expect(cnSupernode).toContainText('NVSwitch')
+  await expect(cnSupernode).toContainText('灵衢')
 
   await page.waitForTimeout(200)
   await expect(page).toHaveScreenshot('report-page.png')

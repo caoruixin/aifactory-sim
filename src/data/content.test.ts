@@ -284,6 +284,42 @@ describe('数据源登记', () => {
   })
 })
 
+/**
+ * v1.4 W-B：`src.waic2026-deck` 是「国产超节点对照」段与数据流叙述的素材源，
+ * 但它是内部材料转述（internal_deck），不是可验证的官方规格——纪律要求它只能进
+ * narration / presalesNote / summary 这类纯文案字段（见 `flows.ts` 的 WAIC_SOURCE 用法与
+ * `ReportPage.tsx` 的国产超节点对照段），绝不能包进任何 `Claim`。
+ *
+ * 现状本来就满足这条规则（deck 从未被当作某个数量/规格的证据源），这条测试单纯是把
+ * 「现状为真」钉成回归锁：以后谁想偷懒直接拿 deck 里的数字当 Claim 出处，这里会先红。
+ */
+describe('★ WAIC 2026 内部材料纪律：deck 源不得进入任何 Claim（锁防回归）', () => {
+  it('src.waic2026-deck 不出现在任何 keySpecs / specs / countClaim / bandwidth 的 sourceId 上', () => {
+    const offenders: string[] = []
+    for (const s of FACTORY_PACK.systems) {
+      for (const [k, c] of Object.entries(s.keySpecs)) {
+        if (c.sourceId === 'src.waic2026-deck') offenders.push(`${s.id}.keySpecs.${k}`)
+      }
+    }
+    for (const c of FACTORY_PACK.components) {
+      for (const [k, claim] of Object.entries(c.specs)) {
+        if (claim.sourceId === 'src.waic2026-deck') offenders.push(`${c.id}.specs.${k}`)
+      }
+    }
+    for (const a of FACTORY_PACK.assemblies) {
+      if (a.countClaim && a.countClaim.sourceId === 'src.waic2026-deck') {
+        offenders.push(`${a.id}.countClaim`)
+      }
+    }
+    for (const conn of FACTORY_PACK.connections) {
+      if (conn.bandwidth && conn.bandwidth.sourceId === 'src.waic2026-deck') {
+        offenders.push(`${conn.id}.bandwidth`)
+      }
+    }
+    expect(offenders, `deck 源混入了 Claim.sourceId：${offenders.join('、')}`).toEqual([])
+  })
+})
+
 // ═══════════════════════════ Vera Rubin NVL72（B4） ═══════════════════════════
 
 const VR = 'sys.vera-rubin-nvl72'

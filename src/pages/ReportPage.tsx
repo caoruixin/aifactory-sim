@@ -5,7 +5,8 @@
  *   打印场景（以及任何没有 WebGL 的环境）必须能独立打开这一页。
  *   构建后可以用 `grep -l "three" dist/assets/ReportPage-*.js` 复核。
  *
- * 六节：需求背景 / 当前架构 / 推理数据流 / 代际变化 / 证据边界 / 下一阶段。
+ * 七节：需求背景 / 当前架构 / 推理数据流 / 代际变化 / 证据边界 /
+ * 国产超节点对照（WAIC 2026） / 下一阶段。
  * 打印用 Tailwind 的 `print:` 变体收拾：去掉导航与背景色、避免在节中间分页。
  */
 
@@ -23,6 +24,8 @@ import { FLOW_PHASE_LABEL } from '../lib/flowTimeline'
 const GB300 = 'sys.gb300-nvl72'
 const VERA_RUBIN = 'sys.vera-rubin-nvl72'
 const LPX = 'sys.groq3-lpx'
+/** 国产超节点对照段的唯一素材来源——内部转述，纯文案层，绝不进 Claim（先例见 flows.ts WAIC_SOURCE）。 */
+const WAIC_SOURCE = 'src.waic2026-deck'
 
 // ─────────────────────────── 证据统计（纯函数） ───────────────────────────
 
@@ -80,6 +83,7 @@ export default function ReportPage() {
   const pairing = useMemo(() => compareSystems(VERA_RUBIN, LPX), [])
   const lpxCapacity = capacity.find((c) => c.systemId === LPX)
   const episode = flowsOfSystem(GB300)[0]
+  const waicSource = sourceById(WAIC_SOURCE)
 
   const byEvidence = useMemo(() => {
     const map = new Map<EvidenceType, ClaimRef[]>()
@@ -379,8 +383,112 @@ export default function ReportPage() {
         </ul>
       </Section>
 
-      {/* ── 6. 下一阶段 ── */}
-      <Section n={6} title="下一阶段">
+      {/* ── 6. 国产超节点对照（WAIC 2026） ── */}
+      <Section n={6} title="国产超节点对照（WAIC 2026）：给客户一个参照系，不是一张规格表">
+        <div data-report-cn-supernode className="space-y-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="inline-flex items-center rounded border border-warn/35 bg-warn/10 px-1.5 py-px text-[11px] font-medium text-warn">
+              ⚠️ {SOURCE_KIND_LABEL.internal_deck}转述，非官方口径，不构成规格
+            </span>
+            <span className="text-[11px] text-dim">
+              素材来源：
+              {waicSource ? `《${waicSource.title}》 · ${waicSource.publisher} · ${waicSource.asOf}` : WAIC_SOURCE}
+              （详见上一节「全部数据源」）
+            </span>
+          </div>
+
+          <p>
+            客户经常在对比完 NVIDIA 方案之后，顺口问一句「国产的超节点现在做到什么程度了」。
+            这一节不回答具体规格——素材来自一份 2026 WAIC 内部资料的转述，没有可访问的官方规格表佐证，
+            因此这里只给<strong>规模阶梯</strong>与<strong>结构差异</strong>两条粗线，帮你先接住这个问题，
+            不给客户任何具体数字，也不把它和上面几节的可溯源 Claim 体系混在一起。
+          </p>
+
+          <h3 className="text-sm font-semibold">规模阶梯对照</h3>
+          <table className="w-full border-collapse text-xs">
+            <thead>
+              <tr className="border-b border-line text-left text-dim">
+                <th className="py-1.5 pr-2 font-medium">阶梯</th>
+                <th className="py-1.5 pr-2 font-medium">行业口径（WAIC 2026 转述）</th>
+                <th className="py-1.5 font-medium">本工具同尺对照</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr className="border-b border-line/60 align-top">
+                <td className="py-1.5 pr-2">单柜</td>
+                <td className="py-1.5 pr-2">32–128 卡</td>
+                <td className="py-1.5">NVL72 = 72 卡（GB300 / Vera Rubin，单柜）</td>
+              </tr>
+              <tr className="border-b border-line/60 align-top">
+                <td className="py-1.5 pr-2">Scale-Up 域</td>
+                <td className="py-1.5 pr-2">256–1,024 卡</td>
+                <td className="py-1.5">
+                  NVL576 = 576 卡（Rubin Ultra，8 柜跨柜域）；LPX = 256 卡（单柜，恰好落在这一档下限）
+                </td>
+              </tr>
+              <tr className="align-top">
+                <td className="py-1.5 pr-2">集群</td>
+                <td className="py-1.5 pr-2">万卡+</td>
+                <td className="py-1.5 text-dim">本工具目前四代都停在 Scale-Up 域内，未建模到这一档</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <h3 className="mt-3 text-sm font-semibold">厂商四分类</h3>
+          <ul className="ml-5 list-disc space-y-1">
+            <li>
+              <strong>平台型</strong>：华为、阿里、百度昆仑芯——从芯片到超节点整机架构自己包圆。
+            </li>
+            <li>
+              <strong>AI 芯片</strong>：摩尔线程、沐曦、燧原、壁仞等——独立芯片厂商，超节点整机通常
+              与其他厂商合作交付。
+            </li>
+            <li>
+              <strong>OEM-ICT</strong>：中兴、新华三、联想、中科曙光、浪潮、超聚变——把芯片厂商的
+              加速卡集成进整机/整柜方案。
+            </li>
+            <li>
+              <strong>推理基础设施</strong>：阡视科技（wylon Q72/288）——单独成一类，专攻推理场景的
+              超节点产品线。
+            </li>
+          </ul>
+          <p className="text-[11px] leading-relaxed text-dim">
+            名单转引自内部材料里标注「OpenAI 整理」的一页行业梳理，不是本工具的独立调研，
+            分类边界与名单本身都会随时间变化。
+          </p>
+
+          <h3 className="mt-3 text-sm font-semibold">
+            与本工具 NVL72 / NVL576 的三点结构差异（定性，不给数字）
+          </h3>
+          <ul className="ml-5 list-disc space-y-1.5">
+            <li>
+              <strong>柜间互连媒介</strong>：本工具建模的 NVL72/NVL576 柜内走铜背板，只有跨柜层级
+              （如 NVL576 的 8 柜互联）才上光；deck 里的国产方案更早、更普遍地把跨柜光互连当作
+              Scale-Up 域本身的主要媒介——域的物理边界不再等于「一个柜子」。
+            </li>
+            <li>
+              <strong>背板设计</strong>：本工具两代都走「NVLink 背板」——插卡先汇聚到背板，再由背板
+              连交换层；deck 里描述的部分国产方案是「正交无背板」，卡间直接正交对插，省掉背板这一层。
+            </li>
+            <li>
+              <strong>交换芯片与协议</strong>：本工具的 NVSwitch 是 NVIDIA 自研、协议不对外公开；
+              deck 里国产厂商同样各自自研交换 ASIC 与协议（灵衢、ALink、凌云等命名都出现过），
+              但对外公开程度不一——这正是判断超节点第②问要追问的地方（见学习手册）。
+            </li>
+          </ul>
+          <p className="text-[11px] leading-relaxed text-dim">
+            以上三点均来自 deck 照片与二手叙述的定性转述，没有官方规格佐证，因此只写结构性差异，
+            不给任何链路数、带宽或时延数字。
+          </p>
+
+          <p className="mt-3 text-xs leading-relaxed text-dim">
+            拿到华为 Atlas 950 / 阿里磐久 AL128 官方规格（可访问 URL）后，本节可以升级为完整的 3D 建模包。
+          </p>
+        </div>
+      </Section>
+
+      {/* ── 7. 下一阶段 ── */}
+      <Section n={7} title="下一阶段">
         <ul className="ml-5 list-disc space-y-1.5">
           <li>
             <strong>补齐 Vera Rubin 的官方缺口</strong>：整机架功率、单卡 TDP、每卡 NVLink 链路数、
