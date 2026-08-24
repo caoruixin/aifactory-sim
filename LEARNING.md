@@ -643,5 +643,10 @@ NVLink 断一条会怎样？/ KV Cache 会把显存吃爆吗？/ MoE 对网络�
 ## 之后（工具的二期方向，学有余力再看）
 
 - WorkloadProfile/SLA 与 goodput 建模（「token 数量 ≠ 业务价值」）
-- HGX 参考方案、TPU 内容包、国产超节点（等官方规格）
+- ~~HGX 参考方案~~ → **v1.4 已交付**：HGX B300 第五系统（NVLink 服务器域，顶栏第五个按钮）
+- TPU7x 内容包 + 3D Torus 引擎改造（v1.4 已规划为 W-D/E，实施前单独评审）
+- 国产超节点完整 3D 包——v1.4 已先行交付 `/report` 对照段与 5d 章七问练习；
+  等华为 Atlas 950 / 阿里磐久 AL128 官方规格（可访问 URL）再升级建包，设计存档见 PLAN-v1.4.md W-B
 - 正式 BOM / TCO / 可承诺产能（首版刻意不做，避免伪精确）
+- HGX 的 keySpecs 进 `/report` 规格表（KeySpecTable 现硬编码 GB300）、HGX 推理数据流剧本
+  （FlowEpisode 现仅 GB300 有完整剧本）
