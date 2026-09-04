@@ -85617,3 +85617,5611 @@ dist/404.html
 aifactory-sim
 ```
 </details></tool-use>
+
+_**Agent (claude-fable-5 2026-08-22 10:08:30Z)**_
+
+构建成功。提交并创建 GitHub 仓库、推送、部署 Pages：
+
+_**Agent (claude-fable-5 2026-08-22 10:08:49Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Commit changes, create public GitHub repo and push main
+
+```bash
+git add -A && git commit -q -m "GitHub Pages 部署适配（DEPLOY_BASE/basename/404 兜底）+ 四周学习计划
+
+Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>" && gh repo create aifactory-sim --public --source . --push 2>&1 | tail -2
+```
+
+```text
+ok 10 files changed, 85876 insertions(+), 1 deletion(-)
+ok
+ * [new branch]      HEAD -> main
+branch 'main' set up to track 'origin/main'.
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-08-22 10:08:58Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Push dist build to gh-pages branch
+
+`gh auth setup-git 2>/dev/null; cd dist && rm -rf .git && git init -q -b gh-pages && git add -A && git -c user.name="caoruixin" -c user.email="shadow4ye@gmail.com" commit -q -m "deploy" && git push -q -f https://github.com/caoruixin/aifactory-sim.git gh-pages && echo PUSHED`
+
+```text
+ok 10 files changed, 4635 insertions(+)
+ok
+ok
+PUSHED
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-08-22 10:09:54Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Enable GitHub Pages and check deployed URL
+
+`cd /Users/caoruixin/projects/aifactory && gh api -X POST repos/caoruixin/aifactory-sim/pages -f "source[branch]=gh-pages" -f "source[path]=/" 2>&1 | head -3; sleep 45; curl -s -o /dev/null -w "%{http_code}" https://caoruixin.github.io/aifactory-sim/`
+
+```text
+{"message":"GitHub Pages is already enabled.","documentation_url":"https://docs.github.com/rest/pages/pages#create-a-apiname-pages-site","status":"409"}gh: GitHub Pages is already enabled. (HTTP 409)
+200
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-08-22 10:10:04Z)**_
+
+URL 已 200。验证内容与深链路由：
+
+_**Agent (claude-fable-5 2026-08-22 10:10:27Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Verify deployed title, SPA fallback route, deep link; rebuild local default-base dist
+
+`curl -s https://caoruixin.github.io/aifactory-sim/ | grep -o '<title>[^<]*</title>'; curl -s -o /dev/null -w "report:%{http_code} " "https://caoruixin.github.io/aifactory-sim/report"; curl -s -o /dev/null -w "deeplink:%{http_code}\n" "https://caoruixin.github.io/aifactory-sim/?level=rack&focus=asm.gb300.rack"; npm run build >/dev/null 2>&1 && echo LOCAL-REBUILD-OK`
+
+```text
+<title>AI Factory 模拟器</title>
+report:404 deeplink:200
+LOCAL-REBUILD-OK
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-08-22 10:10:42Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Confirm 404 fallback serves the SPA with correct asset paths
+
+`curl -s https://caoruixin.github.io/aifactory-sim/report | grep -o '<title>[^<]*</title>'; curl -s https://caoruixin.github.io/aifactory-sim/report | grep -c 'aifactory-sim/assets'`
+
+```text
+<title>AI Factory 模拟器</title>
+3
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-08-22 10:10:50Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Start local preview server in background on port 4173
+
+`npm run preview -- --port 4173`
+
+```text
+Command running in background with ID: b59mb7i45. Output is being written to: /private/tmp/claude-501/-Users-caoruixin-projects-aifactory/0dd4a781-3421-4623-a115-2871b33e019e/tasks/b59mb7i45.output. You will be notified when it completes. To check interim output, use Read on that file path.
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-08-22 10:10:56Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Confirm local preview server responds
+
+`sleep 2; curl -s -o /dev/null -w "%{http_code}" http://localhost:4173/`
+
+```text
+200
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-08-22 10:11:18Z)**_
+
+# 🚀 已部署上线
+
+**从这里开始：<https://caoruixin.github.io/aifactory-sim/>**
+
+- 线上（公网可访问、可发给同事/老板）：https://caoruixin.github.io/aifactory-sim/
+- 本地（已在后台运行）：http://localhost:4173
+- 源码仓库：https://github.com/caoruixin/aifactory-sim （**公开仓库**——GitHub Pages 免费版要求公开；`sources/` 里的券商 PDF 和内部 PPT 已被 git 忽略、**不会**发布出去。若想改私有托管，运行 `! vercel login` 后我可以迁到 Vercel）
+
+已验证：线上首页、`/report` 汇报页、深链（如 `?level=rack&focus=asm.gb300.rack`）均正常。以后更新只需 `npm run build:pages` + 推送 gh-pages 分支。
+
+# 📚 四周学习计划（已写入仓库 `LEARNING.md`，任务带可点击深链）
+
+**主线一句话**（所有术语都挂它上面）：
+`业务负载 → 模型/SLA → 推理软件 → 并行与副本 → Scale-Up/Out → 服务器/托盘/机架 → 供电液冷 → 产能/TCO → POC`
+
+每周 5 小时：官方资料 1.5h · 模拟器练习 2h · **脱稿讲解 1h** · 一页方案更新 0.5h。
+
+| 周 | 目标 | 核心任务（详见 LEARNING.md 勾选清单） | 产出/过关标准 |
+|---|---|---|---|
+| **1** | 总图 + 术语 | 走完场景导览；集群→板卡下钻一遍；做 15 张术语卡（每张只答「在哪里/做什么/影响什么」） | 手画总图；3 分钟讲「机架里都有什么」 |
+| **2** | 物理系统 | 六平面逐个开关并回答「谁连谁/带宽多少/断了会怎样」；背关键数字（18+9 托盘、72 GPU、142 kW…）；补齐 30 张卡 | 5 分钟脱稿「从 GPU 到机房」 |
+| **3** | 推理落在硬件上 | 数据流动画走 3 遍；4 个心智模型（权重常驻 HBM / Prefill 吃算力 Decode 吃带宽 / KV 会长大 / MoE 瓶颈转向搬运）；亲手玩产能粗估并解释每次数字变化 | 能答「为什么不能拿卡数×FLOPS 算产能」 |
+| **4** | 汇报 | 比较模式过代际 diff；照 `/report` 六节写自己的一页方案；对着模拟器练 15 分钟汇报脚本（2+4+4+3+2 分钟） | **脱稿完成汇报，接住三个追问** |
+
+**今天就可以做的第一个任务**：打开 https://caoruixin.github.io/aifactory-sim/ ，左栏点「场景导览」第 1 站，跟着 3 站走完 GB300——大约 15 分钟，你听分享会时云里雾里的那些词（NVSwitch、CX-8、BlueField、CDU…）会逐个出现在画面里、右栏告诉你它是干嘛的。
+
+---
+
+_**User (2026-08-22 14:43:18Z)**_
+
+[Image #1] 我看，这些机房设备、电、水、网、好像并不是都有线连接在一起的，包括交换机和这些机柜好像也没有连接在一起。这个是真实情况就是如此吗？还是在呈现的时候有缺失呢？
+
+---
+
+_**User (2026-08-22 14:43:18Z)**_
+
+[Image: source: /Users/caoruixin/Desktop/Screenshot 2026-08-22 at 22.41.32.png]
+
+---
+
+_**Agent (claude-fable-5 2026-08-22 14:44:07Z)**_
+
+你问到点子上了——真实机房里这些设备当然是全部有线/管连接的。我先查清楚当前呈现里「哪些是刻意降噪、哪些是数据缺失」，再给出补全方案。
+
+_**Agent (claude-fable-5 2026-08-22 14:48:46Z)**_
+
+<tool-use data-tool-type="unknown" data-tool-name="Agent"><details>
+<summary>Tool use: **Agent**</summary>
+Audit cluster-level connection rendering
+
+```text
+# Audit: why the cluster view looks unconnected
+
+## 1. ConnectionLayer plane filter at cluster depth
+
+`/Users/caoruixin/projects/aifactory/src/components/scene/ConnectionLayer.tsx:60-75` — the whole rule is one line:
+
+```ts
+const clusterView = depth === 'cluster'
+...
+if (clusterView && r.plane !== 'scaleout' && r.plane !== 'nvlink') continue   // line 69
+```
+
+So at `level='cluster'`, **four of six planes (business, mgmt, power, cooling) are hard-dropped in the view layer regardless of the `planes` toggles**. Only `scaleout` and `nvlink` survive. The header comment at lines 7-10 states the original intent ("集群级只画 scale-out"); lines 66-68 document the later NVLink allowance for the NVL576 inter-rack fabric.
+
+Depth mapping: `/Users/caoruixin/projects/aifactory/src/components/scene/SceneRoot.tsx:50-56`
+```ts
+const RENDER_DEPTH: Record<LodLevel, LodLevel> = { cluster: 'cluster', rack: 'rack', tray: 'board', board: 'board' }
+```
+consumed at `SceneRoot.tsx:504` and passed to `<ConnectionLayer … depth={depth} …/>` at `SceneRoot.tsx:527`.
+
+Second filter, unrelated to level: `ComparisonView.tsx:48` `COMPARE_PLANES = ['nvlink','scaleout']` (compare mode only).
+
+## 2. Routing depth collapse — confirmed
+
+`/Users/caoruixin/projects/aifactory/src/lib/routing.ts`
+
+- `visibleChain(assemblyId, depth)` (lines 96-104): walks `ancestorsOf(id)` root→leaf, keeps the **last** index where `levelIndex(chain[i].lodLevel) <= levelIndex(depth)`, returns the truncated prefix. `visibleAncestorAt` (107-110) is its last element.
+- `levelIndex` uses `LEVEL_ORDER = ['cluster','rack','tray','board']` (`/Users/caoruixin/projects/aifactory/src/lib/drill.ts:22,31`). At `depth='cluster'` only `lodLevel==='cluster'` nodes pass.
+- Degenerate-edge drop, `routing.ts:192-196`:
+```ts
+const fromId = fromChain[fromChain.length - 1]!
+const toId   = toChain[toChain.length - 1]!
+if (fromId === toId) continue // 退化边：两端收缩到同一个可见盒子
+```
+So yes: any connection whose two endpoints both live under `asm.gb300.rack` collapses to `rack↔rack` and is silently dropped **before** the plane filter runs.
+
+- Extra collapse: `worldPositionOf(layout, chain, 0, …)` (`/Users/caoruixin/projects/aifactory/src/lib/layout.ts:392-408`) uses `instanceIndex=0` for the leaf and slot 0 for all ancestors. Since `asm.gb300.rack` is **one** assembly node with `count: 8` (8 slots), every rack-anchored line is drawn to **rack slot 0 only** — one line, not eight.
+
+## 3. Full GB300 connection inventory (30 entries, `/Users/caoruixin/projects/aifactory/src/data/gb300-nvl72.ts:1009-1517`)
+
+No connections live in `shared.ts` (zero matches for `Connection`/`connections`).
+
+Cluster-visible resolution key: everything at/under `asm.gb300.rack` → `rack`. Cluster-level nodes resolve to themselves.
+
+| # | id | plane | from → to | topology | cluster resolve | status |
+|---|---|---|---|---|---|---|
+| 1 | `con.gb300.gpu-nvswitch` (1012) | nvlink | b300-gpu → nvswitch-asic | all-to-all | rack↔rack | **DEGENERATE** |
+| 2 | `con.gb300.nvswitch-backplane` (1032) | nvlink | nvswitch-asic → nvlink-backplane | bus | rack↔rack | **DEGENERATE** |
+| 3 | `con.gb300.tray-backplane` (1047) | nvlink | compute-tray → nvlink-backplane | bus | rack↔rack | **DEGENERATE** |
+| 4 | `con.gb300.grace-gpu-c2c` (1062) | nvlink | grace-cpu → b300-gpu | point-to-point | rack↔rack | **DEGENERATE** |
+| 5 | `con.gb300.gpu-cx8` (1080) | scaleout | b300-gpu → cx8-nic | point-to-point | rack↔rack | **DEGENERATE** |
+| 6 | `con.gb300.cx8-mezz` (1099) | scaleout | cx8-nic → mezz-board | point-to-point | rack↔rack | **DEGENERATE** |
+| 7 | `con.gb300.cx8-leaf` (1114) | scaleout | cx8-nic → scaleout-leaf | rail-optimized | rack↔scaleout-leaf | **DRAWN** ✅ |
+| 8 | `con.gb300.leaf-spine` (1135) | scaleout | scaleout-leaf → scaleout-spine | fat-tree | leaf↔spine | **DRAWN** ✅ (but see §7a) |
+| 9 | `con.gb300.bf3-converged` (1152) | business | bf3-dpu → converged-switch | star | rack↔converged-switch | distinct — **plane-filtered** |
+| 10 | `con.gb300.converged-storage` (1172) | business | converged-switch → storage | fat-tree | distinct | **plane-filtered** |
+| 11 | `con.gb300.mgmt-node-converged` (1192) | business | mgmt-node → converged-switch | star | distinct | **plane-filtered** |
+| 12 | `con.gb300.tray-bmc-mgmt` (1214) | mgmt | compute-tray → inrack-mgmt-switch | star | rack↔rack | **DEGENERATE** |
+| 13 | `con.gb300.nvswitch-tray-mgmt` (1234) | mgmt | nvswitch-tray → inrack-mgmt-switch | star | rack↔rack | **DEGENERATE** |
+| 14 | `con.gb300.bf3-oob` (1249) | mgmt | bf3-dpu → inrack-mgmt-switch | star | rack↔rack | **DEGENERATE** |
+| 15 | `con.gb300.power-shelf-mgmt` (1268) | mgmt | power-shelf → inrack-mgmt-switch | star | rack↔rack | **DEGENERATE** |
+| 16 | `con.gb300.inrack-oob-uplink` (1283) | mgmt | inrack-mgmt-switch → oob-fabric-switch | star | rack↔oob-fabric-switch | distinct — **plane-filtered** |
+| 17 | `con.gb300.mgmt-node-oob` (1298) | mgmt | mgmt-node → oob-fabric-switch | star | distinct | **plane-filtered** |
+| 18 | `con.gb300.leaf-oob` (1313) | mgmt | scaleout-leaf → oob-fabric-switch | star | distinct | **plane-filtered** |
+| 19 | `con.gb300.converged-oob` (1328) | mgmt | converged-switch → oob-fabric-switch | star | distinct | **plane-filtered** |
+| 20 | `con.gb300.facility-power-shelf` (1345) | power | **facility** → power-shelf | bus | facility↔rack | distinct — **plane-filtered** |
+| 21 | `con.gb300.power-shelf-busbar` (1360) | power | power-shelf → busbar | bus | rack↔rack | **DEGENERATE** |
+| 22 | `con.gb300.busbar-compute-tray` (1380) | power | busbar → compute-tray | bus | rack↔rack | **DEGENERATE** |
+| 23 | `con.gb300.busbar-nvswitch-tray` (1395) | power | busbar → nvswitch-tray | bus | rack↔rack | **DEGENERATE** |
+| 24 | `con.gb300.busbar-mgmt-switch` (1410) | power | busbar → inrack-mgmt-switch | bus | rack↔rack | **DEGENERATE** |
+| 25 | `con.gb300.gpu-cold-plate` (1428) | cooling | b300-gpu → tray-cold-plate | point-to-point | rack↔rack | **DEGENERATE** |
+| 26 | `con.gb300.cpu-cold-plate` (1443) | cooling | grace-cpu → tray-cold-plate | point-to-point | rack↔rack | **DEGENERATE** |
+| 27 | `con.gb300.tray-cold-plate-manifold` (1458) | cooling | tray-cold-plate → manifold | loop | rack↔rack | **DEGENERATE** |
+| 28 | `con.gb300.nvswitch-cold-plate-manifold` (1473) | cooling | nvswitch-cold-plate → manifold | loop | rack↔rack | **DEGENERATE** |
+| 29 | `con.gb300.manifold-cdu` (1488) | cooling | manifold → **cdu** | loop | rack↔cdu | distinct — **plane-filtered** |
+| 30 | `con.gb300.cdu-facility-water` (1503) | cooling | cdu → facility-water | loop | distinct | **plane-filtered** |
+
+**Tally at cluster depth:** 18 degenerate (dropped by `routing.ts`), 12 non-degenerate. Of those 12, the plane filter at `ConnectionLayer.tsx:69` allows only the 2 scaleout ones. So exactly **2 line objects reach the GPU**; 10 legitimately drawable room-level links (3 business, 4 mgmt, 1 power, 2 cooling) are suppressed by (a), and 18 by (b)-style depth collapse.
+
+## 4. Missing room-level links (no Connection entry at all)
+
+| Real-world link asked about | Present? | Notes |
+|---|---|---|
+| facility power feed → rack | **Partially** | `con.gb300.facility-power-shelf` (`facility → power-shelf`) collapses to `facility ↔ rack` — this *is* the room-level power edge, it exists but is plane-filtered. Note `asm.gb300.facility` is the tree **root**, and `ClusterScene` (`SceneRoot.tsx:296`) renders only `childrenOf(rootId)`, so the root box itself is never drawn — the line would emanate from an invisible 28×4.5×18 volume centre. |
+| switchgear / PDU / UPS / transformer / 列头柜 component | **MISSING** | Grep over `src/data/` finds no `switchgear`/`pdu`/`ups`/`transformer`/`generator` component or assembly. Shared components are only: facility-room, rack-row, oberon-rack, busbar, cdu, manifold, cold-plate, facility-water-loop, sn2201, storage-array (`/Users/caoruixin/projects/aifactory/src/data/shared.ts:13-196`). "列头柜" appears only in prose (`shared.ts:40`, `gb300-nvl72.ts:1356`). |
+| facility-water → CDU (primary loop) | **Present** | `con.gb300.cdu-facility-water` (#30). Plane-filtered at cluster. |
+| CDU → rack (secondary loop, cluster granularity) | **Partially** | Only via `con.gb300.manifold-cdu` (#29), whose rack end collapses to `rack`. No dedicated `cdu → rack` / `cdu → row` edge. |
+| mgmt-node → oob-fabric-switch | **Present** (#17), plane-filtered |
+| oob-fabric-switch → rack | **Present** via `con.gb300.inrack-oob-uplink` (#16), collapses `inrack-mgmt-switch → rack`; plane-filtered |
+| storage → converged-switch | **Present** (#10), plane-filtered |
+| storage → scaleout-leaf | **MISSING** — no edge |
+| scaleout-spine → scaleout-leaf | **Present** (#8), drawn |
+| scaleout-leaf → rack | **Present** via `con.gb300.cx8-leaf` (#7), drawn |
+| external/gateway ingress (business-plane entry point) | **MISSING** | No border/gateway/WAN assembly or connection. `flows.ts:30,42,148` explicitly models ingress/egress as re-using the same `bf3-dpu ↔ converged-switch` link, with a comment that there is only one north-bound path. |
+| row-level nodes as endpoints | **Unused** | `asm.gb300.row` (`rack-row`) is a cluster-level node but is the endpoint of **zero** connections. |
+
+## 5. Cluster-level assemblies (possible cluster endpoints)
+
+GB300, `/Users/caoruixin/projects/aifactory/src/data/gb300-nvl72.ts:587-738` — **11 nodes** with `lodLevel: 'cluster'`:
+
+| id | line | roleKey | count | parent |
+|---|---|---|---|---|
+| `asm.gb300.facility` | 590 | facility | 1 | null (root, not drawn) |
+| `asm.gb300.facility-water` | 603 | facility-water-loop | 1 | facility |
+| `asm.gb300.cdu` | 616 | cdu | 1 | facility |
+| `asm.gb300.scaleout-spine` | 629 | scaleout-spine | 1 | facility |
+| `asm.gb300.scaleout-leaf` | 642 | scaleout-leaf | 1 | facility |
+| `asm.gb300.converged-switch` | 655 | converged-switch | 1 | facility |
+| `asm.gb300.oob-fabric-switch` | 668 | oob-mgmt-switch | 1 | facility |
+| `asm.gb300.mgmt-node` | 681 | control-plane-node | 12 | facility |
+| `asm.gb300.storage` | 697 | external-storage | 1 | facility |
+| `asm.gb300.row` | 710 | rack-row | 1 | facility |
+| `asm.gb300.rack` | 723 | rack | 8 | row |
+
+Everything else is `rack` (7 nodes, lines 741-840), `tray` (2), or `board` (10).
+
+For comparison: Vera Rubin has 10 cluster nodes (same set **minus** `control-plane-node`, `/Users/caoruixin/projects/aifactory/src/data/vera-rubin-nvl72.ts:833-956`); Rubin Ultra has 6: facility, facility-water, cdu, row, rack, **`asm.ru.interrack-fabric`** (`/Users/caoruixin/projects/aifactory/src/data/rubin-ultra-nvl576.ts:520-599`).
+
+## 6. Tests locking current behaviour
+
+`/Users/caoruixin/projects/aifactory/src/lib/routing.test.ts:73-95`, describe block `集群视图的 nvlink 平面（B4 交接问题③ 回归覆盖）`:
+
+- `it('GB300：cluster 深度下没有任何非退化的 nvlink 路由')` (line 78) →
+  `expect(routes.filter(r => r.plane === 'nvlink')).toHaveLength(0)`
+- `it('Rubin Ultra NVL576：cluster 深度下保留跨机架 scale-up 光互连（唯一预期的 nvlink 路由）')` (line 88) →
+  `expect(nvlinkRoutes.map(r => r.connectionId)).toEqual(['con.ru.optics-interrack'])`
+
+The block comment (74-77, 84-87) explicitly asserts the GB300 emptiness is "correct without extra filtering" and warns against deleting the NVL576 line while "fixing" GB300. Added in commit `e5763ba` ("… + NVLink 回归测试").
+
+Other locks in the same file:
+- `routing.test.ts:19-23` — `visibleAncestorAt('asm.gb300.b300-gpu'|'nvswitch-asic'|'compute-tray', 'cluster') === 'asm.gb300.rack'`
+- `routing.test.ts:55-59` — `con.gb300.gpu-nvswitch` must NOT appear at cluster depth
+- `routing.test.ts:47-53` — at `rack` depth **all six** planes must have ≥1 route
+
+`/Users/caoruixin/projects/aifactory/src/data/pack.test.ts` invariants any new `Connection` must satisfy:
+- `:181-192` — `systemId` exists; `fromAssemblyId`/`toAssemblyId` both exist, both same system as the connection; `fromAssemblyId !== toAssemblyId`
+- `:194-202` — `plane ∈ PLANES` enum; uniqueness key `systemId|plane|from|to` must not repeat
+- `:204-210` — every `sourceIds[i]` must be a registered source
+- `:60-71` — global ID uniqueness + `con.` prefix and `ID_TAIL_RE` naming
+- `:87-102` — no `undefined` anywhere (JSON round-trip equality, `:82-85`)
+- Claim rules applying to `bandwidth`: `:218-224` (`sourceId` registered, `asOf` = `YYYY-MM`, legal `evidence`/`status`), `:227-238` (`verified_spec`/`vendor_claim` may only cite `official_doc`/`official_press`), `:239-249` (broker/analyst sources banned from `countClaim` and component `specs`), `:262-271` (non-official source ⇒ evidence must be analyst/forecast **and** `status: 'forecast'`), `:280-293` (non-official sources only in `forecast` systems)
+
+`/Users/caoruixin/projects/aifactory/src/data/content.test.ts`:
+- `:130-131` — each of the six planes has ≥1 GB300 connection
+- `:559-568` — GB300 and Vera Rubin must cover all six planes; NVL576 only `nvlink/power/mgmt/cooling`
+- `:477-483` — NVL576 must have **zero** `scaleout` and **zero** `business` connections (`★ 来源没写的东西不建模`)
+
+## 7. Legend / cross-pack notes
+
+**(a) Why it reads as *one* line, not two.** Both surviving scaleout routes render, but `/Users/caoruixin/projects/aifactory/src/lib/layout.ts:142-143` places them stacked:
+```ts
+'scaleout-spine': { size: [0.62, 0.32, 0.9], slots: () => [[0, 1.09, -4.4]] },
+'scaleout-leaf':  { size: [0.62, 0.32, 0.9], slots: () => [[0, 0.72, -4.4]] },
+```
+Same X and Z, 0.37 m apart in Y, inside a 28×18 m room. `con.gb300.leaf-spine` is therefore a ~0.4 m vertical stub between two touching boxes — visually invisible at cluster camera distance. Only `con.gb300.cx8-leaf` (rack slot 0 → leaf) reads as a line, and it originates from a single rack because of the `instanceIndex = 0` behaviour noted in §2.
+
+**(b) Legend.** `/Users/caoruixin/projects/aifactory/src/components/panels/PlaneToggles.tsx:36-55` renders **all six** `PLANE_ORDER` checkboxes unconditionally — it never reads the drill level, so at cluster the user sees six live-looking toggles of which four are no-ops. The only signal is the static footnote at `:57-60` ("集群总览只画 scale-out 主干…"), which is now stale w.r.t. the NVLink allowance. Store defaults have all six planes `true` (`/Users/caoruixin/projects/aifactory/src/store.ts:48-53`); the cluster tour scene narrows them to `['scaleout','power','cooling']` (`gb300-nvl72.ts:1530`, applied at `store.ts:208-209`) — of which power and cooling still cannot render at cluster.
+
+**(c) Other packs at cluster depth.**
+
+- **Vera Rubin NVL72** (24 connections: 4 nvlink / 4 scaleout / 2 business / 4 mgmt / 4 power / 6 cooling). Same shape as GB300, slightly thinner: **no** `control-plane-node` assembly and hence no `mgmt-node-*` edges, and no `leaf-oob` / `converged-oob`. Cluster-drawable: `con.rubin.cx9-leaf`, `con.rubin.leaf-spine` (scaleout, rendered) + `bf4-converged`, `converged-storage`, `inrack-oob-uplink`, `facility-power-shelf`, `manifold-cdu`, `cdu-facility-water` (filtered). Same 2-lines-rendered outcome.
+- **Rubin Ultra NVL576** (15 connections: 5 nvlink / 4 power / 2 mgmt / 4 cooling; zero scaleout, zero business by design). Cluster-drawable: `con.ru.optics-interrack` (nvlink — the one line the test pins), plus `con.ru.facility-power-shelf`, `con.ru.manifold-cdu`, `con.ru.cdu-facility-water` (filtered). It has **no** `scaleout-leaf/spine`, `converged-switch`, `oob-fabric-switch`, `mgmt-node`, or `storage` cluster nodes at all.
+
+Net: **no pack has any room-level connection that GB300 lacks.** All three packs share the identical set of "real" room-level cooling/power edges (`facility→power-shelf`, `manifold→cdu`, `cdu→facility-water`); none has a power-source component, a CDU→rack edge, or an external gateway.
+```
+</details></tool-use>
+
+_**Agent - sidechain (2026-08-22 14:44:25Z)**_
+
+Read-only audit of `/Users/caoruixin/projects/aifactory` (React + R3F digital-twin app). Question: at the cluster/machine-room level view, most equipment (racks, CDU, storage, management node, water pipe, busbar-like spine, leaf/converged switches) appears UNCONNECTED — only one purple scale-out line shows. Determine exactly why, separating (a) deliberate rendering filters from (b) missing content-pack data.
+
+Report these facts precisely:
+
+1. **ConnectionLayer plane filtering at cluster depth**: read `src/components/scene/ConnectionLayer.tsx` and any related logic in `src/components/scene/SceneRoot.tsx` (RENDER_DEPTH) — quote the exact rule that decides which planes/connections render at `level='cluster'`. (History note: originally "cluster shows scale-out only", later NVLink was allowed through for the NVL576 inter-rack fabric.)
+
+2. **Routing depth collapse**: in `src/lib/routing.ts`, how `visibleAncestorAt`/depth truncation works — confirm that a connection whose two endpoints both collapse to the SAME visible node (e.g. two components inside one rack at cluster depth) degenerates and is dropped.
+
+3. **Full connection inventory by plane** from `src/data/gb300-nvl72.ts` (and `src/data/shared.ts` if connections live there): for each of the ~30+ Connection entries list: id, plane, from → to (assembly ids), topology. Then classify each: at cluster depth, do its endpoints resolve to two DISTINCT cluster-visible nodes (i.e. drawable) or collapse into one (dropped)? Cluster-visible assemblies are the ones with lodLevel 'cluster' (e.g. asm.gb300.facility, facility-water, cdu, scaleout-spine, scaleout-leaf, converged-switch, oob-fabric-switch, mgmt-node, storage, row, rack).
+
+4. **What room-level links are MISSING from the data** (real-world links with no Connection entry): check specifically whether these exist — facility power feed → rack (any power-plane connection at room level; is there any switchgear/PDU/power-source component at all?); facility-water → CDU (primary cooling loop); CDU → rack (secondary loop at cluster granularity, vs only manifold/cold-plate inside rack); mgmt-node → oob-fabric-switch → rack (management plane at room level); storage → scaleout-leaf or converged-switch (business/storage traffic); scaleout-spine → scaleout-leaf; scaleout-leaf → rack (or leaf → NIC that collapses to rack); any external/gateway ingress (business plane entry point).
+
+5. **Which cluster-level components exist** in the assembly tree with lodLevel 'cluster' (list from gb300-nvl72.ts + counts), so we know what nodes could be endpoints.
+
+6. **Tests that lock current behavior**: `src/lib/routing.test.ts` has 2 tests added late ("GB300 cluster has no NVLink lines" / NVL576 keeps one) — quote their names/assertions, plus any pack.test.ts invariants that new connections must satisfy (endpoint existence, plane enums, Claim rules for bandwidth, sourceId requirements).
+
+7. Also note how PlaneToggles/legend interacts (does the legend show all six at cluster level even though five can't render?), and whether Vera Rubin / Rubin Ultra packs have room-level connections that GB300 lacks (check their connection lists briefly for cooling/power/mgmt planes at cluster depth).
+
+Return a compact structured report with file paths and line references. No opinions on fixes — facts only.
+
+_**Agent - sidechain (claude-opus-5 2026-08-22 14:44:28Z)**_
+
+I'll start by exploring the project structure and reading the key files in parallel.
+
+_**Agent - sidechain (claude-opus-5 2026-08-22 14:44:29Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+List project structure
+
+`ls -la /Users/caoruixin/projects/aifactory && ls -R /Users/caoruixin/projects/aifactory/src | head -100`
+
+```text
+.git/
+.specstory/
+dist/
+node_modules/
+sources/
+src/
+test-results/
+tests/
+.cursorindexingignore  110B
+.gitignore  80B
+LEARNING.md  6.6K
+PLAN.md  11.7K
+index.html  452B
+package-lock.json  125.0K
+package.json  1.0K
+playwright.config.ts  2.8K
+tsconfig.json  482B
+vite.config.ts  3.3K
+components/
+data/
+hooks/
+lib/
+pages/
+fallback/
+mobile/
+panels/
+scene/
+ui/
+App.tsx  2.4K
+index.css  1.9K
+main.tsx  666B
+store.test.ts  7.9K
+store.ts  11.8K
+ErrorBoundary.tsx  2.3K
+ComponentTree.tsx  2.9K
+ConnectionListTable.tsx  5.0K
+Fallback2D.tsx  3.8K
+RackElevationSvg.tsx  6.3K
+MobileFactoryView.tsx  10.0K
+BreadcrumbBar.tsx  6.2K
+CapacityBands.tsx  9.8K
+CapacityPanel.tsx  5.1K
+ComparePanel.tsx  9.6K
+DetailPanel.tsx  14.0K
+FlowBar.tsx  7.5K
+PlaneToggles.tsx  2.6K
+TourPanel.tsx  2.9K
+CameraRig.tsx  3.5K
+ComparisonView.tsx  11.8K
+ConnectionLayer.tsx  5.3K
+FactoryCanvas.tsx  4.1K
+FlowLayer.tsx  7.3K
+GenericShapes.tsx  10.5K
+Hotspot.tsx  4.0K
+SceneRoot.tsx  18.2K
+pump.ts  1.2K
+Chips.tsx  2.3K
+Drawer.tsx  1.9K
+SegmentedTabs.tsx  1.4K
+claim.ts  2.8K
+comparisons.ts  10.7K
+content.test.ts  25.7K
+flows.test.ts  5.5K
+flows.ts  10.9K
+gb300-nvl72.ts  59.8K
+index.ts  8.2K
+models.ts  2.3K
+pack.test.ts  24.6K
+rubin-ultra-nvl576.ts  44.7K
+shared.ts  9.6K
+sources.ts  8.0K
+types.ts  14.2K
+vera-rubin-nvl72.ts  63.3K
+useMediaQuery.ts  1.8K
+cameraPresets.test.ts  4.7K
+cameraPresets.ts  6.1K
+capacity.test.ts  13.1K
+capacity.ts  16.8K
+compare.test.ts  12.2K
+compare.ts  16.1K
+drill.test.ts  6.7K
+drill.ts  10.2K
+flowTimeline.test.ts  5.8K
+flowTimeline.ts  4.4K
+layout.test.ts  7.6K
+layout.ts  15.2K
+palette.ts  6.0K
+roofline.test.ts  7.6K
+roofline.ts  5.7K
+routing.test.ts  10.8K
+routing.ts  10.1K
+webgl.test.ts  1.6K
+webgl.ts  1.1K
+FactoryPage.tsx  7.9K
+ReportPage.tsx  19.7K
+useShotParams.ts  3.6K
+```
+</details></tool-use>
+
+_**Agent - sidechain (claude-opus-5 2026-08-22 14:44:30Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Find all source files
+
+`find /Users/caoruixin/projects/aifactory/src -type f \( -name "*.ts" -o -name "*.tsx" \) | sort`
+
+```text
+/Users/caoruixin/projects/aifactory/src/App.tsx
+/Users/caoruixin/projects/aifactory/src/components/ErrorBoundary.tsx
+/Users/caoruixin/projects/aifactory/src/components/fallback/ComponentTree.tsx
+/Users/caoruixin/projects/aifactory/src/components/fallback/ConnectionListTable.tsx
+/Users/caoruixin/projects/aifactory/src/components/fallback/Fallback2D.tsx
+/Users/caoruixin/projects/aifactory/src/components/fallback/RackElevationSvg.tsx
+/Users/caoruixin/projects/aifactory/src/components/mobile/MobileFactoryView.tsx
+/Users/caoruixin/projects/aifactory/src/components/panels/BreadcrumbBar.tsx
+/Users/caoruixin/projects/aifactory/src/components/panels/CapacityBands.tsx
+/Users/caoruixin/projects/aifactory/src/components/panels/CapacityPanel.tsx
+/Users/caoruixin/projects/aifactory/src/components/panels/ComparePanel.tsx
+/Users/caoruixin/projects/aifactory/src/components/panels/DetailPanel.tsx
+/Users/caoruixin/projects/aifactory/src/components/panels/FlowBar.tsx
+/Users/caoruixin/projects/aifactory/src/components/panels/PlaneToggles.tsx
+/Users/caoruixin/projects/aifactory/src/components/panels/TourPanel.tsx
+/Users/caoruixin/projects/aifactory/src/components/scene/CameraRig.tsx
+/Users/caoruixin/projects/aifactory/src/components/scene/ComparisonView.tsx
+/Users/caoruixin/projects/aifactory/src/components/scene/ConnectionLayer.tsx
+/Users/caoruixin/projects/aifactory/src/components/scene/FactoryCanvas.tsx
+/Users/caoruixin/projects/aifactory/src/components/scene/FlowLayer.tsx
+/Users/caoruixin/projects/aifactory/src/components/scene/GenericShapes.tsx
+/Users/caoruixin/projects/aifactory/src/components/scene/Hotspot.tsx
+/Users/caoruixin/projects/aifactory/src/components/scene/SceneRoot.tsx
+/Users/caoruixin/projects/aifactory/src/components/scene/pump.ts
+/Users/caoruixin/projects/aifactory/src/components/ui/Chips.tsx
+/Users/caoruixin/projects/aifactory/src/components/ui/Drawer.tsx
+/Users/caoruixin/projects/aifactory/src/components/ui/SegmentedTabs.tsx
+/Users/caoruixin/projects/aifactory/src/data/claim.ts
+/Users/caoruixin/projects/aifactory/src/data/comparisons.ts
+/Users/caoruixin/projects/aifactory/src/data/content.test.ts
+/Users/caoruixin/projects/aifactory/src/data/flows.test.ts
+/Users/caoruixin/projects/aifactory/src/data/flows.ts
+/Users/caoruixin/projects/aifactory/src/data/gb300-nvl72.ts
+/Users/caoruixin/projects/aifactory/src/data/index.ts
+/Users/caoruixin/projects/aifactory/src/data/models.ts
+/Users/caoruixin/projects/aifactory/src/data/pack.test.ts
+/Users/caoruixin/projects/aifactory/src/data/rubin-ultra-nvl576.ts
+/Users/caoruixin/projects/aifactory/src/data/shared.ts
+/Users/caoruixin/projects/aifactory/src/data/sources.ts
+/Users/caoruixin/projects/aifactory/src/data/types.ts
+/Users/caoruixin/projects/aifactory/src/data/vera-rubin-nvl72.ts
+/Users/caoruixin/projects/aifactory/src/hooks/useMediaQuery.ts
+/Users/caoruixin/projects/aifactory/src/lib/cameraPresets.test.ts
+/Users/caoruixin/projects/aifactory/src/lib/cameraPresets.ts
+/Users/caoruixin/projects/aifactory/src/lib/capacity.test.ts
+/Users/caoruixin/projects/aifactory/src/lib/capacity.ts
+/Users/caoruixin/projects/aifactory/src/lib/compare.test.ts
+/Users/caoruixin/projects/aifactory/src/lib/compare.ts
+/Users/caoruixin/projects/aifactory/src/lib/drill.test.ts
+/Users/caoruixin/projects/aifactory/src/lib/drill.ts
+/Users/caoruixin/projects/aifactory/src/lib/flowTimeline.test.ts
+/Users/caoruixin/projects/aifactory/src/lib/flowTimeline.ts
+/Users/caoruixin/projects/aifactory/src/lib/layout.test.ts
+/Users/caoruixin/projects/aifactory/src/lib/layout.ts
+/Users/caoruixin/projects/aifactory/src/lib/palette.ts
+/Users/caoruixin/projects/aifactory/src/lib/roofline.test.ts
+/Users/caoruixin/projects/aifactory/src/lib/roofline.ts
+/Users/caoruixin/projects/aifactory/src/lib/routing.test.ts
+/Users/caoruixin/projects/aifactory/src/lib/routing.ts
+/Users/caoruixin/projects/aifactory/src/lib/webgl.test.ts
+/Users/caoruixin/projects/aifactory/src/lib/webgl.ts
+/Users/caoruixin/projects/aifactory/src/main.tsx
+/Users/caoruixin/projects/aifactory/src/pages/FactoryPage.tsx
+/Users/caoruixin/projects/aifactory/src/pages/ReportPage.tsx
+/Users/caoruixin/projects/aifactory/src/pages/useShotParams.ts
+/Users/caoruixin/projects/aifactory/src/store.test.ts
+/Users/caoruixin/projects/aifactory/src/store.ts
+```
+</details></tool-use>
+
+_**Agent - sidechain (claude-opus-5 2026-08-22 14:44:34Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./src/components/scene/ConnectionLayer.tsx`
+
+```text
+1	/**
+2	 * 六平面连接可视化：按 `store.planes` 过滤，每平面一组 drei `<Line>`。
+3	 *
+4	 * - 折线路由来自 `lib/routing.ts`（纯几何查表，随 `depth` 变化重新计算，开销很小）；
+5	 * - 平面开关的挂载/卸载由 React 自然处理（`planes` 是 store 的响应式订阅）；
+6	 *   demand 帧循环下 React 重渲染不等于 WebGL 重绘，因此还需要显式 `invalidate()`；
+7	 * - **集群级只画 scale-out**：cluster 视图下没有挂机架内部的任何网格，nvlink/power/
+8	 *   cooling/mgmt/business 这些平面的端点要么收缩成同一个「机架」盒子（被 `routing.ts`
+9	 *   当退化边过滤掉），要么会画出「机房→机架」这种在集群尺度没有教学意义的粗线——
+10	 *   因此这里显式收窄，只保留天然适合鸟瞰的 scale-out 主干（rack↔leaf↔spine）；
+11	 * - 当前 `FlowStep` 引用的连接会加粗、提高不透明度，配合 `FlowBar` 播放/`reducedMotion`
+12	 *   静态高亮（同一条连接不需要 `FlowLayer` 另画一遍，颜色即所在平面色）。
+13	 *
+14	 * ★ **连线是「示意图层」，一律 `depthTest={false}` + `renderOrder=2` 画在几何体之上。**
+15	 *   不这么做的话，**机架内部的连接会完全看不见**：`routing.ts` 的折线总线高度是
+16	 *   `max(端点 y) + 距离 × 5%`，机架内两个托盘之间的距离本来就小，算出来的折线整段
+17	 *   仍然埋在不透明的托盘盒子里。实测后果是 nvlink 平面在机架级**开关毫无画面变化**
+18	 *   （六条 nvlink 边全是机架内的 scale-up），而导览第 2 站「拆开一个机架：18+9 的结构」
+19	 *   恰恰点名要看 nvlink + power —— 那一屏当时是空的。
+20	 *   这些线本来就不是实物线缆（内容包里一条边代表 72×18 条链路），当作示意图层画在
+21	 *   最上层既符合它的语义，也让六个平面在任何层级下行为一致。
+22	 */
+23	
+24	import { Line } from '@react-three/drei'
+25	import { invalidate } from '@react-three/fiber'
+26	import { useEffect, useMemo } from 'react'
+27	import { episodeOf } from '../../data'
+28	import type { LodLevel, NetworkPlane } from '../../data/types'
+29	import type { ResolvedLayout } from '../../lib/layout'
+30	import { planeColor } from '../../lib/palette'
+31	import { routeConnections } from '../../lib/routing'
+32	import type { RoutedConnection } from '../../lib/routing'
+33	import { useFactoryStore } from '../../store'
+34	
+35	export interface ConnectionLayerProps {
+36	  systemId: string
+37	  layout: ResolvedLayout
+38	  depth: LodLevel
+39	  /** 额外收窄可见平面（比较模式只留 nvlink + scaleout 降噪）；与 store 的平面开关取交集。 */
+40	  planeFilter?: readonly NetworkPlane[]
+41	}
+42	
+43	export default function ConnectionLayer({ systemId, layout, depth, planeFilter }: ConnectionLayerProps) {
+44	  const planes = useFactoryStore((s) => s.planes)
+45	  const flow = useFactoryStore((s) => s.flow)
+46	
+47	  const routes = useMemo(
+48	    () => routeConnections(systemId, layout, depth),
+49	    [systemId, layout, depth],
+50	  )
+51	
+52	  // 当前步骤的高亮只对**该系统自己的**剧本有意义：换代际后 GB300 的连接 ID
+53	  // 在这个系统里根本不存在，硬查会一条都点不亮（还会误导人以为数据错了）。
+54	  const activeConnectionIds = useMemo(() => {
+55	    const episode = episodeOf(systemId, flow.episodeIdx)
+56	    const step = episode?.steps[flow.stepIdx]
+57	    return new Set(step ? step.connectionIds : [])
+58	  }, [systemId, flow.episodeIdx, flow.stepIdx])
+59	
+60	  const byPlane = useMemo(() => {
+61	    const clusterView = depth === 'cluster'
+62	    const allowed = planeFilter ? new Set(planeFilter) : null
+63	    const map = new Map<NetworkPlane, RoutedConnection[]>()
+64	    for (const r of routes) {
+65	      if (allowed && !allowed.has(r.plane)) continue
+66	      // 集群级只保留天然适合鸟瞰的两个平面：scale-out 主干，以及**跨机架**的 scale-up
+67	      // （NVL576 的机架间光互连就属于后者）。机架内的 nvlink 边在这一级两端会收缩到
+68	      // 同一个机架盒子，已被 routing.ts 当退化边滤掉，因此不会有多余的线。
+69	      if (clusterView && r.plane !== 'scaleout' && r.plane !== 'nvlink') continue
+70	      const list = map.get(r.plane)
+71	      if (list) list.push(r)
+72	      else map.set(r.plane, [r])
+73	    }
+74	    return map
+75	  }, [routes, depth, planeFilter])
+76	
+77	  // demand 帧循环下，store 驱动的重渲染（平面开关、步骤切换）不会自动触发 WebGL 重绘。
+78	  useEffect(() => {
+79	    invalidate()
+80	  }, [planes, byPlane, activeConnectionIds])
+81	
+82	  return (
+83	    <group name="connection-layer">
+84	      {Array.from(byPlane.entries()).map(([plane, list]) => {
+85	        if (!planes[plane]) return null
+86	        const lineColor = planeColor(plane)
+87	        return (
+88	          <group key={plane} name={`plane-${plane}`}>
+89	            {list.map((r) => {
+90	              const active = activeConnectionIds.has(r.connectionId)
+91	              return (
+92	                <Line
+93	                  key={r.connectionId}
+94	                  points={r.points}
+95	                  color={lineColor}
+96	                  lineWidth={active ? 2.5 : 1.5}
+97	                  transparent
+98	                  opacity={active ? 1 : 0.55}
+99	                  depthTest={false}
+100	                  renderOrder={2}
+101	                  raycast={() => null}
+102	                />
+103	              )
+104	            })}
+105	          </group>
+106	        )
+107	      })}
+108	    </group>
+109	  )
+110	}
+111
+```
+</details></tool-use>
+
+_**Agent - sidechain (claude-opus-5 2026-08-22 14:44:34Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./src/lib/routing.ts`
+
+```text
+1	/**
+2	 * 连接可视化路由（纯元组数学，零 three 导入）。
+3	 *
+4	 * 给定内容包连接 + 摆位 + 当前渲染深度，算出：
+5	 * 1. 每条连接两端「在当前 LOD 深度下实际可见」的端口世界坐标锚点——深度截断规则与
+6	 *    `SceneRoot`/`AssemblyBranch` 的 `visibleKids` 过滤（`levelIndex(kid.lodLevel) <= maxDepth`）
+7	 *    完全对应：端点若比当前深度更深，就沿祖先链上浮到最近的可见祖先，因此算出的锚点
+8	 *    永远落在实际渲染出来的那个盒子上，不会悬空指向一个没画出来的芯片。
+9	 * 2. 六平面各自的「端口方位」——同一个装配盒子上，不同平面从盒子的不同侧面/象限引出
+10	 *    （nvlink→背板后下侧、scaleout/business/mgmt→后上部三路错开、power→母排侧、
+11	 *    cooling→歧管侧），偏移量是节点自身 size 的比例，天然适配从机架到芯片的所有尺度，
+12	 *    且与 `layout.ts` 里 busbar/manifold/nvlink-backplane 的实际摆位方向一致。
+13	 * 3. 一条「升高 → 沿 X → 沿 Z → 落下」的正交折线；六个平面各占一层独立的总线高度
+14	 *    （按 `PLANE_ORDER` 序号分层），因此即使两条不同平面的连接端点重合，折线也不会重叠。
+15	 * 4. 累计弧长 LUT，供 `flowTimeline.ts` 与 `FlowLayer` 沿路径采样粒子位置。
+16	 *
+17	 * ★ 两端折叠到同一可见节点的连接（例如集群视图下 GPU↔NVSwitch 都收缩成同一个「机架」
+18	 *   盒子）视为退化边，直接跳过——画一条长度为零的线没有意义。
+19	 *
+20	 * ★ 「哪些平面在哪一级该显示」（如集群级只画 scale-out）是 UI 策略，由 `ConnectionLayer`
+21	 *   决定；本文件只负责「给定深度，这条连接的两端点世界坐标在哪、折线怎么走」。
+22	 */
+23	
+24	import { ancestorsOf, FACTORY_PACK } from '../data'
+25	import type { NetworkPlane, LodLevel } from '../data/types'
+26	import { levelIndex } from './drill'
+27	import { worldPositionOf } from './layout'
+28	import type { ResolvedLayout, Vec3 } from './layout'
+29	import { PLANE_ORDER } from './palette'
+30	
+31	export interface RoutedConnection {
+32	  connectionId: string
+33	  plane: NetworkPlane
+34	  /** 折线两端实际依附的装配节点 ID（可能是 `Connection` 原始端点的可见祖先，而非其本身）。 */
+35	  fromAssemblyId: string
+36	  toAssemblyId: string
+37	  /** 世界坐标折线顶点，长度 ≥ 2，相邻两点即一段。 */
+38	  points: Vec3[]
+39	  /** 累计弧长 LUT：与 `points` 等长，`lengths[0] = 0`，非递减。 */
+40	  lengths: number[]
+41	  /** 折线总长度 = `lengths` 最后一项。 */
+42	  totalLength: number
+43	}
+44	
+45	// ─────────────────────────── 向量小工具 ───────────────────────────
+46	
+47	function vAdd(a: Vec3, b: Vec3): Vec3 {
+48	  return [a[0] + b[0], a[1] + b[1], a[2] + b[2]]
+49	}
+50	
+51	function vDist(a: Vec3, b: Vec3): number {
+52	  return Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2])
+53	}
+54	
+55	function sameVec(a: Vec3, b: Vec3, eps = 1e-9): boolean {
+56	  return Math.abs(a[0] - b[0]) < eps && Math.abs(a[1] - b[1]) < eps && Math.abs(a[2] - b[2]) < eps
+57	}
+58	
+59	/** 两点间线性插值取点，`t` ∈ [0,1]。`flowTimeline.ts` 沿弧长 LUT 采样时复用。 */
+60	export function lerpVec3(a: Vec3, b: Vec3, t: number): Vec3 {
+61	  return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t]
+62	}
+63	
+64	// ─────────────────────────── 端口方位 ───────────────────────────
+65	
+66	/**
+67	 * 平面 → 端口在节点自身包围盒内的偏移比例（分量取值在 [-0.5, 0.5] 区间内，
+68	 * 因此算出的锚点必然落在节点包围盒内部或边缘附近，不会跑出盒子）。
+69	 *
+70	 * - nvlink 贴机架背部下侧（呼应 `layout.ts` 的 `nvlink-backplane` 摆位）；
+71	 * - scaleout / business / mgmt 都贴后上部，但左右错开一点，三条线不叠在一起；
+72	 * - power 贴 +X 母排侧（呼应 `dc-busbar` 摆位在 +0.22），cooling 贴 -X 歧管侧
+73	 *   （呼应 `liquid-manifold` 摆位在 -0.22）。
+74	 */
+75	const PORT_FRACTION: Record<NetworkPlane, Vec3> = {
+76	  nvlink: [0, -0.16, -0.44],
+77	  scaleout: [0, 0.34, -0.44],
+78	  business: [0.14, 0.34, -0.44],
+79	  mgmt: [-0.14, 0.34, -0.44],
+80	  power: [0.3, 0, -0.32],
+81	  cooling: [-0.3, 0, -0.32],
+82	}
+83	
+84	function portAnchor(center: Vec3, size: Vec3, plane: NetworkPlane): Vec3 {
+85	  const f = PORT_FRACTION[plane]
+86	  return vAdd(center, [size[0] * f[0], size[1] * f[1], size[2] * f[2]])
+87	}
+88	
+89	// ─────────────────────────── 深度截断 ───────────────────────────
+90	
+91	/**
+92	 * 从根到该节点的祖先链中，截到「在给定渲染深度下仍会被挂载」的最深一段——
+93	 * 与 `AssemblyBranch` 的 `visibleKids = kids.filter(k => levelIndex(k.lodLevel) <= maxDepth)`
+94	 * 是同一条规则，只是这里换成沿链条从根往下找「最后一个仍然可见」的节点。
+95	 */
+96	function visibleChain(assemblyId: string, depth: LodLevel): string[] {
+97	  const chain = ancestorsOf(assemblyId)
+98	  const maxDepth = levelIndex(depth)
+99	  let cut = 0
+100	  for (let i = 0; i < chain.length; i += 1) {
+101	    if (levelIndex(chain[i]!.lodLevel) <= maxDepth) cut = i
+102	  }
+103	  return chain.slice(0, cut + 1).map((n) => n.id)
+104	}
+105	
+106	/** 给定深度下，该装配节点实际可见（会被挂载渲染）的那个自身或祖先的 ID。 */
+107	export function visibleAncestorAt(assemblyId: string, depth: LodLevel): string {
+108	  const chain = visibleChain(assemblyId, depth)
+109	  return chain[chain.length - 1]!
+110	}
+111	
+112	// ─────────────────────────── 折线构造 ───────────────────────────
+113	
+114	const LANE_FRACTION = 0.05
+115	const MIN_LANE = 0.012
+116	
+117	/** 去掉连续重复点——起止点在某轴对齐时，折线会自然退化掉那一段，避免零长度段污染 LUT。 */
+118	function dedupe(points: Vec3[]): Vec3[] {
+119	  const out: Vec3[] = []
+120	  for (const p of points) {
+121	    const prev = out[out.length - 1]
+122	    if (!prev || !sameVec(prev, p)) out.push(p)
+123	  }
+124	  return out
+125	}
+126	
+127	/**
+128	 * 「升高 → 沿 X → 沿 Z → 落到终点」的正交折线（每段只沿单一轴移动）。
+129	 * 总线高度按平面在 `PLANE_ORDER` 中的序号分层（`busY` 随序号严格递增），
+130	 * 是六平面即使端点重合也不会共线重叠的关键——`routing.test.ts` 直接验证这条。
+131	 */
+132	export function orthogonalPath(start: Vec3, end: Vec3, plane: NetworkPlane): Vec3[] {
+133	  const dist = Math.max(vDist(start, end), 1e-6)
+134	  const laneUnit = Math.max(dist * LANE_FRACTION, MIN_LANE)
+135	  const laneIdx = Math.max(PLANE_ORDER.indexOf(plane), 0)
+136	  const busY = Math.max(start[1], end[1]) + laneUnit * (laneIdx + 1)
+137	
+138	  const raw: Vec3[] = [
+139	    start,
+140	    [start[0], busY, start[2]],
+141	    [end[0], busY, start[2]],
+142	    [end[0], busY, end[2]],
+143	    end,
+144	  ]
+145	  return dedupe(raw)
+146	}
+147	
+148	/** 折线的累计弧长 LUT：`lengths[0] = 0`，与 `points` 等长，非递减。 */
+149	export function arcLengthLUT(points: Vec3[]): { lengths: number[]; total: number } {
+150	  const lengths = [0]
+151	  for (let i = 1; i < points.length; i += 1) {
+152	    lengths.push(lengths[i - 1]! + vDist(points[i - 1]!, points[i]!))
+153	  }
+154	  return { lengths, total: lengths[lengths.length - 1] ?? 0 }
+155	}
+156	
+157	/** 沿弧长 LUT 按比例（0..1）采样折线上的一点。空折线兜底返回原点。 */
+158	export function sampleAtFraction(points: Vec3[], lengths: number[], fraction: number): Vec3 {
+159	  if (points.length === 0) return [0, 0, 0]
+160	  if (points.length === 1) return points[0]!
+161	  const total = lengths[lengths.length - 1] ?? 0
+162	  const target = Math.min(Math.max(fraction, 0), 1) * total
+163	  for (let i = 1; i < lengths.length; i += 1) {
+164	    if (target <= lengths[i]!) {
+165	      const segLen = lengths[i]! - lengths[i - 1]!
+166	      const t = segLen <= 1e-12 ? 0 : (target - lengths[i - 1]!) / segLen
+167	      return lerpVec3(points[i - 1]!, points[i]!, t)
+168	    }
+169	  }
+170	  return points[points.length - 1]!
+171	}
+172	
+173	// ─────────────────────────── 主入口 ───────────────────────────
+174	
+175	/**
+176	 * 给定系统 + 摆位 + 渲染深度，算出全部「两端可见且不退化」连接的折线路由。
+177	 * 不做平面开关/展示策略过滤——那是 `ConnectionLayer` 的职责，这里只管几何。
+178	 *
+179	 * @param exploded 是否使用 board 级 explode 后的坐标（`layout.ts` 的 `explodedSlots`）；
+180	 *   B3 的六平面连线以 rack/cluster 尺度为主，默认 `false`，board 级拆解视图暂不参与连线。
+181	 */
+182	export function routeConnections(
+183	  systemId: string,
+184	  layout: ResolvedLayout,
+185	  depth: LodLevel,
+186	  exploded = false,
+187	): RoutedConnection[] {
+188	  const out: RoutedConnection[] = []
+189	  for (const c of FACTORY_PACK.connections) {
+190	    if (c.systemId !== systemId) continue
+191	
+192	    const fromChain = visibleChain(c.fromAssemblyId, depth)
+193	    const toChain = visibleChain(c.toAssemblyId, depth)
+194	    const fromId = fromChain[fromChain.length - 1]!
+195	    const toId = toChain[toChain.length - 1]!
+196	    if (fromId === toId) continue // 退化边：两端收缩到同一个可见盒子
+197	
+198	    const fromItem = layout.get(fromId)
+199	    const toItem = layout.get(toId)
+200	    if (!fromItem || !toItem) continue
+201	
+202	    const fromCenter = worldPositionOf(layout, fromChain, 0, exploded)
+203	    const toCenter = worldPositionOf(layout, toChain, 0, exploded)
+204	    const start = portAnchor(fromCenter, fromItem.size, c.plane)
+205	    const end = portAnchor(toCenter, toItem.size, c.plane)
+206	
+207	    const points = orthogonalPath(start, end, c.plane)
+208	    const { lengths, total } = arcLengthLUT(points)
+209	
+210	    out.push({
+211	      connectionId: c.id,
+212	      plane: c.plane,
+213	      fromAssemblyId: fromId,
+214	      toAssemblyId: toId,
+215	      points,
+216	      lengths,
+217	      totalLength: total,
+218	    })
+219	  }
+220	  return out
+221	}
+222	
+223	/** 按 `connectionId` 建索引，`flowTimeline.ts` 与 `FlowLayer` 按步骤引用的连接 ID 查路径用。 */
+224	export function indexRoutesById(routes: RoutedConnection[]): ReadonlyMap<string, RoutedConnection> {
+225	  return new Map(routes.map((r) => [r.connectionId, r]))
+226	}
+227
+```
+</details></tool-use>
+
+_**Agent - sidechain (claude-opus-5 2026-08-22 14:44:35Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./src/lib/routing.test.ts`
+
+```text
+1	import { describe, expect, it } from 'vitest'
+2	import { FACTORY_PACK } from '../data'
+3	import { resolveLayout } from './layout'
+4	import { PLANE_ORDER } from './palette'
+5	import {
+6	  arcLengthLUT,
+7	  indexRoutesById,
+8	  orthogonalPath,
+9	  routeConnections,
+10	  sampleAtFraction,
+11	  visibleAncestorAt,
+12	} from './routing'
+13	import type { Vec3 } from './layout'
+14	
+15	const SYSTEM_ID = 'sys.gb300-nvl72'
+16	const layout = resolveLayout(SYSTEM_ID)
+17	
+18	describe('visibleAncestorAt：深度截断与 SceneRoot 的挂载规则一致', () => {
+19	  it('cluster 深度下，板级/托盘级端点都收缩到机架本身', () => {
+20	    expect(visibleAncestorAt('asm.gb300.b300-gpu', 'cluster')).toBe('asm.gb300.rack')
+21	    expect(visibleAncestorAt('asm.gb300.nvswitch-asic', 'cluster')).toBe('asm.gb300.rack')
+22	    expect(visibleAncestorAt('asm.gb300.compute-tray', 'cluster')).toBe('asm.gb300.rack')
+23	  })
+24	
+25	  it('rack 深度下，板级端点收缩到所属托盘；托盘级节点保持自身', () => {
+26	    expect(visibleAncestorAt('asm.gb300.b300-gpu', 'rack')).toBe('asm.gb300.compute-tray')
+27	    expect(visibleAncestorAt('asm.gb300.compute-tray', 'rack')).toBe('asm.gb300.compute-tray')
+28	  })
+29	
+30	  it('board 深度下，任意节点保持自身（不截断）', () => {
+31	    expect(visibleAncestorAt('asm.gb300.b300-gpu', 'board')).toBe('asm.gb300.b300-gpu')
+32	    expect(visibleAncestorAt('asm.gb300.hbm', 'board')).toBe('asm.gb300.hbm')
+33	  })
+34	
+35	  it('cluster 级节点自身在任意深度下都不会被截断掉（根节点恒可见）', () => {
+36	    expect(visibleAncestorAt('asm.gb300.facility', 'board')).toBe('asm.gb300.facility')
+37	  })
+38	})
+39	
+40	describe('routeConnections：确定性与基本结构', () => {
+41	  it('同输入同输出（确定性）', () => {
+42	    const a = routeConnections(SYSTEM_ID, layout, 'rack')
+43	    const b = routeConnections(SYSTEM_ID, layout, 'rack')
+44	    expect(JSON.stringify(a)).toBe(JSON.stringify(b))
+45	  })
+46	
+47	  it('rack 深度下，六个平面都至少产出一条非退化路由（与内容包六平面连接对应）', () => {
+48	    const routes = routeConnections(SYSTEM_ID, layout, 'rack')
+49	    for (const plane of PLANE_ORDER) {
+50	      const hit = routes.filter((r) => r.plane === plane)
+51	      expect(hit.length, `${plane} 平面在 rack 深度下应至少有一条可见路由`).toBeGreaterThan(0)
+52	    }
+53	  })
+54	
+55	  it('退化边（两端收缩到同一可见节点）被过滤掉，不出现在结果里', () => {
+56	    // cluster 深度下，GPU↔NVSwitch（con.gb300.gpu-nvswitch）两端都收缩到「机架」，应被跳过
+57	    const routes = routeConnections(SYSTEM_ID, layout, 'cluster')
+58	    expect(routes.some((r) => r.connectionId === 'con.gb300.gpu-nvswitch')).toBe(false)
+59	  })
+60	
+61	  it('每条路由的两端不相同（已排除退化边）', () => {
+62	    const routes = routeConnections(SYSTEM_ID, layout, 'rack')
+63	    for (const r of routes) expect(r.fromAssemblyId).not.toBe(r.toAssemblyId)
+64	  })
+65	
+66	  it('全部连接 ID 都能在内容包中找到对应的 Connection（不产生游离 ID）', () => {
+67	    const ids = new Set(FACTORY_PACK.connections.map((c) => c.id))
+68	    const routes = routeConnections(SYSTEM_ID, layout, 'board')
+69	    for (const r of routes) expect(ids.has(r.connectionId), r.connectionId).toBe(true)
+70	  })
+71	})
+72	
+73	describe('集群视图的 nvlink 平面（B4 交接问题③ 回归覆盖）', () => {
+74	  // GB300 的机架在装配树里只有**一个**节点（roleKey='rack'，count=8 代表 8 台物理机架，
+75	  // 靠 slots 摆位而非各自建树），因此机架内的每一条 nvlink 连接（GPU↔NVSwitch、
+76	  // NVSwitch↔背板等）在 cluster 深度下两端都会收缩到同一个「机架」盒子，全部退化——
+77	  // 也就是说 GB300 的集群总览天然不会画出任何 NVLink 线，不需要额外过滤就是对的。
+78	  it('GB300：cluster 深度下没有任何非退化的 nvlink 路由', () => {
+79	    const routes = routeConnections(SYSTEM_ID, layout, 'cluster')
+80	    const nvlinkRoutes = routes.filter((r) => r.plane === 'nvlink')
+81	    expect(nvlinkRoutes).toHaveLength(0)
+82	  })
+83	
+84	  // Rubin Ultra NVL576 相反：`asm.ru.interrack-fabric` 是装配树里独立的 cluster 级节点
+85	  // （8 机架通过 NPO/CPO 光互连组成 Dragonfly，NVLink 域第一次跨出机架），
+86	  // 所以它在 cluster 深度下**应该**保留一条非退化的 nvlink 路由——这是与 GB300
+87	  // 相反但同样正确的行为，此处一并钉住，避免以后为了「修」GB300 顺手把这条也删掉。
+88	  it('Rubin Ultra NVL576：cluster 深度下保留跨机架 scale-up 光互连（唯一预期的 nvlink 路由）', () => {
+89	    const NVL576 = 'sys.rubin-ultra-nvl576'
+90	    const ru576Layout = resolveLayout(NVL576)
+91	    const routes = routeConnections(NVL576, ru576Layout, 'cluster')
+92	    const nvlinkRoutes = routes.filter((r) => r.plane === 'nvlink')
+93	    expect(nvlinkRoutes.map((r) => r.connectionId)).toEqual(['con.ru.optics-interrack'])
+94	  })
+95	})
+96	
+97	describe('折线连续性', () => {
+98	  const routes = routeConnections(SYSTEM_ID, layout, 'rack')
+99	
+100	  it('每条折线至少 2 个顶点，points/lengths 等长', () => {
+101	    for (const r of routes) {
+102	      expect(r.points.length).toBeGreaterThanOrEqual(2)
+103	      expect(r.lengths.length).toBe(r.points.length)
+104	    }
+105	  })
+106	
+107	  it('折线首尾即为该路由记录的两端锚点隐含端点（数组本身就是单一连续路径，不存在跳段）', () => {
+108	    for (const r of routes) {
+109	      // 相邻点之间的距离贡献即 lengths 的增量，二者必须完全对应——这就是「相邻段端点相接」
+110	      for (let i = 1; i < r.points.length; i += 1) {
+111	        const [ax, ay, az] = r.points[i - 1]!
+112	        const [bx, by, bz] = r.points[i]!
+113	        const segLen = Math.hypot(bx - ax, by - ay, bz - az)
+114	        expect(r.lengths[i]! - r.lengths[i - 1]!).toBeCloseTo(segLen, 9)
+115	      }
+116	    }
+117	  })
+118	
+119	  it('两条共享同一装配端点与同一平面的连接，在该端点上的锚点完全重合（路径真正连通）', () => {
+120	    // con.gb300.gpu-nvswitch 与 con.gb300.nvswitch-backplane 都在 nvlink 平面上接触 nvswitch-asic
+121	    const routes2 = routeConnections(SYSTEM_ID, layout, 'board')
+122	    const a = routes2.find((r) => r.connectionId === 'con.gb300.gpu-nvswitch')!
+123	    const b = routes2.find((r) => r.connectionId === 'con.gb300.nvswitch-backplane')!
+124	    expect(a.toAssemblyId).toBe('asm.gb300.nvswitch-asic')
+125	    expect(b.fromAssemblyId).toBe('asm.gb300.nvswitch-asic')
+126	    expect(a.plane).toBe(b.plane)
+127	    expect(a.points[a.points.length - 1]).toEqual(b.points[0])
+128	  })
+129	})
+130	
+131	describe('每平面 lane 分离（不同平面同路径段不重合）', () => {
+132	  it('相同起止点、不同平面的折线，总线高度互不相同', () => {
+133	    const start: Vec3 = [0, 0, 0]
+134	    const end: Vec3 = [1, 0, 0.5]
+135	    const busHeights = PLANE_ORDER.map((plane) => orthogonalPath(start, end, plane)[1]![1])
+136	    expect(new Set(busHeights).size).toBe(PLANE_ORDER.length)
+137	  })
+138	
+139	  it('六个平面的折线互不完全相同（同一起止点下）', () => {
+140	    const start: Vec3 = [0, 0, 0]
+141	    const end: Vec3 = [2, 0, 1]
+142	    const paths = PLANE_ORDER.map((plane) => JSON.stringify(orthogonalPath(start, end, plane)))
+143	    expect(new Set(paths).size).toBe(PLANE_ORDER.length)
+144	  })
+145	
+146	  it('真实数据中，rack 深度下不同平面折线的中段顶点不重合', () => {
+147	    const routes = routeConnections(SYSTEM_ID, layout, 'rack')
+148	    const byPlaneMid = new Map<string, Vec3>()
+149	    for (const r of routes) {
+150	      const mid = r.points[Math.floor(r.points.length / 2)]!
+151	      const key = JSON.stringify(mid)
+152	      // 不同平面不应算出完全相同的中段顶点（lane 分层保证）
+153	      for (const [existingKey, existingPlaneRoute] of byPlaneMid) {
+154	        if (existingKey === key) {
+155	          // 允许同一平面自身的不同连接重合（理论上不太可能，但不是本测试关心的点）
+156	          void existingPlaneRoute
+157	        }
+158	      }
+159	      byPlaneMid.set(`${r.plane}:${key}`, mid)
+160	    }
+161	    // 抽查：不同平面即使 X/Z 相近，Y（总线高度）也必须不同
+162	    const nvlink = routes.find((r) => r.plane === 'nvlink')!
+163	    const power = routes.find((r) => r.plane === 'power')!
+164	    expect(nvlink.points[1]![1]).not.toBeCloseTo(power.points[1]![1], 6)
+165	  })
+166	})
+167	
+168	describe('端点落在组件盒范围附近', () => {
+169	  it('折线起止点与对应装配节点世界中心的距离，不超过其包围盒半对角线', () => {
+170	    const routes = routeConnections(SYSTEM_ID, layout, 'rack')
+171	    for (const r of routes) {
+172	      const fromItem = layout.get(r.fromAssemblyId)!
+173	      const toItem = layout.get(r.toAssemblyId)!
+174	      const halfDiagFrom = 0.6 * Math.hypot(...fromItem.size)
+175	      const halfDiagTo = 0.6 * Math.hypot(...toItem.size)
+176	      // 端点 = worldPositionOf(该节点) + size 的比例偏移（|fraction| < 0.5），
+177	      // 因此到中心的距离必然小于半对角线（留一点余量给浮点误差）。
+178	      const start = r.points[0]!
+179	      const end = r.points[r.points.length - 1]!
+180	      expect(Number.isFinite(start[0]) && Number.isFinite(start[1]) && Number.isFinite(start[2])).toBe(
+181	        true,
+182	      )
+183	      expect(halfDiagFrom).toBeGreaterThan(0)
+184	      expect(halfDiagTo).toBeGreaterThan(0)
+185	      void end
+186	    }
+187	  })
+188	})
+189	
+190	describe('arcLengthLUT / sampleAtFraction', () => {
+191	  it('LUT 单调递增（非递减），首项为 0', () => {
+192	    const points: Vec3[] = [
+193	      [0, 0, 0],
+194	      [1, 0, 0],
+195	      [1, 1, 0],
+196	      [1, 1, 1],
+197	    ]
+198	    const { lengths, total } = arcLengthLUT(points)
+199	    expect(lengths[0]).toBe(0)
+200	    for (let i = 1; i < lengths.length; i += 1) {
+201	      expect(lengths[i]!).toBeGreaterThanOrEqual(lengths[i - 1]!)
+202	    }
+203	    expect(total).toBeCloseTo(3, 9)
+204	  })
+205	
+206	  it('真实路由的 LUT 同样单调递增', () => {
+207	    const routes = routeConnections(SYSTEM_ID, layout, 'rack')
+208	    for (const r of routes) {
+209	      for (let i = 1; i < r.lengths.length; i += 1) {
+210	        expect(r.lengths[i]!, r.connectionId).toBeGreaterThanOrEqual(r.lengths[i - 1]!)
+211	      }
+212	      expect(r.totalLength).toBe(r.lengths[r.lengths.length - 1])
+213	    }
+214	  })
+215	
+216	  it('sampleAtFraction(0) = 起点，sampleAtFraction(1) = 终点', () => {
+217	    const points: Vec3[] = [
+218	      [0, 0, 0],
+219	      [2, 0, 0],
+220	      [2, 2, 0],
+221	    ]
+222	    const { lengths } = arcLengthLUT(points)
+223	    expect(sampleAtFraction(points, lengths, 0)).toEqual(points[0])
+224	    expect(sampleAtFraction(points, lengths, 1)).toEqual(points[points.length - 1])
+225	  })
+226	
+227	  it('sampleAtFraction(0.5) 落在折线中点弧长处', () => {
+228	    const points: Vec3[] = [
+229	      [0, 0, 0],
+230	      [4, 0, 0],
+231	    ]
+232	    const { lengths } = arcLengthLUT(points)
+233	    const mid = sampleAtFraction(points, lengths, 0.5)
+234	    expect(mid[0]).toBeCloseTo(2, 9)
+235	  })
+236	})
+237	
+238	describe('indexRoutesById', () => {
+239	  it('按 connectionId 建立唯一索引', () => {
+240	    const routes = routeConnections(SYSTEM_ID, layout, 'rack')
+241	    const idx = indexRoutesById(routes)
+242	    expect(idx.size).toBe(routes.length)
+243	    for (const r of routes) expect(idx.get(r.connectionId)).toBe(r)
+244	  })
+245	})
+246
+```
+</details></tool-use>
+
+_**Agent - sidechain (claude-opus-5 2026-08-22 14:44:38Z)**_
+
+Now let me extract the connection and assembly data from the packs.
+
+_**Agent - sidechain (claude-opus-5 2026-08-22 14:44:40Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Extract GB300 connections
+
+`grep -n "id: 'con\.\|plane:\|fromAssemblyId:\|toAssemblyId:\|topology:\|^export const .*CONNECTIONS\|^const .*CONNECTIONS" /Users/caoruixin/projects/aifactory/src/data/gb300-nvl72.ts`
+
+```text
+151 matches in 151F:
+
+[file] 1009 (1):
+     0: Connection[] = [
+
+[file] 1012 (1):
+     0: 'con.gb300.gpu-nvswitch',
+
+[file] 1014 (1):
+     0: 'asm.gb300.b300-gpu',
+
+[file] 1015 (1):
+     0: 'asm.gb300.nvswitch-asic',
+
+[file] 1016 (1):
+     0: 'nvlink',
+
+[file] 1017 (1):
+     0: 'all-to-all',
+
+[file] 1032 (1):
+     0: 'con.gb300.nvswitch-backplane',
+
+[file] 1034 (1):
+     0: 'asm.gb300.nvswitch-asic',
+
+[file] 1035 (1):
+     0: 'asm.gb300.nvlink-backplane',
+
+[file] 1036 (1):
+     0: 'nvlink',
+
+[file] 1037 (1):
+     0: 'bus',
+
+[file] 1047 (1):
+     0: 'con.gb300.tray-backplane',
+
+[file] 1049 (1):
+     0: 'asm.gb300.compute-tray',
+
+[file] 1050 (1):
+     0: 'asm.gb300.nvlink-backplane',
+
+[file] 1051 (1):
+     0: 'nvlink',
+
+[file] 1052 (1):
+     0: 'bus',
+
+[file] 1062 (1):
+     0: 'con.gb300.grace-gpu-c2c',
+
+[file] 1064 (1):
+     0: 'asm.gb300.grace-cpu',
+
+[file] 1065 (1):
+     0: 'asm.gb300.b300-gpu',
+
+[file] 1066 (1):
+     0: 'nvlink',
+
+[file] 1067 (1):
+     0: 'point-to-point',
+
+[file] 1080 (1):
+     0: 'con.gb300.gpu-cx8',
+
+[file] 1082 (1):
+     0: 'asm.gb300.b300-gpu',
+
+[file] 1083 (1):
+     0: 'asm.gb300.cx8-nic',
+
+[file] 1084 (1):
+     0: 'scaleout',
+
+[file] 1085 (1):
+     0: 'point-to-point',
+
+[file] 1099 (1):
+     0: 'con.gb300.cx8-mezz',
+
+[file] 1101 (1):
+     0: 'asm.gb300.cx8-nic',
+
+[file] 1102 (1):
+     0: 'asm.gb300.mezz-board',
+
+[file] 1103 (1):
+     0: 'scaleout',
+
+[file] 1104 (1):
+     0: 'point-to-point',
+
+[file] 1114 (1):
+     0: 'con.gb300.cx8-leaf',
+
+[file] 1116 (1):
+     0: 'asm.gb300.cx8-nic',
+
+[file] 1117 (1):
+     0: 'asm.gb300.scaleout-leaf',
+
+[file] 1118 (1):
+     0: 'scaleout',
+
+[file] 1119 (1):
+     0: 'rail-optimized',
+
+[file] 1135 (1):
+     0: 'con.gb300.leaf-spine',
+
+[file] 1137 (1):
+     0: 'asm.gb300.scaleout-leaf',
+
+[file] 1138 (1):
+     0: 'asm.gb300.scaleout-spine',
+
+[file] 1139 (1):
+     0: 'scaleout',
+
+[file] 1140 (1):
+     0: 'fat-tree',
+
+[file] 1152 (1):
+     0: 'con.gb300.bf3-converged',
+
+[file] 1154 (1):
+     0: 'asm.gb300.bf3-dpu',
+
+[file] 1155 (1):
+     0: 'asm.gb300.converged-switch',
+
+[file] 1156 (1):
+     0: 'business',
+
+[file] 1157 (1):
+     0: 'star',
+
+[file] 1172 (1):
+     0: 'con.gb300.converged-storage',
+
+[file] 1174 (1):
+     0: 'asm.gb300.converged-switch',
+
+[file] 1175 (1):
+     0: 'asm.gb300.storage',
+
+[file] 1176 (1):
+     0: 'business',
+
+[file] 1177 (1):
+     0: 'fat-tree',
+
+[file] 1192 (1):
+     0: 'con.gb300.mgmt-node-converged',
+
+[file] 1194 (1):
+     0: 'asm.gb300.mgmt-node',
+
+[file] 1195 (1):
+     0: 'asm.gb300.converged-switch',
+
+[file] 1196 (1):
+     0: 'business',
+
+[file] 1197 (1):
+     0: 'star',
+
+[file] 1214 (1):
+     0: 'con.gb300.tray-bmc-mgmt',
+
+[file] 1216 (1):
+     0: 'asm.gb300.compute-tray',
+
+[file] 1217 (1):
+     0: 'asm.gb300.inrack-mgmt-switch',
+
+[file] 1218 (1):
+     0: 'mgmt',
+
+[file] 1219 (1):
+     0: 'star',
+
+[file] 1234 (1):
+     0: 'con.gb300.nvswitch-tray-mgmt',
+
+[file] 1236 (1):
+     0: 'asm.gb300.nvswitch-tray',
+
+[file] 1237 (1):
+     0: 'asm.gb300.inrack-mgmt-switch',
+
+[file] 1238 (1):
+     0: 'mgmt',
+
+[file] 1239 (1):
+     0: 'star',
+
+[file] 1249 (1):
+     0: 'con.gb300.bf3-oob',
+
+[file] 1251 (1):
+     0: 'asm.gb300.bf3-dpu',
+
+[file] 1252 (1):
+     0: 'asm.gb300.inrack-mgmt-switch',
+
+[file] 1253 (1):
+     0: 'mgmt',
+
+[file] 1254 (1):
+     0: 'star',
+
+[file] 1268 (1):
+     0: 'con.gb300.power-shelf-mgmt',
+
+[file] 1270 (1):
+     0: 'asm.gb300.power-shelf',
+
+[file] 1271 (1):
+     0: 'asm.gb300.inrack-mgmt-switch',
+
+[file] 1272 (1):
+     0: 'mgmt',
+
+[file] 1273 (1):
+     0: 'star',
+
+[file] 1283 (1):
+     0: 'con.gb300.inrack-oob-uplink',
+
+[file] 1285 (1):
+     0: 'asm.gb300.inrack-mgmt-switch',
+
+[file] 1286 (1):
+     0: 'asm.gb300.oob-fabric-switch',
+
+[file] 1287 (1):
+     0: 'mgmt',
+
+[file] 1288 (1):
+     0: 'star',
+
+[file] 1298 (1):
+     0: 'con.gb300.mgmt-node-oob',
+
+[file] 1300 (1):
+     0: 'asm.gb300.mgmt-node',
+
+[file] 1301 (1):
+     0: 'asm.gb300.oob-fabric-switch',
+
+[file] 1302 (1):
+     0: 'mgmt',
+
+[file] 1303 (1):
+     0: 'star',
+
+[file] 1313 (1):
+     0: 'con.gb300.leaf-oob',
+
+[file] 1315 (1):
+     0: 'asm.gb300.scaleout-leaf',
+
+[file] 1316 (1):
+     0: 'asm.gb300.oob-fabric-switch',
+
+[file] 1317 (1):
+     0: 'mgmt',
+
+[file] 1318 (1):
+     0: 'star',
+
+[file] 1328 (1):
+     0: 'con.gb300.converged-oob',
+
+[file] 1330 (1):
+     0: 'asm.gb300.converged-switch',
+
+[file] 1331 (1):
+     0: 'asm.gb300.oob-fabric-switch',
+
+[file] 1332 (1):
+     0: 'mgmt',
+
+[file] 1333 (1):
+     0: 'star',
+
+[file] 1345 (1):
+     0: 'con.gb300.facility-power-shelf',
+
+[file] 1347 (1):
+     0: 'asm.gb300.facility',
+
+[file] 1348 (1):
+     0: 'asm.gb300.power-shelf',
+
+[file] 1349 (1):
+     0: 'power',
+
+[file] 1350 (1):
+     0: 'bus',
+
+[file] 1360 (1):
+     0: 'con.gb300.power-shelf-busbar',
+
+[file] 1362 (1):
+     0: 'asm.gb300.power-shelf',
+
+[file] 1363 (1):
+     0: 'asm.gb300.busbar',
+
+[file] 1364 (1):
+     0: 'power',
+
+[file] 1365 (1):
+     0: 'bus',
+
+[file] 1380 (1):
+     0: 'con.gb300.busbar-compute-tray',
+
+[file] 1382 (1):
+     0: 'asm.gb300.busbar',
+
+[file] 1383 (1):
+     0: 'asm.gb300.compute-tray',
+
+[file] 1384 (1):
+     0: 'power',
+
+[file] 1385 (1):
+     0: 'bus',
+
+[file] 1395 (1):
+     0: 'con.gb300.busbar-nvswitch-tray',
+
+[file] 1397 (1):
+     0: 'asm.gb300.busbar',
+
+[file] 1398 (1):
+     0: 'asm.gb300.nvswitch-tray',
+
+[file] 1399 (1):
+     0: 'power',
+
+[file] 1400 (1):
+     0: 'bus',
+
+[file] 1410 (1):
+     0: 'con.gb300.busbar-mgmt-switch',
+
+[file] 1412 (1):
+     0: 'asm.gb300.busbar',
+
+[file] 1413 (1):
+     0: 'asm.gb300.inrack-mgmt-switch',
+
+[file] 1414 (1):
+     0: 'power',
+
+[file] 1415 (1):
+     0: 'bus',
+
+[file] 1428 (1):
+     0: 'con.gb300.gpu-cold-plate',
+
+[file] 1430 (1):
+     0: 'asm.gb300.b300-gpu',
+
+[file] 1431 (1):
+     0: 'asm.gb300.tray-cold-plate',
+
+[file] 1432 (1):
+     0: 'cooling',
+
+[file] 1433 (1):
+     0: 'point-to-point',
+
+[file] 1443 (1):
+     0: 'con.gb300.cpu-cold-plate',
+
+[file] 1445 (1):
+     0: 'asm.gb300.grace-cpu',
+
+[file] 1446 (1):
+     0: 'asm.gb300.tray-cold-plate',
+
+[file] 1447 (1):
+     0: 'cooling',
+
+[file] 1448 (1):
+     0: 'point-to-point',
+
+[file] 1458 (1):
+     0: 'con.gb300.tray-cold-plate-manifold',
+
+[file] 1460 (1):
+     0: 'asm.gb300.tray-cold-plate',
+
+[file] 1461 (1):
+     0: 'asm.gb300.manifold',
+
+[file] 1462 (1):
+     0: 'cooling',
+
+[file] 1463 (1):
+     0: 'loop',
+
+[file] 1473 (1):
+     0: 'con.gb300.nvswitch-cold-plate-manifold',
+
+[file] 1475 (1):
+     0: 'asm.gb300.nvswitch-cold-plate',
+
+[file] 1476 (1):
+     0: 'asm.gb300.manifold',
+
+[file] 1477 (1):
+     0: 'cooling',
+
+[file] 1478 (1):
+     0: 'loop',
+
+[file] 1488 (1):
+     0: 'con.gb300.manifold-cdu',
+
+[file] 1490 (1):
+     0: 'asm.gb300.manifold',
+
+[file] 1491 (1):
+     0: 'asm.gb300.cdu',
+
+[file] 1492 (1):
+     0: 'cooling',
+
+[file] 1493 (1):
+     0: 'loop',
+
+[file] 1503 (1):
+     0: 'con.gb300.cdu-facility-water',
+
+[file] 1505 (1):
+     0: 'asm.gb300.cdu',
+
+[file] 1506 (1):
+     0: 'asm.gb300.facility-water',
+
+[file] 1507 (1):
+     0: 'cooling',
+
+[file] 1508 (1):
+     0: 'loop',
+```
+</details></tool-use>
+
+_**Agent - sidechain (claude-opus-5 2026-08-22 14:44:41Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Extract GB300 assemblies
+
+`grep -n "id: 'asm\.\|lodLevel:\|roleKey:\|parentId:\|count:" /Users/caoruixin/projects/aifactory/src/data/gb300-nvl72.ts | head -250`
+
+```text
+148 matches in 148F:
+
+[file] 1001 (1):
+     0: 'tray',
+
+[file] 1528 (1):
+     0: 'cluster',
+
+[file] 1541 (1):
+     0: 'rack',
+
+[file] 1559 (1):
+     0: 'board',
+
+[file] 590 (1):
+     0: 'asm.gb300.facility',
+
+[file] 592 (1):
+     0: null,
+
+[file] 594 (1):
+     0: 'facility',
+
+[file] 596 (1):
+     0: 1,
+
+[file] 598 (1):
+     0: 'cluster',
+
+[file] 603 (1):
+     0: 'asm.gb300.facility-water',
+
+[file] 605 (1):
+     0: 'asm.gb300.facility',
+
+[file] 607 (1):
+     0: 'facility-water-loop',
+
+[file] 609 (1):
+     0: 1,
+
+[file] 611 (1):
+     0: 'cluster',
+
+[file] 616 (1):
+     0: 'asm.gb300.cdu',
+
+[file] 618 (1):
+     0: 'asm.gb300.facility',
+
+[file] 620 (1):
+     0: 'cdu',
+
+[file] 622 (1):
+     0: 1,
+
+[file] 624 (1):
+     0: 'cluster',
+
+[file] 629 (1):
+     0: 'asm.gb300.scaleout-spine',
+
+[file] 631 (1):
+     0: 'asm.gb300.facility',
+
+[file] 633 (1):
+     0: 'scaleout-spine',
+
+[file] 635 (1):
+     0: 1,
+
+[file] 637 (1):
+     0: 'cluster',
+
+[file] 642 (1):
+     0: 'asm.gb300.scaleout-leaf',
+
+[file] 644 (1):
+     0: 'asm.gb300.facility',
+
+[file] 646 (1):
+     0: 'scaleout-leaf',
+
+[file] 648 (1):
+     0: 1,
+
+[file] 650 (1):
+     0: 'cluster',
+
+[file] 655 (1):
+     0: 'asm.gb300.converged-switch',
+
+[file] 657 (1):
+     0: 'asm.gb300.facility',
+
+[file] 659 (1):
+     0: 'converged-switch',
+
+[file] 661 (1):
+     0: 1,
+
+[file] 663 (1):
+     0: 'cluster',
+
+[file] 668 (1):
+     0: 'asm.gb300.oob-fabric-switch',
+
+[file] 670 (1):
+     0: 'asm.gb300.facility',
+
+[file] 672 (1):
+     0: 'oob-mgmt-switch',
+
+[file] 674 (1):
+     0: 1,
+
+[file] 676 (1):
+     0: 'cluster',
+
+[file] 681 (1):
+     0: 'asm.gb300.mgmt-node',
+
+[file] 683 (1):
+     0: 'asm.gb300.facility',
+
+[file] 685 (1):
+     0: 'control-plane-node',
+
+[file] 687 (1):
+     0: 12,
+
+[file] 692 (1):
+     0: 'cluster',
+
+[file] 697 (1):
+     0: 'asm.gb300.storage',
+
+[file] 699 (1):
+     0: 'asm.gb300.facility',
+
+[file] 701 (1):
+     0: 'external-storage',
+
+[file] 703 (1):
+     0: 1,
+
+[file] 705 (1):
+     0: 'cluster',
+
+[file] 710 (1):
+     0: 'asm.gb300.row',
+
+[file] 712 (1):
+     0: 'asm.gb300.facility',
+
+[file] 714 (1):
+     0: 'rack-row',
+
+[file] 716 (1):
+     0: 1,
+
+[file] 718 (1):
+     0: 'cluster',
+
+[file] 723 (1):
+     0: 'asm.gb300.rack',
+
+[file] 725 (1):
+     0: 'asm.gb300.row',
+
+[file] 727 (1):
+     0: 'rack',
+
+[file] 729 (1):
+     0: 8,
+
+[file] 735 (1):
+     0: 'cluster',
+
+[file] 742 (1):
+     0: 'asm.gb300.inrack-mgmt-switch',
+
+[file] 744 (1):
+     0: 'asm.gb300.rack',
+
+[file] 746 (1):
+     0: 'inrack-mgmt-switch',
+
+[file] 748 (1):
+     0: 2,
+
+[file] 753 (1):
+     0: 'rack',
+
+[file] 758 (1):
+     0: 'asm.gb300.power-shelf',
+
+[file] 760 (1):
+     0: 'asm.gb300.rack',
+
+[file] 762 (1):
+     0: 'power-shelf',
+
+[file] 764 (1):
+     0: 8,
+
+[file] 766 (1):
+     0: 'rack',
+
+[file] 771 (1):
+     0: 'asm.gb300.compute-tray',
+
+[file] 773 (1):
+     0: 'asm.gb300.rack',
+
+[file] 775 (1):
+     0: 'compute-tray',
+
+[file] 777 (1):
+     0: 18,
+
+[file] 782 (1):
+     0: 'rack',
+
+[file] 787 (1):
+     0: 'asm.gb300.nvswitch-tray',
+
+[file] 789 (1):
+     0: 'asm.gb300.rack',
+
+[file] 791 (1):
+     0: 'nvswitch-tray',
+
+[file] 793 (1):
+     0: 9,
+
+[file] 798 (1):
+     0: 'rack',
+
+[file] 803 (1):
+     0: 'asm.gb300.busbar',
+
+[file] 805 (1):
+     0: 'asm.gb300.rack',
+
+[file] 807 (1):
+     0: 'dc-busbar',
+
+[file] 809 (1):
+     0: 1,
+```
+</details></tool-use>
+
+_**Agent - sidechain (claude-opus-5 2026-08-22 14:44:46Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./src/data/gb300-nvl72.ts`
+
+```text
+580	
+581	/**
+582	 * ⚠️ 所有 `rackU` 均为 3D 摆位用的**示意占位**：NVIDIA 未公布 GB300 NVL72 的逐 U 布局。
+583	 * 它们只保证「同层兄弟互不重叠且不超过 rackUnitsForLayout」，不代表真实机架立面。
+584	 */
+585	const RACK_U_PLACEHOLDER = '机架内 U 位为 3D 摆位示意占位，官方未公布逐 U 布局。'
+586	
+587	export const GB300_ASSEMBLIES: AssemblyNode[] = [
+588	  // ── cluster 层 ──
+589	  {
+590	    id: 'asm.gb300.facility',
+591	    systemId: SYSTEM_ID,
+592	    parentId: null,
+593	    componentId: 'cmp.shared.facility-room',
+594	    roleKey: 'facility',
+595	    label: '机房',
+596	    count: 1,
+597	    countClaim: null,
+598	    lodLevel: 'cluster',
+599	    rackU: null,
+600	    note: '装配树根节点。',
+601	  },
+602	  {
+603	    id: 'asm.gb300.facility-water',
+604	    systemId: SYSTEM_ID,
+605	    parentId: 'asm.gb300.facility',
+606	    componentId: 'cmp.shared.facility-water-loop',
+607	    roleKey: 'facility-water-loop',
+608	    label: '机房一次侧冷却水回路',
+609	    count: 1,
+610	    countClaim: null,
+611	    lodLevel: 'cluster',
+612	    rackU: null,
+613	    note: null,
+614	  },
+615	  {
+616	    id: 'asm.gb300.cdu',
+617	    systemId: SYSTEM_ID,
+618	    parentId: 'asm.gb300.facility',
+619	    componentId: 'cmp.shared.cdu',
+620	    roleKey: 'cdu',
+621	    label: 'CDU 冷量分配单元',
+622	    count: 1,
+623	    countClaim: null,
+624	    lodLevel: 'cluster',
+625	    rackU: null,
+626	    note: '参考架构未指定 CDU 数量与型号，此处按每部署 1 台示意。',
+627	  },
+628	  {
+629	    id: 'asm.gb300.scaleout-spine',
+630	    systemId: SYSTEM_ID,
+631	    parentId: 'asm.gb300.facility',
+632	    componentId: 'cmp.gb300.sn5610',
+633	    roleKey: 'scaleout-spine',
+634	    label: 'Spine 交换层（计算网）',
+635	    count: 1,
+636	    countClaim: null,
+637	    lodLevel: 'cluster',
+638	    rackU: null,
+639	    note: '台数取决于 SU 规模与收敛比，参考架构未给定值。',
+640	  },
+641	  {
+642	    id: 'asm.gb300.scaleout-leaf',
+643	    systemId: SYSTEM_ID,
+644	    parentId: 'asm.gb300.facility',
+645	    componentId: 'cmp.gb300.sn5610',
+646	    roleKey: 'scaleout-leaf',
+647	    label: 'Leaf 交换层（计算网）',
+648	    count: 1,
+649	    countClaim: null,
+650	    lodLevel: 'cluster',
+651	    rackU: null,
+652	    note: '双平面设计下每张 GPU 的 2×400 Gb/s 接口分别连到不同 leaf。',
+653	  },
+654	  {
+655	    id: 'asm.gb300.converged-switch',
+656	    systemId: SYSTEM_ID,
+657	    parentId: 'asm.gb300.facility',
+658	    componentId: 'cmp.gb300.sn5610',
+659	    roleKey: 'converged-switch',
+660	    label: '汇聚交换层（业务与存储网）',
+661	    count: 1,
+662	    countClaim: null,
+663	    lodLevel: 'cluster',
+664	    rackU: null,
+665	    note: '承载 North/South 客户业务、存储与带内管理流量。',
+666	  },
+667	  {
+668	    id: 'asm.gb300.oob-fabric-switch',
+669	    systemId: SYSTEM_ID,
+670	    parentId: 'asm.gb300.facility',
+671	    componentId: 'cmp.shared.sn2201',
+672	    roleKey: 'oob-mgmt-switch',
+673	    label: '带外管理汇聚交换机',
+674	    count: 1,
+675	    countClaim: null,
+676	    lodLevel: 'cluster',
+677	    rackU: null,
+678	    note: '机架外的 SN2201 使用交流供电（机架内的走母排直流）。',
+679	  },
+680	  {
+681	    id: 'asm.gb300.mgmt-node',
+682	    systemId: SYSTEM_ID,
+683	    parentId: 'asm.gb300.facility',
+684	    componentId: 'cmp.gb300.mgmt-node',
+685	    roleKey: 'control-plane-node',
+686	    label: '控制面管理节点',
+687	    count: 12,
+688	    countClaim: raCount(
+689	      12,
+690	      'Control Plane/Management Nodes，「we assume a control plane composed of 12 management nodes」',
+691	    ),
+692	    lodLevel: 'cluster',
+693	    rackU: null,
+694	    note: null,
+695	  },
+696	  {
+697	    id: 'asm.gb300.storage',
+698	    systemId: SYSTEM_ID,
+699	    parentId: 'asm.gb300.facility',
+700	    componentId: 'cmp.shared.storage-array',
+701	    roleKey: 'external-storage',
+702	    label: '外部存储集群',
+703	    count: 1,
+704	    countClaim: null,
+705	    lodLevel: 'cluster',
+706	    rackU: null,
+707	    note: '参考架构不指定存储厂商与规模。',
+708	  },
+709	  {
+710	    id: 'asm.gb300.row',
+711	    systemId: SYSTEM_ID,
+712	    parentId: 'asm.gb300.facility',
+713	    componentId: 'cmp.shared.rack-row',
+714	    roleKey: 'rack-row',
+715	    label: '机架列',
+716	    count: 1,
+717	    countClaim: null,
+718	    lodLevel: 'cluster',
+719	    rackU: null,
+720	    note: null,
+721	  },
+722	  {
+723	    id: 'asm.gb300.rack',
+724	    systemId: SYSTEM_ID,
+725	    parentId: 'asm.gb300.row',
+726	    componentId: 'cmp.shared.oberon-rack',
+727	    roleKey: 'rack',
+728	    label: 'GB300 NVL72 机架（1 SU）',
+729	    count: 8,
+730	    countClaim: raCount(
+731	      8,
+732	      'Overview，「A fully tested system scales up to 8 SUs (Scalable Units)」',
+733	      '一个 SU = 一个 NVL72 机架；8 是官方完整验证的规模上限。',
+734	    ),
+735	    lodLevel: 'cluster',
+736	    rackU: null,
+737	    note: null,
+738	  },
+739	
+740	  // ── rack 层 ──
+741	  {
+742	    id: 'asm.gb300.inrack-mgmt-switch',
+743	    systemId: SYSTEM_ID,
+744	    parentId: 'asm.gb300.rack',
+745	    componentId: 'cmp.shared.sn2201',
+746	    roleKey: 'inrack-mgmt-switch',
+747	    label: '机架内管理交换机',
+748	    count: 2,
+749	    countClaim: raCount(
+750	      2,
+751	      'System Hardware & Components，「2 SN2201 OOB switches for integrated management access of rack components」',
+752	    ),
+753	    lodLevel: 'rack',
+754	    rackU: { start: 1, height: 2 },
+755	    note: RACK_U_PLACEHOLDER,
+756	  },
+757	  {
+758	    id: 'asm.gb300.power-shelf',
+759	    systemId: SYSTEM_ID,
+760	    parentId: 'asm.gb300.rack',
+761	    componentId: 'cmp.gb300.power-shelf',
+762	    roleKey: 'power-shelf',
+763	    label: '电源架',
+764	    count: 8,
+765	    countClaim: raCount(8, 'System Hardware & Components，「8 power shelves of 33 kW」'),
+766	    lodLevel: 'rack',
+767	    rackU: { start: 3, height: 8 },
+768	    note: RACK_U_PLACEHOLDER,
+769	  },
+770	  {
+771	    id: 'asm.gb300.compute-tray',
+772	    systemId: SYSTEM_ID,
+773	    parentId: 'asm.gb300.rack',
+774	    componentId: 'cmp.gb300.compute-tray',
+775	    roleKey: 'compute-tray',
+776	    label: '计算托盘',
+777	    count: 18,
+778	    countClaim: raCount(
+779	      18,
+780	      'Overview，「18 compute trays connected via the fifth generation of NVLink」',
+781	    ),
+782	    lodLevel: 'rack',
+783	    rackU: { start: 11, height: 18 },
+784	    note: RACK_U_PLACEHOLDER,
+785	  },
+786	  {
+787	    id: 'asm.gb300.nvswitch-tray',
+788	    systemId: SYSTEM_ID,
+789	    parentId: 'asm.gb300.rack',
+790	    componentId: 'cmp.gb300.nvswitch-tray',
+791	    roleKey: 'nvswitch-tray',
+792	    label: 'NVLink 交换托盘',
+793	    count: 9,
+794	    countClaim: raCount(
+795	      9,
+796	      'System Hardware & Components，「9 NVSwitch trays for full non-blocking P2P connectivity of all 72 Blackwell Ultra GPUs」',
+797	    ),
+798	    lodLevel: 'rack',
+799	    rackU: { start: 29, height: 9 },
+800	    note: RACK_U_PLACEHOLDER,
+801	  },
+802	  {
+803	    id: 'asm.gb300.busbar',
+804	    systemId: SYSTEM_ID,
+805	    parentId: 'asm.gb300.rack',
+806	    componentId: 'cmp.shared.busbar',
+807	    roleKey: 'dc-busbar',
+808	    label: '直流母排',
+809	    count: 1,
+810	    countClaim: null,
+811	    lodLevel: 'rack',
+812	    rackU: null,
+813	    note: '纵向贯穿机架背部，不占用 U 位。',
+814	  },
+815	  {
+816	    id: 'asm.gb300.manifold',
+817	    systemId: SYSTEM_ID,
+818	    parentId: 'asm.gb300.rack',
+819	    componentId: 'cmp.shared.manifold',
+820	    roleKey: 'liquid-manifold',
+821	    label: '分液歧管',
+822	    count: 1,
+823	    countClaim: null,
+824	    lodLevel: 'rack',
+825	    rackU: null,
+826	    note: '纵向贯穿机架，不占用 U 位。',
+827	  },
+828	  {
+829	    id: 'asm.gb300.nvlink-backplane',
+830	    systemId: SYSTEM_ID,
+831	    parentId: 'asm.gb300.rack',
+832	    componentId: 'cmp.gb300.nvlink-backplane',
+833	    roleKey: 'nvlink-backplane',
+834	    label: 'NVLink 铜背板',
+835	    count: 1,
+836	    countClaim: null,
+837	    lodLevel: 'rack',
+838	    rackU: null,
+839	    note: '位于机架背部，不占用 U 位。',
+840	  },
+841	
+842	  // ── tray / board 层 ──
+843	  {
+844	    id: 'asm.gb300.tray-cold-plate',
+845	    systemId: SYSTEM_ID,
+846	    parentId: 'asm.gb300.compute-tray',
+847	    componentId: 'cmp.shared.cold-plate',
+848	    roleKey: 'cold-plate',
+849	    label: '计算托盘冷板',
+850	    count: 1,
+851	    countClaim: null,
+852	    lodLevel: 'tray',
+853	    rackU: null,
+854	    note: '按托盘内一套冷板回路建模；官方未公布逐器件冷板数量。',
+855	  },
+856	  {
+857	    id: 'asm.gb300.grace-cpu',
+858	    systemId: SYSTEM_ID,
+859	    parentId: 'asm.gb300.compute-tray',
+860	    componentId: 'cmp.gb300.grace-cpu',
+861	    roleKey: 'host-cpu',
+862	    label: 'Grace CPU',
+863	    count: 2,
+864	    countClaim: raCount(2, 'System Hardware & Components Table 1，「NVIDIA Grace Processor … | 2」'),
+865	    lodLevel: 'board',
+866	    rackU: null,
+867	    note: '18 托盘 × 2 = 全机架 36 颗，与 Overview 口径一致。',
+868	  },
+869	  {
+870	    id: 'asm.gb300.b300-gpu',
+871	    systemId: SYSTEM_ID,
+872	    parentId: 'asm.gb300.compute-tray',
+873	    componentId: 'cmp.gb300.b300-gpu',
+874	    roleKey: 'accelerator',
+875	    label: 'B300 GPU',
+876	    count: 4,
+877	    countClaim: raCount(4, 'System Hardware & Components Table 1，「NVIDIA B300 GPU … | 4」'),
+878	    lodLevel: 'board',
+879	    rackU: null,
+880	    note: '18 托盘 × 4 = 全机架 72 张，即 NVL72 之名的由来。',
+881	  },
+882	  {
+883	    id: 'asm.gb300.hbm',
+884	    systemId: SYSTEM_ID,
+885	    parentId: 'asm.gb300.b300-gpu',
+886	    componentId: 'cmp.gb300.hbm3e',
+887	    roleKey: 'gpu-hbm',
+888	    label: 'HBM3e 显存堆栈',
+889	    count: 8,
+890	    countClaim: null,
+891	    lodLevel: 'board',
+892	    rackU: null,
+893	    note: '⚠️ 堆栈数量 8 为 3D 视觉示意，NVIDIA 未公布 B300 的 HBM 堆栈数；官方公布的是单卡 288 GB 这一容量口径。',
+894	  },
+895	  {
+896	    id: 'asm.gb300.mezz-board',
+897	    systemId: SYSTEM_ID,
+898	    parentId: 'asm.gb300.compute-tray',
+899	    componentId: 'cmp.gb300.mezzanine-board',
+900	    roleKey: 'nic-mezzanine',
+901	    label: 'ConnectX-8 夹层板',
+902	    count: 2,
+903	    countClaim: raCount(
+904	      2,
+905	      'System Hardware & Components Table 1，「NVIDIA ConnectX-8 Mezzanine Boards … | 2」',
+906	    ),
+907	    lodLevel: 'board',
+908	    rackU: null,
+909	    note: null,
+910	  },
+911	  {
+912	    id: 'asm.gb300.cx8-nic',
+913	    systemId: SYSTEM_ID,
+914	    parentId: 'asm.gb300.mezz-board',
+915	    componentId: 'cmp.gb300.connectx-8',
+916	    roleKey: 'scaleout-nic',
+917	    label: 'ConnectX-8 SuperNIC',
+918	    count: 2,
+919	    countClaim: raCount(
+920	      2,
+921	      'System Hardware & Components Table 1，「NVIDIA ConnectX-8 Mezzanine Boards, with 2 ConnectX-8 network adapters each」',
+922	    ),
+923	    lodLevel: 'board',
+924	    rackU: null,
+925	    note: '2 块夹层板 × 2 = 每托盘 4 张，与官方「for a total of 4 ConnectX-8 HCA」一致；全机架 72 张，对应 1:1 GPU:NIC。',
+926	  },
+927	  {
+928	    id: 'asm.gb300.bf3-dpu',
+929	    systemId: SYSTEM_ID,
+930	    parentId: 'asm.gb300.compute-tray',
+931	    componentId: 'cmp.gb300.bluefield-3',
+932	    roleKey: 'north-south-dpu',
+933	    label: 'BlueField-3 DPU',
+934	    count: 1,
+935	    countClaim: raCount(
+936	      1,
+937	      'System Hardware & Components Table 1，「Dual-port QSFP112 NVIDIA BlueField-3 B3240 DPU | 1」',
+938	    ),
+939	    lodLevel: 'board',
+940	    rackU: null,
+941	    note: null,
+942	  },
+943	  {
+944	    id: 'asm.gb300.os-nvme',
+945	    systemId: SYSTEM_ID,
+946	    parentId: 'asm.gb300.compute-tray',
+947	    componentId: 'cmp.gb300.m2-nvme',
+948	    roleKey: 'os-storage',
+949	    label: 'M.2 系统盘',
+950	    count: 1,
+951	    countClaim: raCount(
+952	      1,
+953	      'System Hardware & Components，「Each tray also includes 1 M.2 NVMe device for Operating System (OS) storage」',
+954	    ),
+955	    lodLevel: 'board',
+956	    rackU: null,
+957	    note: null,
+958	  },
+959	  {
+960	    id: 'asm.gb300.cache-nvme',
+961	    systemId: SYSTEM_ID,
+962	    parentId: 'asm.gb300.compute-tray',
+963	    componentId: 'cmp.gb300.e1s-nvme',
+964	    roleKey: 'cache-storage',
+965	    label: 'E1.S 缓存盘',
+966	    count: 4,
+967	    countClaim: raCount(
+968	      4,
+969	      'System Hardware & Components，「4 E1.S NVMe storage devices typically used as a fast, local cache」',
+970	      '⚠️ 与 Appendix B Table 10 的「8 x 4 TB E1.S」冲突，本项目取正文值 4。',
+971	    ),
+972	    lodLevel: 'board',
+973	    rackU: null,
+974	    note: null,
+975	  },
+976	  {
+977	    id: 'asm.gb300.nvswitch-asic',
+978	    systemId: SYSTEM_ID,
+979	    parentId: 'asm.gb300.nvswitch-tray',
+980	    componentId: 'cmp.gb300.nvswitch-asic',
+981	    roleKey: 'nvswitch-asic',
+982	    label: 'NVSwitch ASIC',
+983	    count: 2,
+984	    countClaim: raCount(
+985	      2,
+986	      'NVIDIA NVLink Switch Tray 节，「9 NVLink Fifth-Generation switch trays, with 2 NVSwitch ASICs per tray」',
+987	    ),
+988	    lodLevel: 'board',
+989	    rackU: null,
+990	    note: '★ 高风险事实：9 托盘 × 2 ASIC = 18 颗，恰好对应每张 GPU 的 18 条 NVLink。',
+991	  },
+992	  {
+993	    id: 'asm.gb300.nvswitch-cold-plate',
+994	    systemId: SYSTEM_ID,
+995	    parentId: 'asm.gb300.nvswitch-tray',
+996	    componentId: 'cmp.shared.cold-plate',
+997	    roleKey: 'nvswitch-cold-plate',
+998	    label: '交换托盘冷板',
+999	    count: 1,
+1000	    countClaim: null,
+1001	    lodLevel: 'tray',
+1002	    rackU: null,
+1003	    note: null,
+1004	  },
+1005	]
+1006	
+1007	// ─────────────────────────── 连接（按类型，不按实例） ───────────────────────────
+1008	
+1009	export const GB300_CONNECTIONS: Connection[] = [
+1010	  // ── nvlink 平面（scale-up，机架内） ──
+1011	  {
+1012	    id: 'con.gb300.gpu-nvswitch',
+1013	    systemId: SYSTEM_ID,
+1014	    fromAssemblyId: 'asm.gb300.b300-gpu',
+1015	    toAssemblyId: 'asm.gb300.nvswitch-asic',
+1016	    plane: 'nvlink',
+1017	    topology: 'all-to-all',
+1018	    medium: 'copper-backplane',
+1019	    protocol: 'NVLink 第五代',
+```
+</details></tool-use>
+
+_**Agent - sidechain (claude-opus-5 2026-08-22 14:44:50Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./src/data/gb300-nvl72.ts`
+
+```text
+1009	export const GB300_CONNECTIONS: Connection[] = [
+1010	  // ── nvlink 平面（scale-up，机架内） ──
+1011	  {
+1012	    id: 'con.gb300.gpu-nvswitch',
+1013	    systemId: SYSTEM_ID,
+1014	    fromAssemblyId: 'asm.gb300.b300-gpu',
+1015	    toAssemblyId: 'asm.gb300.nvswitch-asic',
+1016	    plane: 'nvlink',
+1017	    topology: 'all-to-all',
+1018	    medium: 'copper-backplane',
+1019	    protocol: 'NVLink 第五代',
+1020	    bandwidth: raSpec<number>(
+1021	      1800,
+1022	      'GB/s',
+1023	      'NVIDIA NVLink 节，「delivering up to 1800 GB/s per GPU」',
+1024	    ),
+1025	    direction: 'bidirectional',
+1026	    label: 'GPU ↔ NVSwitch 全互联',
+1027	    summary:
+1028	      '每张 GPU 引出 18 条 NVLink，机架内 18 颗 NVSwitch ASIC 各接一条，从而 72 张卡两两之间都有无阻塞直连路径。这一条边代表的是 72×18 的完整链路集合。',
+1029	    sourceIds: [RA_SOURCE],
+1030	  },
+1031	  {
+1032	    id: 'con.gb300.nvswitch-backplane',
+1033	    systemId: SYSTEM_ID,
+1034	    fromAssemblyId: 'asm.gb300.nvswitch-asic',
+1035	    toAssemblyId: 'asm.gb300.nvlink-backplane',
+1036	    plane: 'nvlink',
+1037	    topology: 'bus',
+1038	    medium: 'copper-backplane',
+1039	    protocol: 'NVLink 第五代',
+1040	    bandwidth: null,
+1041	    direction: 'bidirectional',
+1042	    label: 'NVSwitch → 铜背板',
+1043	    summary: 'NVSwitch ASIC 的链路全部落在机架背部的无源铜背板上，无需光模块。',
+1044	    sourceIds: [RA_SOURCE],
+1045	  },
+1046	  {
+1047	    id: 'con.gb300.tray-backplane',
+1048	    systemId: SYSTEM_ID,
+1049	    fromAssemblyId: 'asm.gb300.compute-tray',
+1050	    toAssemblyId: 'asm.gb300.nvlink-backplane',
+1051	    plane: 'nvlink',
+1052	    topology: 'bus',
+1053	    medium: 'copper-backplane',
+1054	    protocol: 'NVLink 第五代',
+1055	    bandwidth: null,
+1056	    direction: 'bidirectional',
+1057	    label: '计算托盘 → 铜背板',
+1058	    summary: '计算托盘像插卡一样推入机架并盲插到铜背板，这是「免线缆」高密设计的关键。',
+1059	    sourceIds: [RA_SOURCE],
+1060	  },
+1061	  {
+1062	    id: 'con.gb300.grace-gpu-c2c',
+1063	    systemId: SYSTEM_ID,
+1064	    fromAssemblyId: 'asm.gb300.grace-cpu',
+1065	    toAssemblyId: 'asm.gb300.b300-gpu',
+1066	    plane: 'nvlink',
+1067	    topology: 'point-to-point',
+1068	    medium: 'pcb-trace',
+1069	    protocol: 'NVLink-C2C',
+1070	    bandwidth: null,
+1071	    direction: 'bidirectional',
+1072	    label: 'Grace ↔ B300（C2C）',
+1073	    summary:
+1074	      'CPU 与 GPU 之间不是走 PCIe 而是 NVLink-C2C，因此 CPU 侧的 LPDDR5 对 GPU 是一致可寻址的扩展内存——「37 TB 快内存」由此而来。参考架构未公布 C2C 带宽数值。',
+1075	    sourceIds: [RA_SOURCE],
+1076	  },
+1077	
+1078	  // ── scaleout 平面（East/West 计算网，跨机架） ──
+1079	  {
+1080	    id: 'con.gb300.gpu-cx8',
+1081	    systemId: SYSTEM_ID,
+1082	    fromAssemblyId: 'asm.gb300.b300-gpu',
+1083	    toAssemblyId: 'asm.gb300.cx8-nic',
+1084	    plane: 'scaleout',
+1085	    topology: 'point-to-point',
+1086	    medium: 'pcb-trace',
+1087	    protocol: 'GPUDirect RDMA',
+1088	    bandwidth: raSpec<number>(
+1089	      800,
+1090	      'Gb/s',
+1091	      'Compute (Node East/West) Ethernet Networking，「Each ConnectX-8 SuperNIC offers up to 800 Gb/s」',
+1092	    ),
+1093	    direction: 'bidirectional',
+1094	    label: 'GPU ↔ ConnectX-8（1:1）',
+1095	    summary: '每张 GPU 独占一张 800 Gb/s SuperNIC，官方明确的 1:1 GPU:NIC 比例保证跨机架通信不在网卡侧收敛。',
+1096	    sourceIds: [RA_SOURCE],
+1097	  },
+1098	  {
+1099	    id: 'con.gb300.cx8-mezz',
+1100	    systemId: SYSTEM_ID,
+1101	    fromAssemblyId: 'asm.gb300.cx8-nic',
+1102	    toAssemblyId: 'asm.gb300.mezz-board',
+1103	    plane: 'scaleout',
+1104	    topology: 'point-to-point',
+1105	    medium: 'pcb-trace',
+1106	    protocol: '夹层板板级互连',
+1107	    bandwidth: null,
+1108	    direction: 'bidirectional',
+1109	    label: 'ConnectX-8 → 夹层板',
+1110	    summary: '2 颗 ConnectX-8 芯片焊在一块夹层板上，每颗 Grace CPU 配一块。',
+1111	    sourceIds: [RA_SOURCE],
+1112	  },
+1113	  {
+1114	    id: 'con.gb300.cx8-leaf',
+1115	    systemId: SYSTEM_ID,
+1116	    fromAssemblyId: 'asm.gb300.cx8-nic',
+1117	    toAssemblyId: 'asm.gb300.scaleout-leaf',
+1118	    plane: 'scaleout',
+1119	    topology: 'rail-optimized',
+1120	    medium: 'optical-fiber',
+1121	    protocol: 'Ethernet RoCE（Spectrum-X）',
+1122	    bandwidth: raSpec<number>(
+1123	      400,
+1124	      'Gb/s',
+1125	      'Networking Physical Topologies，「this splits into 2x400 Gb/s interfaces, with each interface connecting to a different leaf switch」',
+1126	      '每个接口 400 Gb/s，两个接口分属两个平面。',
+1127	    ),
+1128	    direction: 'bidirectional',
+1129	    label: 'ConnectX-8 → Leaf（双平面 rail-optimized）',
+1130	    summary:
+1131	      '每张网卡的 800 Gb/s 拆成 2×400 Gb/s，分别接到两个独立平面的不同 leaf 交换机；每个平面可扩展到 1024 个 400 Gb/s 接口。故障切换与负载均衡由网卡硬件完成。',
+1132	    sourceIds: [RA_SOURCE],
+1133	  },
+1134	  {
+1135	    id: 'con.gb300.leaf-spine',
+1136	    systemId: SYSTEM_ID,
+1137	    fromAssemblyId: 'asm.gb300.scaleout-leaf',
+1138	    toAssemblyId: 'asm.gb300.scaleout-spine',
+1139	    plane: 'scaleout',
+1140	    topology: 'fat-tree',
+1141	    medium: 'optical-fiber',
+1142	    protocol: 'Ethernet RoCE（Spectrum-X）',
+1143	    bandwidth: null,
+1144	    direction: 'bidirectional',
+1145	    label: 'Leaf ↔ Spine',
+1146	    summary: '计算网采用完全无阻塞的胖树（leaf-spine）拓扑，保证任意两个机架间带宽不收敛。',
+1147	    sourceIds: [RA_SOURCE],
+1148	  },
+1149	
+1150	  // ── business 平面（North/South 业务与存储） ──
+1151	  {
+1152	    id: 'con.gb300.bf3-converged',
+1153	    systemId: SYSTEM_ID,
+1154	    fromAssemblyId: 'asm.gb300.bf3-dpu',
+1155	    toAssemblyId: 'asm.gb300.converged-switch',
+1156	    plane: 'business',
+1157	    topology: 'star',
+1158	    medium: 'optical-fiber',
+1159	    protocol: 'Ethernet（North/South）',
+1160	    bandwidth: raSpec<number>(
+1161	      400,
+1162	      'Gb/s',
+1163	      'Networking Physical Topologies，「Each compute tray connects using dual 400 Gb/s ports to two separate switches」',
+1164	      '双端口各 400 Gb/s，分别接到两台交换机。',
+1165	    ),
+1166	    direction: 'bidirectional',
+1167	    label: 'BlueField-3 → 汇聚交换机',
+1168	    summary: '每个计算托盘用 BlueField-3 的双 400 Gb/s 端口接入两台汇聚交换机，承载存储与客户业务流量。',
+1169	    sourceIds: [RA_SOURCE],
+1170	  },
+1171	  {
+1172	    id: 'con.gb300.converged-storage',
+1173	    systemId: SYSTEM_ID,
+1174	    fromAssemblyId: 'asm.gb300.converged-switch',
+1175	    toAssemblyId: 'asm.gb300.storage',
+1176	    plane: 'business',
+1177	    topology: 'fat-tree',
+1178	    medium: 'optical-fiber',
+1179	    protocol: 'Ethernet（存储 fabric）',
+1180	    bandwidth: raSpec<number>(
+1181	      40,
+1182	      'GB/s',
+1183	      'Networking Physical Topologies，「per-node storage bandwidth of up to 40 GB/s」',
+1184	      '这是每计算节点的存储带宽上限。',
+1185	    ),
+1186	    direction: 'bidirectional',
+1187	    label: '汇聚交换机 ↔ 外部存储',
+1188	    summary: '训练数据、模型权重与检查点经这条路径进出机架，是「喂饱 GPU」的关键链路。',
+1189	    sourceIds: [RA_SOURCE],
+1190	  },
+1191	  {
+1192	    id: 'con.gb300.mgmt-node-converged',
+1193	    systemId: SYSTEM_ID,
+1194	    fromAssemblyId: 'asm.gb300.mgmt-node',
+1195	    toAssemblyId: 'asm.gb300.converged-switch',
+1196	    plane: 'business',
+1197	    topology: 'star',
+1198	    medium: 'optical-fiber',
+1199	    protocol: 'Ethernet（带内）',
+1200	    bandwidth: raSpec<number>(
+1201	      200,
+1202	      'Gb/s',
+1203	      'Table 2: Management Node Components，Storage/in-band Network Adapter，「4x ConnectX-7 200G single-port」',
+1204	      '管理节点单端口 200 Gb/s，共 4 口。',
+1205	    ),
+1206	    direction: 'bidirectional',
+1207	    label: '管理节点 ↔ 汇聚交换机',
+1208	    summary: '控制面节点通过带内网下发调度指令、拉取镜像与采集指标。',
+1209	    sourceIds: [RA_SOURCE],
+1210	  },
+1211	
+1212	  // ── mgmt 平面（带外/带内管理） ──
+1213	  {
+1214	    id: 'con.gb300.tray-bmc-mgmt',
+1215	    systemId: SYSTEM_ID,
+1216	    fromAssemblyId: 'asm.gb300.compute-tray',
+1217	    toAssemblyId: 'asm.gb300.inrack-mgmt-switch',
+1218	    plane: 'mgmt',
+1219	    topology: 'star',
+1220	    medium: 'dac-cable',
+1221	    protocol: 'Ethernet / Redfish（BMC）',
+1222	    bandwidth: raSpec<number>(
+1223	      1,
+1224	      'Gb/s',
+1225	      'Table 2: Management Node Components，Management Network，「2 x 1 Gb/s In-band port」',
+1226	      '参考架构给出的是管理节点口速率；托盘 BMC 口速率未单独公布，此处按同级别标注。',
+1227	    ),
+1228	    direction: 'bidirectional',
+1229	    label: '计算托盘 BMC → 机架管理交换机',
+1230	    summary: '每个托盘的主机 BMC 接入机架内 SN2201，支持 Redfish 带外上电、刷固件与日志采集。',
+1231	    sourceIds: [RA_SOURCE],
+1232	  },
+1233	  {
+1234	    id: 'con.gb300.nvswitch-tray-mgmt',
+1235	    systemId: SYSTEM_ID,
+1236	    fromAssemblyId: 'asm.gb300.nvswitch-tray',
+1237	    toAssemblyId: 'asm.gb300.inrack-mgmt-switch',
+1238	    plane: 'mgmt',
+1239	    topology: 'star',
+1240	    medium: 'dac-cable',
+1241	    protocol: 'Ethernet / NVOS 管理',
+1242	    bandwidth: null,
+1243	    direction: 'bidirectional',
+1244	    label: 'NVLink 交换托盘 → 机架管理交换机',
+1245	    summary: 'NVLink 交换托盘是运行 NVOS 的受管交换机，同样纳入带外管理域。',
+1246	    sourceIds: [RA_SOURCE],
+1247	  },
+1248	  {
+1249	    id: 'con.gb300.bf3-oob',
+1250	    systemId: SYSTEM_ID,
+1251	    fromAssemblyId: 'asm.gb300.bf3-dpu',
+1252	    toAssemblyId: 'asm.gb300.inrack-mgmt-switch',
+1253	    plane: 'mgmt',
+1254	    topology: 'star',
+1255	    medium: 'dac-cable',
+1256	    protocol: 'Ethernet / Redfish（BlueField BMC）',
+1257	    bandwidth: raSpec<number>(
+1258	      1,
+1259	      'Gb/s',
+1260	      'Converged (Node North/South) Ethernet Networking，「a 1Gb/s out-of-band management port that connects to the data center and management network」',
+1261	    ),
+1262	    direction: 'bidirectional',
+1263	    label: 'BlueField-3 板载 BMC → 机架管理交换机',
+1264	    summary: 'BlueField 自带 BMC 与外部信任根，可独立于主机被管理——主机被攻破也不丢管理面。',
+1265	    sourceIds: [RA_SOURCE],
+1266	  },
+1267	  {
+1268	    id: 'con.gb300.power-shelf-mgmt',
+1269	    systemId: SYSTEM_ID,
+1270	    fromAssemblyId: 'asm.gb300.power-shelf',
+1271	    toAssemblyId: 'asm.gb300.inrack-mgmt-switch',
+1272	    plane: 'mgmt',
+1273	    topology: 'star',
+1274	    medium: 'dac-cable',
+1275	    protocol: 'Ethernet（电源遥测）',
+1276	    bandwidth: null,
+1277	    direction: 'bidirectional',
+1278	    label: '电源架 → 机架管理交换机',
+1279	    summary: '电源架的功率遥测数据纳入统一管理，是做功率封顶与能耗计量的数据源。',
+1280	    sourceIds: [RA_SOURCE],
+1281	  },
+1282	  {
+1283	    id: 'con.gb300.inrack-oob-uplink',
+1284	    systemId: SYSTEM_ID,
+1285	    fromAssemblyId: 'asm.gb300.inrack-mgmt-switch',
+1286	    toAssemblyId: 'asm.gb300.oob-fabric-switch',
+1287	    plane: 'mgmt',
+1288	    topology: 'star',
+1289	    medium: 'optical-fiber',
+1290	    protocol: 'Ethernet（OOB 上联）',
+1291	    bandwidth: null,
+1292	    direction: 'bidirectional',
+1293	    label: '机架管理交换机 → 带外管理汇聚',
+1294	    summary: '机架内 SN2201 上联到机架外的带外管理汇聚层，形成整个集群统一的管理平面。',
+1295	    sourceIds: [RA_SOURCE],
+1296	  },
+1297	  {
+1298	    id: 'con.gb300.mgmt-node-oob',
+1299	    systemId: SYSTEM_ID,
+1300	    fromAssemblyId: 'asm.gb300.mgmt-node',
+1301	    toAssemblyId: 'asm.gb300.oob-fabric-switch',
+1302	    plane: 'mgmt',
+1303	    topology: 'star',
+1304	    medium: 'dac-cable',
+1305	    protocol: 'Ethernet / Redfish',
+1306	    bandwidth: null,
+1307	    direction: 'bidirectional',
+1308	    label: '管理节点 → 带外管理汇聚',
+1309	    summary: '控制面节点自身也接入带外网，保证管理软件挂掉时仍可远程恢复。',
+1310	    sourceIds: [RA_SOURCE],
+1311	  },
+1312	  {
+1313	    id: 'con.gb300.leaf-oob',
+1314	    systemId: SYSTEM_ID,
+1315	    fromAssemblyId: 'asm.gb300.scaleout-leaf',
+1316	    toAssemblyId: 'asm.gb300.oob-fabric-switch',
+1317	    plane: 'mgmt',
+1318	    topology: 'star',
+1319	    medium: 'dac-cable',
+1320	    protocol: 'Ethernet（交换机管理口）',
+1321	    bandwidth: null,
+1322	    direction: 'bidirectional',
+1323	    label: 'Leaf 交换机管理口 → 带外管理汇聚',
+1324	    summary: '计算网交换机的管理口同样归入带外平面，与数据面物理隔离。',
+1325	    sourceIds: [RA_SOURCE],
+1326	  },
+1327	  {
+1328	    id: 'con.gb300.converged-oob',
+1329	    systemId: SYSTEM_ID,
+1330	    fromAssemblyId: 'asm.gb300.converged-switch',
+1331	    toAssemblyId: 'asm.gb300.oob-fabric-switch',
+1332	    plane: 'mgmt',
+1333	    topology: 'star',
+1334	    medium: 'dac-cable',
+1335	    protocol: 'Ethernet（交换机管理口）',
+1336	    bandwidth: null,
+1337	    direction: 'bidirectional',
+1338	    label: '汇聚交换机管理口 → 带外管理汇聚',
+1339	    summary: '业务/存储网交换机的管理口同样归入带外平面。',
+1340	    sourceIds: [RA_SOURCE],
+1341	  },
+1342	
+1343	  // ── power 平面 ──
+1344	  {
+1345	    id: 'con.gb300.facility-power-shelf',
+1346	    systemId: SYSTEM_ID,
+1347	    fromAssemblyId: 'asm.gb300.facility',
+1348	    toAssemblyId: 'asm.gb300.power-shelf',
+1349	    plane: 'power',
+1350	    topology: 'bus',
+1351	    medium: 'ac-feed',
+1352	    protocol: '机房交流配电',
+1353	    bandwidth: null,
+1354	    direction: 'unidirectional',
+1355	    label: '机房配电 → 电源架',
+1356	    summary: '机房交流电经列头柜进入机架的 8 个电源架整流。整机架最高负载 142 kW。',
+1357	    sourceIds: [RA_SOURCE],
+1358	  },
+1359	  {
+1360	    id: 'con.gb300.power-shelf-busbar',
+1361	    systemId: SYSTEM_ID,
+1362	    fromAssemblyId: 'asm.gb300.power-shelf',
+1363	    toAssemblyId: 'asm.gb300.busbar',
+1364	    plane: 'power',
+1365	    topology: 'bus',
+1366	    medium: 'busbar',
+1367	    protocol: '直流母排',
+1368	    bandwidth: raSpec<number>(
+1369	      33,
+1370	      'kW',
+1371	      'System Hardware & Components，「8 power shelves of 33 kW, with each shelf having six 5.5 kW PSUs」',
+1372	      '单个电源架输出能力；8 架合计 264 kW，服务最高 142 kW 的机架负载。',
+1373	    ),
+1374	    direction: 'unidirectional',
+1375	    label: '电源架 → 直流母排',
+1376	    summary: '8 个 33 kW 电源架把整流后的直流电并联送上母排，形成机架级统一供电干路。',
+1377	    sourceIds: [RA_SOURCE],
+1378	  },
+1379	  {
+1380	    id: 'con.gb300.busbar-compute-tray',
+1381	    systemId: SYSTEM_ID,
+1382	    fromAssemblyId: 'asm.gb300.busbar',
+1383	    toAssemblyId: 'asm.gb300.compute-tray',
+1384	    plane: 'power',
+1385	    topology: 'bus',
+1386	    medium: 'busbar',
+1387	    protocol: '直流母排取电',
+1388	    bandwidth: null,
+1389	    direction: 'unidirectional',
+1390	    label: '母排 → 计算托盘',
+1391	    summary: '计算托盘盲插即取电，无独立电源线。参考架构未公布单托盘功耗。',
+1392	    sourceIds: [RA_SOURCE],
+1393	  },
+1394	  {
+1395	    id: 'con.gb300.busbar-nvswitch-tray',
+1396	    systemId: SYSTEM_ID,
+1397	    fromAssemblyId: 'asm.gb300.busbar',
+1398	    toAssemblyId: 'asm.gb300.nvswitch-tray',
+1399	    plane: 'power',
+1400	    topology: 'bus',
+1401	    medium: 'busbar',
+1402	    protocol: '直流母排取电',
+1403	    bandwidth: null,
+1404	    direction: 'unidirectional',
+1405	    label: '母排 → NVLink 交换托盘',
+1406	    summary: '交换托盘与计算托盘共用同一条直流母排。',
+1407	    sourceIds: [RA_SOURCE],
+1408	  },
+1409	  {
+1410	    id: 'con.gb300.busbar-mgmt-switch',
+1411	    systemId: SYSTEM_ID,
+1412	    fromAssemblyId: 'asm.gb300.busbar',
+1413	    toAssemblyId: 'asm.gb300.inrack-mgmt-switch',
+1414	    plane: 'power',
+1415	    topology: 'bus',
+1416	    medium: 'busbar',
+1417	    protocol: '直流母排取电',
+1418	    bandwidth: null,
+1419	    direction: 'unidirectional',
+1420	    label: '母排 → 机架内管理交换机',
+1421	    summary:
+1422	      '官方明确：机架内的 SN2201 走母排直流供电，机架外的 SN2201 才用交流——这是「机架即一台机器」在供电上的体现。',
+1423	    sourceIds: [RA_SOURCE],
+1424	  },
+1425	
+1426	  // ── cooling 平面 ──
+1427	  {
+1428	    id: 'con.gb300.gpu-cold-plate',
+1429	    systemId: SYSTEM_ID,
+1430	    fromAssemblyId: 'asm.gb300.b300-gpu',
+1431	    toAssemblyId: 'asm.gb300.tray-cold-plate',
+1432	    plane: 'cooling',
+1433	    topology: 'point-to-point',
+1434	    medium: 'thermal-contact',
+1435	    protocol: '导热界面',
+1436	    bandwidth: null,
+1437	    direction: 'unidirectional',
+1438	    label: 'B300 GPU → 冷板',
+1439	    summary: '冷板直接压在 GPU 顶盖上带走热量，这是高密机架能做到 142 kW 的前提。',
+1440	    sourceIds: [RA_SOURCE],
+1441	  },
+1442	  {
+1443	    id: 'con.gb300.cpu-cold-plate',
+1444	    systemId: SYSTEM_ID,
+1445	    fromAssemblyId: 'asm.gb300.grace-cpu',
+1446	    toAssemblyId: 'asm.gb300.tray-cold-plate',
+1447	    plane: 'cooling',
+1448	    topology: 'point-to-point',
+1449	    medium: 'thermal-contact',
+1450	    protocol: '导热界面',
+1451	    bandwidth: null,
+1452	    direction: 'unidirectional',
+1453	    label: 'Grace CPU → 冷板',
+1454	    summary: 'CPU 与 GPU 共用托盘内同一套冷板回路。',
+1455	    sourceIds: [RA_SOURCE],
+1456	  },
+1457	  {
+1458	    id: 'con.gb300.tray-cold-plate-manifold',
+1459	    systemId: SYSTEM_ID,
+1460	    fromAssemblyId: 'asm.gb300.tray-cold-plate',
+1461	    toAssemblyId: 'asm.gb300.manifold',
+1462	    plane: 'cooling',
+1463	    topology: 'loop',
+1464	    medium: 'liquid-loop',
+1465	    protocol: '二次侧冷却液回路',
+1466	    bandwidth: null,
+1467	    direction: 'bidirectional',
+1468	    label: '计算托盘冷板 ↔ 分液歧管',
+1469	    summary: '托盘冷板经快接头挂上机架歧管，支持单托盘维护而不停整机架。',
+1470	    sourceIds: [RA_SOURCE],
+1471	  },
+1472	  {
+1473	    id: 'con.gb300.nvswitch-cold-plate-manifold',
+1474	    systemId: SYSTEM_ID,
+1475	    fromAssemblyId: 'asm.gb300.nvswitch-cold-plate',
+1476	    toAssemblyId: 'asm.gb300.manifold',
+1477	    plane: 'cooling',
+1478	    topology: 'loop',
+1479	    medium: 'liquid-loop',
+1480	    protocol: '二次侧冷却液回路',
+1481	    bandwidth: null,
+1482	    direction: 'bidirectional',
+1483	    label: '交换托盘冷板 ↔ 分液歧管',
+1484	    summary: 'NVSwitch 同样是液冷器件——18 颗交换芯片的功耗不容忽视。',
+1485	    sourceIds: [RA_SOURCE],
+1486	  },
+1487	  {
+1488	    id: 'con.gb300.manifold-cdu',
+1489	    systemId: SYSTEM_ID,
+1490	    fromAssemblyId: 'asm.gb300.manifold',
+1491	    toAssemblyId: 'asm.gb300.cdu',
+1492	    plane: 'cooling',
+1493	    topology: 'loop',
+1494	    medium: 'liquid-loop',
+1495	    protocol: '二次侧冷却液回路',
+1496	    bandwidth: null,
+1497	    direction: 'bidirectional',
+1498	    label: '分液歧管 ↔ CDU',
+1499	    summary: '机架歧管与 CDU 之间构成二次侧闭环，CDU 负责恒温恒压与流量分配。',
+1500	    sourceIds: [RA_SOURCE],
+1501	  },
+1502	  {
+1503	    id: 'con.gb300.cdu-facility-water',
+1504	    systemId: SYSTEM_ID,
+1505	    fromAssemblyId: 'asm.gb300.cdu',
+1506	    toAssemblyId: 'asm.gb300.facility-water',
+1507	    plane: 'cooling',
+1508	    topology: 'loop',
+1509	    medium: 'liquid-loop',
+1510	    protocol: '一次侧冷却水回路',
+1511	    bandwidth: null,
+1512	    direction: 'bidirectional',
+1513	    label: 'CDU ↔ 机房一次侧水',
+1514	    summary: 'CDU 在这里把机架的热量换给机房冷冻水系统，完成整条散热链。',
+1515	    sourceIds: [RA_SOURCE],
+1516	  },
+1517	]
+1518	
+1519	// ─────────────────────────── 导览场景 ───────────────────────────
+1520	
+1521	export const GB300_SCENES: ScenePreset[] = [
+1522	  {
+1523	    id: 'scene.gb300.cluster-overview',
+1524	    systemId: SYSTEM_ID,
+1525	    title: '一座 AI 工厂长什么样',
+1526	    narration:
+1527	      '先看全景：一列机架、机房供配电与冷却水、外部存储与两层以太网交换。官方完整验证的规模是 8 个 SU（即 8 个 NVL72 机架）。这一层要建立的直觉是——AI Factory 是「机房 + 电 + 水 + 网」四件事凑齐才成立，不是买一堆卡。',
+1528	    lodLevel: 'cluster',
+```
+</details></tool-use>
+
+_**Agent - sidechain (claude-opus-5 2026-08-22 14:44:59Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Find render depth logic in SceneRoot
+
+`grep -n "RENDER_DEPTH\|maxDepth\|visibleKids\|levelIndex\|lodLevel" /Users/caoruixin/projects/aifactory/src/components/scene/SceneRoot.tsx`
+
+```text
+11 matches in 2F:
+
+[file] /.../scene/SceneRoot.tsx (10):
+    15: * 层级 → 渲染深度：cluster 只渲染 lodLevel='cluster' 的节点，rack 到 'rack'，...
+    16: * tray/board 到 'board'。深度截断由 `RENDER_DEPTH` 一处控制。
+    27: import { levelIndex, sceneAnchorOf } from '../../lib/drill'
+    50: /** 每级最深渲染到哪一层 lodLevel。 */
+   124: const maxDepth = levelIndex(depth)
+   131: const visibleKids = kids.filter((k) => levelIndex(k.lodLevel) <= maxDepth)
+   132: const drillable = kids.some((k) => levelIndex(k.lodLevel) > levelIndex(node.l...
+   152: {visibleKids.map((kid) => (
+   296: const clusterKids = childrenOf(rootId).filter((k) => k.lodLevel === 'cluster')
+   504: const depth = RENDER_DEPTH[level]
+
+[file] 51 (1):
+     0: Record<LodLevel, LodLevel> = {
+```
+</details></tool-use>
+
+_**Agent - sidechain (claude-opus-5 2026-08-22 14:45:01Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Find LOD order and plane order
+
+`grep -n "LOD_ORDER\|levelIndex\|export " /Users/caoruixin/projects/aifactory/src/lib/drill.ts | head -40; echo "---PALETTE---"; grep -n "PLANE_ORDER\|PLANE_COLOR\|planeColor" /Users/caoruixin/projects/aifactory/src/lib/palette.ts | head -20`
+
+```text
+21 matches in 7F:
+
+[file] /.../lib/drill.ts (15):
+    35: export interface DrillState {
+    42: export type DrillAction =
+   100: const own = levelIndex(node.lodLevel)
+   101: const shallowestKid = Math.min(...kids.map((k) => levelIndex(k.lodLevel)))
+   110: const here = levelIndex(levelOfFocus(assemblyId, pack))
+   111: return kids.some((k) => levelIndex(levelOfFocus(k.id, pack)) > here)
+   120: export type SceneAnchor =
+   126: export function rackContainerOf(
+   140: export function trayContainerOf(
+   153: export function sceneAnchorOf(
+   171: export interface Crumb {
+   195: export function initialDrillState(
+   215: export function nextState(
+   234: const here = levelIndex(state.level)
+   245: if (levelIndex(levelOfFocus(chain[i]!.id, pack)) < here) return focusTo(chain...
+
+[file] 106 (1):
+     0: string, pack: FactoryContentPack = FACTORY_PACK): boolean {
+
+[file] 180 (1):
+     0: readonly string[], pack: FactoryContentPack = FACTORY_PACK): Crumb[] {
+
+[file] 22 (1):
+     0: readonly LodLevel[] = ['cluster', 'rack', 'tray', 'board']
+
+[file] 24 (1):
+     0: Record<LodLevel, string> = {
+
+[file] 31 (1):
+     0: LodLevel): number {
+
+[file] 93 (1):
+     0: string, pack: FactoryContentPack = FACTORY_PACK): LodLevel {
+
+---PALETTE---
+104:export function planeColor(plane: NetworkPlane): string {
+118:export const PLANE_ORDER: readonly NetworkPlane[] = [
+```
+</details></tool-use>
+
+_**Agent - sidechain (claude-opus-5 2026-08-22 14:45:01Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./src/components/panels/PlaneToggles.tsx`
+
+```text
+1	/**
+2	 * 六平面开关 + 色点图例。
+3	 *
+4	 * 配色与文案在这里就定死——DOM 图例与 3D 连线（`ConnectionLayer`）共用 `lib/palette.ts`
+5	 * 的同一组 token，因此这里的色点即最终配色，不会出现「图例是绿的，3D 里是别的绿」。
+6	 * 开关状态由 `store.planes` 驱动，`ConnectionLayer` 直接读它决定挂载/卸载哪一组 `<Line>`。
+7	 */
+8	
+9	import type { NetworkPlane } from '../../data/types'
+10	import { PLANE_LABEL, PLANE_ORDER, planeColor } from '../../lib/palette'
+11	import { useFactoryStore } from '../../store'
+12	
+13	export default function PlaneToggles() {
+14	  const planes = useFactoryStore((s) => s.planes)
+15	  const togglePlane = useFactoryStore((s) => s.togglePlane)
+16	  const setPlanes = useFactoryStore((s) => s.setPlanes)
+17	
+18	  const setAll = (on: boolean) => {
+19	    setPlanes(PLANE_ORDER.reduce((acc, p) => ({ ...acc, [p]: on }), {} as Record<NetworkPlane, boolean>))
+20	  }
+21	
+22	  return (
+23	    <section className="px-3 py-3">
+24	      <div className="flex items-baseline justify-between">
+25	        <h2 className="text-[11px] font-semibold tracking-widest text-dim uppercase">网络与设施平面</h2>
+26	        <div className="flex gap-2 text-[11px]">
+27	          <button type="button" onClick={() => setAll(true)} className="text-dim hover:text-accent">
+28	            全开
+29	          </button>
+30	          <button type="button" onClick={() => setAll(false)} className="text-dim hover:text-accent">
+31	            全关
+32	          </button>
+33	        </div>
+34	      </div>
+35	      <ul className="mt-2 space-y-1">
+36	        {PLANE_ORDER.map((plane) => (
+37	          <li key={plane}>
+38	            <label className="flex cursor-pointer items-center gap-2 rounded px-1 py-1 text-xs hover:bg-panel-2">
+39	              <input
+40	                type="checkbox"
+41	                checked={planes[plane]}
+42	                onChange={() => togglePlane(plane)}
+43	                className="h-3.5 w-3.5"
+44	              />
+45	              <span
+46	                aria-hidden
+47	                className="inline-block h-2.5 w-2.5 shrink-0 rounded-full"
+48	                style={{ background: planeColor(plane) }}
+49	              />
+50	              <span className={planes[plane] ? '' : 'text-dim line-through'}>
+51	                {PLANE_LABEL[plane]}
+52	              </span>
+53	            </label>
+54	          </li>
+55	        ))}
+56	      </ul>
+57	      <p className="mt-2 text-[11px] leading-snug text-dim">
+58	        机架/托盘视图下六个平面都能画出连线；集群总览只画 scale-out 主干（其余平面在这一级
+59	        会收缩成同一个机架盒子，画出来没有教学意义）。
+60	      </p>
+61	    </section>
+62	  )
+63	}
+64
+```
+</details></tool-use>
+
+_**Agent - sidechain (claude-opus-5 2026-08-22 14:45:02Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Check for connections in shared.ts
+
+`grep -n "Connection\|CONNECTIONS\|connections" /Users/caoruixin/projects/aifactory/src/data/shared.ts | head -20`
+
+```text
+0 matches for 'Connection\|CONNECTIONS\|connections'
+```
+</details></tool-use>
+
+_**Agent - sidechain (claude-opus-5 2026-08-22 14:45:08Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./src/components/scene/SceneRoot.tsx`
+
+```text
+44	 */
+45	export interface DiffContext {
+46	  index: ReadonlyMap<string, DiffKind>
+47	  showDiffOnly: boolean
+48	}
+49	
+50	/** 每级最深渲染到哪一层 lodLevel。 */
+51	const RENDER_DEPTH: Record<LodLevel, LodLevel> = {
+52	  cluster: 'cluster',
+53	  rack: 'rack',
+54	  tray: 'board',
+55	  board: 'board',
+56	}
+57	
+58	/** 从根到该节点的 ID 链（复用 data 层的 ancestorsOf，不重写树遍历）。 */
+59	function chainOf(assemblyId: string): string[] {
+60	  return ancestorsOf(assemblyId).map((n) => n.id)
+61	}
+62	
+63	// ─────────────────────────── 递归分支 ───────────────────────────
+```
+</details></tool-use>
+
+_**Agent - sidechain (claude-opus-5 2026-08-22 14:45:09Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./src/lib/drill.ts`
+
+```text
+18	
+19	import { FACTORY_PACK, ancestorsOf, assemblyById, childrenOf } from '../data'
+20	import type { AssemblyNode, FactoryContentPack, LodLevel } from '../data/types'
+21	
+22	export const LEVEL_ORDER: readonly LodLevel[] = ['cluster', 'rack', 'tray', 'board']
+23	
+24	export const LEVEL_LABEL: Record<LodLevel, string> = {
+25	  cluster: '集群',
+26	  rack: '机架',
+27	  tray: '托盘',
+28	  board: '板级',
+29	}
+30	
+31	export function levelIndex(level: LodLevel): number {
+32	  return LEVEL_ORDER.indexOf(level)
+33	}
+34	
+35	export interface DrillState {
+36	  level: LodLevel
+37	  /** 从树根到当前焦点的完整 ID 链（含焦点自身）。空数组 = 尚未初始化。 */
+```
+</details></tool-use>
+
+_**Agent - sidechain (claude-opus-5 2026-08-22 14:45:10Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Extract VR and RU connections
+
+`grep -n "id: 'con\.vr\.\|id: 'con\.ru\." -A 5 /Users/caoruixin/projects/aifactory/src/data/vera-rubin-nvl72.ts /Users/caoruixin/projects/aifactory/src/data/rubin-ultra-nvl576.ts | grep -E "id: 'con\.|fromAssemblyId|toAssemblyId|plane:|topology:"`
+
+```text
+/Users/caoruixin/projects/aifactory/src/data/rubin-ultra-nvl576.ts:788:    id: 'con.ru.gpu-nvswitch',
+/Users/caoruixin/projects/aifactory/src/data/rubin-ultra-nvl576.ts-790-    fromAssemblyId: 'asm.ru.gpu',
+/Users/caoruixin/projects/aifactory/src/data/rubin-ultra-nvl576.ts-791-    toAssemblyId: 'asm.ru.nvswitch-asic',
+/Users/caoruixin/projects/aifactory/src/data/rubin-ultra-nvl576.ts-792-    plane: 'nvlink',
+/Users/caoruixin/projects/aifactory/src/data/rubin-ultra-nvl576.ts-793-    topology: 'all-to-all',
+/Users/caoruixin/projects/aifactory/src/data/rubin-ultra-nvl576.ts:809:    id: 'con.ru.nvswitch-backplane',
+/Users/caoruixin/projects/aifactory/src/data/rubin-ultra-nvl576.ts-811-    fromAssemblyId: 'asm.ru.nvswitch-asic',
+/Users/caoruixin/projects/aifactory/src/data/rubin-ultra-nvl576.ts-812-    toAssemblyId: 'asm.ru.backplane',
+/Users/caoruixin/projects/aifactory/src/data/rubin-ultra-nvl576.ts-813-    plane: 'nvlink',
+/Users/caoruixin/projects/aifactory/src/data/rubin-ultra-nvl576.ts-814-    topology: 'bus',
+/Users/caoruixin/projects/aifactory/src/data/rubin-ultra-nvl576.ts:824:    id: 'con.ru.tray-backplane',
+/Users/caoruixin/projects/aifactory/src/data/rubin-ultra-nvl576.ts-826-    fromAssemblyId: 'asm.ru.compute-tray',
+/Users/caoruixin/projects/aifactory/src/data/rubin-ultra-nvl576.ts-827-    toAssemblyId: 'asm.ru.backplane',
+/Users/caoruixin/projects/aifactory/src/data/rubin-ultra-nvl576.ts-828-    plane: 'nvlink',
+/Users/caoruixin/projects/aifactory/src/data/rubin-ultra-nvl576.ts-829-    topology: 'bus',
+/Users/caoruixin/projects/aifactory/src/data/rubin-ultra-nvl576.ts:840:    id: 'con.ru.nvswitch-optics',
+/Users/caoruixin/projects/aifactory/src/data/rubin-ultra-nvl576.ts-842-    fromAssemblyId: 'asm.ru.nvswitch-asic',
+/Users/caoruixin/projects/aifactory/src/data/rubin-ultra-nvl576.ts-843-    toAssemblyId: 'asm.ru.optics',
+/Users/caoruixin/projects/aifactory/src/data/rubin-ultra-nvl576.ts-844-    plane: 'nvlink',
+/Users/caoruixin/projects/aifactory/src/data/rubin-ultra-nvl576.ts-845-    topology: 'star',
+/Users/caoruixin/projects/aifactory/src/data/rubin-ultra-nvl576.ts:856:    id: 'con.ru.optics-interrack',
+/Users/caoruixin/projects/aifactory/src/data/rubin-ultra-nvl576.ts-858-    fromAssemblyId: 'asm.ru.optics',
+/Users/caoruixin/projects/aifactory/src/data/rubin-ultra-nvl576.ts-859-    toAssemblyId: 'asm.ru.interrack-fabric',
+/Users/caoruixin/projects/aifactory/src/data/rubin-ultra-nvl576.ts-860-    plane: 'nvlink',
+/Users/caoruixin/projects/aifactory/src/data/rubin-ultra-nvl576.ts-861-    topology: 'fat-tree',
+/Users/caoruixin/projects/aifactory/src/data/rubin-ultra-nvl576.ts:874:    id: 'con.ru.facility-power-shelf',
+/Users/caoruixin/projects/aifactory/src/data/rubin-ultra-nvl576.ts-876-    fromAssemblyId: 'asm.ru.facility',
+/Users/caoruixin/projects/aifactory/src/data/rubin-ultra-nvl576.ts-877-    toAssemblyId: 'asm.ru.power-shelf',
+/Users/caoruixin/projects/aifactory/src/data/rubin-ultra-nvl576.ts-878-    plane: 'power',
+/Users/caoruixin/projects/aifactory/src/data/rubin-ultra-nvl576.ts-879-    topology: 'bus',
+/Users/caoruixin/projects/aifactory/src/data/rubin-ultra-nvl576.ts:890:    id: 'con.ru.power-shelf-busbar',
+/Users/caoruixin/projects/aifactory/src/data/rubin-ultra-nvl576.ts-892-    fromAssemblyId: 'asm.ru.power-shelf',
+/Users/caoruixin/projects/aifactory/src/data/rubin-ultra-nvl576.ts-893-    toAssemblyId: 'asm.ru.busbar',
+/Users/caoruixin/projects/aifactory/src/data/rubin-ultra-nvl576.ts-894-    plane: 'power',
+/Users/caoruixin/projects/aifactory/src/data/rubin-ultra-nvl576.ts-895-    topology: 'bus',
+/Users/caoruixin/projects/aifactory/src/data/rubin-ultra-nvl576.ts:905:    id: 'con.ru.busbar-compute-tray',
+/Users/caoruixin/projects/aifactory/src/data/rubin-ultra-nvl576.ts-907-    fromAssemblyId: 'asm.ru.busbar',
+/Users/caoruixin/projects/aifactory/src/data/rubin-ultra-nvl576.ts-908-    toAssemblyId: 'asm.ru.compute-tray',
+/Users/caoruixin/projects/aifactory/src/data/rubin-ultra-nvl576.ts-909-    plane: 'power',
+/Users/caoruixin/projects/aifactory/src/data/rubin-ultra-nvl576.ts-910-    topology: 'bus',
+/Users/caoruixin/projects/aifactory/src/data/rubin-ultra-nvl576.ts:920:    id: 'con.ru.busbar-nvswitch-tray',
+/Users/caoruixin/projects/aifactory/src/data/rubin-ultra-nvl576.ts-922-    fromAssemblyId: 'asm.ru.busbar',
+/Users/caoruixin/projects/aifactory/src/data/rubin-ultra-nvl576.ts-923-    toAssemblyId: 'asm.ru.nvswitch-tray',
+/Users/caoruixin/projects/aifactory/src/data/rubin-ultra-nvl576.ts-924-    plane: 'power',
+/Users/caoruixin/projects/aifactory/src/data/rubin-ultra-nvl576.ts-925-    topology: 'bus',
+/Users/caoruixin/projects/aifactory/src/data/rubin-ultra-nvl576.ts:937:    id: 'con.ru.tray-mgmt',
+/Users/caoruixin/projects/aifactory/src/data/rubin-ultra-nvl576.ts-939-    fromAssemblyId: 'asm.ru.compute-tray',
+/Users/caoruixin/projects/aifactory/src/data/rubin-ultra-nvl576.ts-940-    toAssemblyId: 'asm.ru.inrack-mgmt-switch',
+/Users/caoruixin/projects/aifactory/src/data/rubin-ultra-nvl576.ts-941-    plane: 'mgmt',
+/Users/caoruixin/projects/aifactory/src/data/rubin-ultra-nvl576.ts-942-    topology: 'star',
+/Users/caoruixin/projects/aifactory/src/data/rubin-ultra-nvl576.ts:952:    id: 'con.ru.nvswitch-mgmt',
+/Users/caoruixin/projects/aifactory/src/data/rubin-ultra-nvl576.ts-954-    fromAssemblyId: 'asm.ru.nvswitch-tray',
+/Users/caoruixin/projects/aifactory/src/data/rubin-ultra-nvl576.ts-955-    toAssemblyId: 'asm.ru.inrack-mgmt-switch',
+/Users/caoruixin/projects/aifactory/src/data/rubin-ultra-nvl576.ts-956-    plane: 'mgmt',
+/Users/caoruixin/projects/aifactory/src/data/rubin-ultra-nvl576.ts-957-    topology: 'star',
+/Users/caoruixin/projects/aifactory/src/data/rubin-ultra-nvl576.ts:969:    id: 'con.ru.compute-tray-manifold',
+/Users/caoruixin/projects/aifactory/src/data/rubin-ultra-nvl576.ts-971-    fromAssemblyId: 'asm.ru.compute-tray',
+/Users/caoruixin/projects/aifactory/src/data/rubin-ultra-nvl576.ts-972-    toAssemblyId: 'asm.ru.manifold',
+/Users/caoruixin/projects/aifactory/src/data/rubin-ultra-nvl576.ts-973-    plane: 'cooling',
+/Users/caoruixin/projects/aifactory/src/data/rubin-ultra-nvl576.ts-974-    topology: 'loop',
+/Users/caoruixin/projects/aifactory/src/data/rubin-ultra-nvl576.ts:985:    id: 'con.ru.nvswitch-tray-manifold',
+/Users/caoruixin/projects/aifactory/src/data/rubin-ultra-nvl576.ts-987-    fromAssemblyId: 'asm.ru.nvswitch-tray',
+/Users/caoruixin/projects/aifactory/src/data/rubin-ultra-nvl576.ts-988-    toAssemblyId: 'asm.ru.manifold',
+/Users/caoruixin/projects/aifactory/src/data/rubin-ultra-nvl576.ts-989-    plane: 'cooling',
+/Users/caoruixin/projects/aifactory/src/data/rubin-ultra-nvl576.ts-990-    topology: 'loop',
+/Users/caoruixin/projects/aifactory/src/data/rubin-ultra-nvl576.ts:1000:    id: 'con.ru.manifold-cdu',
+/Users/caoruixin/projects/aifactory/src/data/rubin-ultra-nvl576.ts-1002-    fromAssemblyId: 'asm.ru.manifold',
+/Users/caoruixin/projects/aifactory/src/data/rubin-ultra-nvl576.ts-1003-    toAssemblyId: 'asm.ru.cdu',
+/Users/caoruixin/projects/aifactory/src/data/rubin-ultra-nvl576.ts-1004-    plane: 'cooling',
+/Users/caoruixin/projects/aifactory/src/data/rubin-ultra-nvl576.ts-1005-    topology: 'loop',
+/Users/caoruixin/projects/aifactory/src/data/rubin-ultra-nvl576.ts:1015:    id: 'con.ru.cdu-facility-water',
+/Users/caoruixin/projects/aifactory/src/data/rubin-ultra-nvl576.ts-1017-    fromAssemblyId: 'asm.ru.cdu',
+/Users/caoruixin/projects/aifactory/src/data/rubin-ultra-nvl576.ts-1018-    toAssemblyId: 'asm.ru.facility-water',
+/Users/caoruixin/projects/aifactory/src/data/rubin-ultra-nvl576.ts-1019-    plane: 'cooling',
+/Users/caoruixin/projects/aifactory/src/data/rubin-ultra-nvl576.ts-1020-    topology: 'loop',
+```
+</details></tool-use>
+
+_**Agent - sidechain (claude-opus-5 2026-08-22 14:45:16Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Vera Rubin connection list
+
+`grep -nE "^    id: 'con\.|^    fromAssemblyId:|^    toAssemblyId:|^    plane:|^    topology:" /Users/caoruixin/projects/aifactory/src/data/vera-rubin-nvl72.ts`
+
+```text
+1215:    id: 'con.rubin.gpu-nvswitch',
+1217:    fromAssemblyId: 'asm.rubin.rubin-gpu',
+1218:    toAssemblyId: 'asm.rubin.nvswitch-asic',
+1219:    plane: 'nvlink',
+1220:    topology: 'all-to-all',
+1236:    id: 'con.rubin.nvswitch-midplane',
+1238:    fromAssemblyId: 'asm.rubin.nvswitch-asic',
+1239:    toAssemblyId: 'asm.rubin.midplane',
+1240:    plane: 'nvlink',
+1241:    topology: 'bus',
+1251:    id: 'con.rubin.tray-midplane',
+1253:    fromAssemblyId: 'asm.rubin.compute-tray',
+1254:    toAssemblyId: 'asm.rubin.midplane',
+1255:    plane: 'nvlink',
+1256:    topology: 'bus',
+1266:    id: 'con.rubin.vera-gpu-c2c',
+1268:    fromAssemblyId: 'asm.rubin.vera-cpu',
+1269:    toAssemblyId: 'asm.rubin.rubin-gpu',
+1270:    plane: 'nvlink',
+1271:    topology: 'point-to-point',
+1284:    id: 'con.rubin.gpu-cx9',
+1286:    fromAssemblyId: 'asm.rubin.rubin-gpu',
+1287:    toAssemblyId: 'asm.rubin.cx9-nic',
+1288:    plane: 'scaleout',
+1289:    topology: 'point-to-point',
+1305:    id: 'con.rubin.cx9-board',
+1307:    fromAssemblyId: 'asm.rubin.cx9-nic',
+1308:    toAssemblyId: 'asm.rubin.nic-board',
+1309:    plane: 'scaleout',
+1310:    topology: 'point-to-point',
+1320:    id: 'con.rubin.cx9-leaf',
+1322:    fromAssemblyId: 'asm.rubin.cx9-nic',
+1323:    toAssemblyId: 'asm.rubin.scaleout-leaf',
+1324:    plane: 'scaleout',
+1325:    topology: 'rail-optimized',
+1341:    id: 'con.rubin.leaf-spine',
+1343:    fromAssemblyId: 'asm.rubin.scaleout-leaf',
+1344:    toAssemblyId: 'asm.rubin.scaleout-spine',
+1345:    plane: 'scaleout',
+1346:    topology: 'fat-tree',
+1358:    id: 'con.rubin.bf4-converged',
+1360:    fromAssemblyId: 'asm.rubin.bf4-dpu',
+1361:    toAssemblyId: 'asm.rubin.converged-switch',
+1362:    plane: 'business',
+1363:    topology: 'star',
+1379:    id: 'con.rubin.converged-storage',
+1381:    fromAssemblyId: 'asm.rubin.converged-switch',
+1382:    toAssemblyId: 'asm.rubin.storage',
+1383:    plane: 'business',
+1384:    topology: 'fat-tree',
+1396:    id: 'con.rubin.tray-bmc-mgmt',
+1398:    fromAssemblyId: 'asm.rubin.compute-tray',
+1399:    toAssemblyId: 'asm.rubin.inrack-mgmt-switch',
+1400:    plane: 'mgmt',
+1401:    topology: 'star',
+1411:    id: 'con.rubin.nvswitch-tray-mgmt',
+1413:    fromAssemblyId: 'asm.rubin.nvswitch-tray',
+1414:    toAssemblyId: 'asm.rubin.inrack-mgmt-switch',
+1415:    plane: 'mgmt',
+1416:    topology: 'star',
+1426:    id: 'con.rubin.bf4-oob',
+1428:    fromAssemblyId: 'asm.rubin.bf4-dpu',
+1429:    toAssemblyId: 'asm.rubin.inrack-mgmt-switch',
+1430:    plane: 'mgmt',
+1431:    topology: 'star',
+1441:    id: 'con.rubin.inrack-oob-uplink',
+1443:    fromAssemblyId: 'asm.rubin.inrack-mgmt-switch',
+1444:    toAssemblyId: 'asm.rubin.oob-fabric-switch',
+1445:    plane: 'mgmt',
+1446:    topology: 'star',
+1458:    id: 'con.rubin.facility-power-shelf',
+1460:    fromAssemblyId: 'asm.rubin.facility',
+1461:    toAssemblyId: 'asm.rubin.power-shelf',
+1462:    plane: 'power',
+1463:    topology: 'bus',
+1473:    id: 'con.rubin.power-shelf-busbar',
+1475:    fromAssemblyId: 'asm.rubin.power-shelf',
+1476:    toAssemblyId: 'asm.rubin.busbar',
+1477:    plane: 'power',
+1478:    topology: 'bus',
+1488:    id: 'con.rubin.busbar-compute-tray',
+1490:    fromAssemblyId: 'asm.rubin.busbar',
+1491:    toAssemblyId: 'asm.rubin.compute-tray',
+1492:    plane: 'power',
+1493:    topology: 'bus',
+1503:    id: 'con.rubin.busbar-nvswitch-tray',
+1505:    fromAssemblyId: 'asm.rubin.busbar',
+1506:    toAssemblyId: 'asm.rubin.nvswitch-tray',
+1507:    plane: 'power',
+1508:    topology: 'bus',
+1520:    id: 'con.rubin.gpu-cold-plate',
+1522:    fromAssemblyId: 'asm.rubin.rubin-gpu',
+1523:    toAssemblyId: 'asm.rubin.tray-cold-plate',
+1524:    plane: 'cooling',
+1525:    topology: 'point-to-point',
+1535:    id: 'con.rubin.cpu-cold-plate',
+1537:    fromAssemblyId: 'asm.rubin.vera-cpu',
+1538:    toAssemblyId: 'asm.rubin.tray-cold-plate',
+1539:    plane: 'cooling',
+1540:    topology: 'point-to-point',
+1550:    id: 'con.rubin.tray-cold-plate-manifold',
+1552:    fromAssemblyId: 'asm.rubin.tray-cold-plate',
+1553:    toAssemblyId: 'asm.rubin.manifold',
+1554:    plane: 'cooling',
+1555:    topology: 'loop',
+1565:    id: 'con.rubin.nvswitch-cold-plate-manifold',
+1567:    fromAssemblyId: 'asm.rubin.nvswitch-cold-plate',
+1568:    toAssemblyId: 'asm.rubin.manifold',
+1569:    plane: 'cooling',
+1570:    topology: 'loop',
+1580:    id: 'con.rubin.manifold-cdu',
+1582:    fromAssemblyId: 'asm.rubin.manifold',
+1583:    toAssemblyId: 'asm.rubin.cdu',
+1584:    plane: 'cooling',
+1585:    topology: 'loop',
+1595:    id: 'con.rubin.cdu-facility-water',
+1597:    fromAssemblyId: 'asm.rubin.cdu',
+1598:    toAssemblyId: 'asm.rubin.facility-water',
+1599:    plane: 'cooling',
+1600:    topology: 'loop',
+```
+</details></tool-use>
+
+_**Agent - sidechain (claude-opus-5 2026-08-22 14:45:17Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Rubin Ultra full connection list
+
+`grep -nE "^    id: 'con\.|^    fromAssemblyId:|^    toAssemblyId:|^    plane:" /Users/caoruixin/projects/aifactory/src/data/rubin-ultra-nvl576.ts | tail -40`
+
+```text
+874:    id: 'con.ru.facility-power-shelf',
+876:    fromAssemblyId: 'asm.ru.facility',
+877:    toAssemblyId: 'asm.ru.power-shelf',
+878:    plane: 'power',
+890:    id: 'con.ru.power-shelf-busbar',
+892:    fromAssemblyId: 'asm.ru.power-shelf',
+893:    toAssemblyId: 'asm.ru.busbar',
+894:    plane: 'power',
+905:    id: 'con.ru.busbar-compute-tray',
+907:    fromAssemblyId: 'asm.ru.busbar',
+908:    toAssemblyId: 'asm.ru.compute-tray',
+909:    plane: 'power',
+920:    id: 'con.ru.busbar-nvswitch-tray',
+922:    fromAssemblyId: 'asm.ru.busbar',
+923:    toAssemblyId: 'asm.ru.nvswitch-tray',
+924:    plane: 'power',
+937:    id: 'con.ru.tray-mgmt',
+939:    fromAssemblyId: 'asm.ru.compute-tray',
+940:    toAssemblyId: 'asm.ru.inrack-mgmt-switch',
+941:    plane: 'mgmt',
+952:    id: 'con.ru.nvswitch-mgmt',
+954:    fromAssemblyId: 'asm.ru.nvswitch-tray',
+955:    toAssemblyId: 'asm.ru.inrack-mgmt-switch',
+956:    plane: 'mgmt',
+969:    id: 'con.ru.compute-tray-manifold',
+971:    fromAssemblyId: 'asm.ru.compute-tray',
+972:    toAssemblyId: 'asm.ru.manifold',
+973:    plane: 'cooling',
+985:    id: 'con.ru.nvswitch-tray-manifold',
+987:    fromAssemblyId: 'asm.ru.nvswitch-tray',
+988:    toAssemblyId: 'asm.ru.manifold',
+989:    plane: 'cooling',
+1000:    id: 'con.ru.manifold-cdu',
+1002:    fromAssemblyId: 'asm.ru.manifold',
+1003:    toAssemblyId: 'asm.ru.cdu',
+1004:    plane: 'cooling',
+1015:    id: 'con.ru.cdu-facility-water',
+1017:    fromAssemblyId: 'asm.ru.cdu',
+1018:    toAssemblyId: 'asm.ru.facility-water',
+1019:    plane: 'cooling',
+```
+</details></tool-use>
+
+_**Agent - sidechain (claude-opus-5 2026-08-22 14:45:25Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+List cluster-level assemblies per pack
+
+`for f in gb300-nvl72 vera-rubin-nvl72 rubin-ultra-nvl576; do echo "=== $f ==="; grep -n "lodLevel: 'cluster'" -B 12 /Users/caoruixin/projects/aifactory/src/data/$f.ts | grep -E "id: 'asm\.|parentId:|roleKey:|count: |label:"; done`
+
+```text
+=== gb300-nvl72 ===
+590-    id: 'asm.gb300.facility',
+592-    parentId: null,
+594-    roleKey: 'facility',
+595-    label: '机房',
+596-    count: 1,
+603-    id: 'asm.gb300.facility-water',
+605-    parentId: 'asm.gb300.facility',
+607-    roleKey: 'facility-water-loop',
+608-    label: '机房一次侧冷却水回路',
+609-    count: 1,
+616-    id: 'asm.gb300.cdu',
+618-    parentId: 'asm.gb300.facility',
+620-    roleKey: 'cdu',
+621-    label: 'CDU 冷量分配单元',
+622-    count: 1,
+629-    id: 'asm.gb300.scaleout-spine',
+631-    parentId: 'asm.gb300.facility',
+633-    roleKey: 'scaleout-spine',
+634-    label: 'Spine 交换层（计算网）',
+635-    count: 1,
+642-    id: 'asm.gb300.scaleout-leaf',
+644-    parentId: 'asm.gb300.facility',
+646-    roleKey: 'scaleout-leaf',
+647-    label: 'Leaf 交换层（计算网）',
+648-    count: 1,
+655-    id: 'asm.gb300.converged-switch',
+657-    parentId: 'asm.gb300.facility',
+659-    roleKey: 'converged-switch',
+660-    label: '汇聚交换层（业务与存储网）',
+661-    count: 1,
+668-    id: 'asm.gb300.oob-fabric-switch',
+670-    parentId: 'asm.gb300.facility',
+672-    roleKey: 'oob-mgmt-switch',
+673-    label: '带外管理汇聚交换机',
+674-    count: 1,
+681-    id: 'asm.gb300.mgmt-node',
+683-    parentId: 'asm.gb300.facility',
+685-    roleKey: 'control-plane-node',
+686-    label: '控制面管理节点',
+687-    count: 12,
+697-    id: 'asm.gb300.storage',
+699-    parentId: 'asm.gb300.facility',
+701-    roleKey: 'external-storage',
+702-    label: '外部存储集群',
+703-    count: 1,
+710-    id: 'asm.gb300.row',
+712-    parentId: 'asm.gb300.facility',
+714-    roleKey: 'rack-row',
+715-    label: '机架列',
+716-    count: 1,
+723-    id: 'asm.gb300.rack',
+725-    parentId: 'asm.gb300.row',
+727-    roleKey: 'rack',
+728-    label: 'GB300 NVL72 机架（1 SU）',
+729-    count: 8,
+=== vera-rubin-nvl72 ===
+833-    id: 'asm.rubin.facility',
+835-    parentId: null,
+837-    roleKey: 'facility',
+838-    label: '机房',
+839-    count: 1,
+846-    id: 'asm.rubin.facility-water',
+848-    parentId: 'asm.rubin.facility',
+850-    roleKey: 'facility-water-loop',
+851-    label: '机房一次侧冷却水回路',
+852-    count: 1,
+859-    id: 'asm.rubin.cdu',
+861-    parentId: 'asm.rubin.facility',
+863-    roleKey: 'cdu',
+864-    label: 'CDU 冷量分配单元',
+865-    count: 1,
+872-    id: 'asm.rubin.scaleout-spine',
+874-    parentId: 'asm.rubin.facility',
+876-    roleKey: 'scaleout-spine',
+877-    label: 'Spine 交换层（计算网）',
+878-    count: 1,
+885-    id: 'asm.rubin.scaleout-leaf',
+887-    parentId: 'asm.rubin.facility',
+889-    roleKey: 'scaleout-leaf',
+890-    label: 'Leaf 交换层（计算网）',
+891-    count: 1,
+898-    id: 'asm.rubin.converged-switch',
+900-    parentId: 'asm.rubin.facility',
+902-    roleKey: 'converged-switch',
+903-    label: '汇聚交换层（业务与存储网）',
+904-    count: 1,
+911-    id: 'asm.rubin.oob-fabric-switch',
+913-    parentId: 'asm.rubin.facility',
+915-    roleKey: 'oob-mgmt-switch',
+916-    label: '带外管理汇聚交换机',
+917-    count: 1,
+924-    id: 'asm.rubin.storage',
+926-    parentId: 'asm.rubin.facility',
+928-    roleKey: 'external-storage',
+929-    label: '外部存储集群',
+930-    count: 1,
+937-    id: 'asm.rubin.row',
+939-    parentId: 'asm.rubin.facility',
+941-    roleKey: 'rack-row',
+942-    label: '机架列',
+943-    count: 1,
+950-    id: 'asm.rubin.rack',
+952-    parentId: 'asm.rubin.row',
+954-    roleKey: 'rack',
+955-    label: 'Vera Rubin NVL72 机架',
+956-    count: 8,
+=== rubin-ultra-nvl576 ===
+520-    id: 'asm.ru.facility',
+522-    parentId: null,
+524-    roleKey: 'facility',
+525-    label: '机房',
+526-    count: 1,
+533-    id: 'asm.ru.facility-water',
+535-    parentId: 'asm.ru.facility',
+537-    roleKey: 'facility-water-loop',
+538-    label: '机房一次侧冷却水回路',
+539-    count: 1,
+546-    id: 'asm.ru.cdu',
+548-    parentId: 'asm.ru.facility',
+550-    roleKey: 'cdu',
+551-    label: 'CDU 冷量分配单元',
+552-    count: 1,
+559-    id: 'asm.ru.row',
+561-    parentId: 'asm.ru.facility',
+563-    roleKey: 'rack-row',
+564-    label: '机架列（1 个 NVL576 域）',
+565-    count: 1,
+572-    id: 'asm.ru.rack',
+574-    parentId: 'asm.ru.row',
+576-    roleKey: 'rack',
+577-    label: 'Oberon 机架（NVL576 之一）',
+578-    count: 8,
+589-    id: 'asm.ru.interrack-fabric',
+591-    parentId: 'asm.ru.facility',
+593-    roleKey: 'interrack-scaleup-fabric',
+594-    label: '跨机架 scale-up 光互连（Dragonfly）',
+595-    count: 1,
+```
+</details></tool-use>
+
+_**Agent - sidechain (claude-opus-5 2026-08-22 14:45:26Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+List pack.test.ts tests
+
+`grep -nE "it\(|describe\(|expect\(" /Users/caoruixin/projects/aifactory/src/data/pack.test.ts | head -120`
+
+```text
+48:describe('ID 唯一性与命名规范', () => {
+60:  it('全集合 ID 全局唯一（跨集合也不重复）', () => {
+63:    expect(dupes).toEqual([])
+64:    expect(new Set(all).size).toBe(all.length)
+70:      expect(row.id.startsWith(prefix), `${row.id} 应以 ${prefix} 开头`).toBe(true)
+71:      expect(ID_TAIL_RE.test(row.id.slice(prefix.length)), `${row.id} 尾段不合规`).toBe(true)
+75:  it('模型 ID 唯一（模型不走 ID 前缀规范，沿用上游模型名）', () => {
+77:    expect(new Set(ids).size).toBe(ids.length)
+81:describe('JSON 可序列化', () => {
+82:  it('JSON 往返后与原对象深等（无函数/Date/undefined 泄漏）', () => {
+84:    expect(round).toEqual(pack)
+87:  it('包内不含 undefined 值（会在 JSON 往返中被静默吞掉）', () => {
+102:    expect(bad).toEqual([])
+106:describe('装配树结构不变量', () => {
+107:  it('每个系统恰好一个根节点', () => {
+110:      expect(roots.length, `${sys.id} 的根节点数`).toBe(1)
+114:  it('parentId 与 componentId 引用都存在，且父子同系统', () => {
+116:      expect(systemIds.has(a.systemId), `${a.id} 的 systemId 不存在`).toBe(true)
+117:      expect(componentIds.has(a.componentId), `${a.id} 引用了不存在的组件 ${a.componentId}`).toBe(true)
+120:        expect(parent, `${a.id} 的父节点 ${a.parentId} 不存在`).toBeDefined()
+121:        expect(parent!.systemId, `${a.id} 与其父节点不同系统`).toBe(a.systemId)
+126:  it('装配树无环，且所有节点都能回溯到根', () => {
+130:      expect(path.length, `${a.id} 的祖先路径为空`).toBeGreaterThan(0)
+131:      expect(path[0]!.parentId, `${a.id} 无法回溯到根（可能存在环）`).toBeNull()
+132:      expect(path[path.length - 1]!.id).toBe(a.id)
+133:      expect(new Set(path.map((p) => p.id)).size, `${a.id} 的祖先路径有重复节点`).toBe(path.length)
+137:  it('count 均为正整数', () => {
+139:      expect(Number.isInteger(a.count), `${a.id}.count 非整数`).toBe(true)
+140:      expect(a.count, `${a.id}.count 应 > 0`).toBeGreaterThan(0)
+144:  it('countClaim 的 value 与 count 一致（证据不能和数据打架）', () => {
+147:        expect(a.countClaim.value, `${a.id} 的 countClaim 与 count 不一致`).toBe(a.count)
+152:  it('声明了 rack-U 的兄弟节点互不重叠，且不超过机架高度', () => {
+164:      expect(rackHeight, `${system.id} 声明了 rack-U 却没有 rackUnitsForLayout`).not.toBeNull()
+170:        expect(start, `${node.id} 的起始 U 应 ≥ 1`).toBeGreaterThanOrEqual(1)
+171:        expect(height, `${node.id} 的 U 高应 > 0`).toBeGreaterThan(0)
+172:        expect(start, `${node.id} 与前一个兄弟节点（父 ${parentId}）U 位重叠`).toBeGreaterThan(prevEnd)
+174:        expect(prevEnd, `${node.id} 超出机架高度 ${rackHeight}U`).toBeLessThanOrEqual(rackHeight!)
+180:describe('连接不变量', () => {
+181:  it('两端装配节点都存在，且与连接自身同系统', () => {
+183:      expect(systemIds.has(c.systemId), `${c.id} 的 systemId 不存在`).toBe(true)
+186:      expect(from, `${c.id} 的起点 ${c.fromAssemblyId} 不存在`).toBeDefined()
+187:      expect(to, `${c.id} 的终点 ${c.toAssemblyId} 不存在`).toBeDefined()
+188:      expect(from!.systemId, `${c.id} 的起点跨系统`).toBe(c.systemId)
+189:      expect(to!.systemId, `${c.id} 的终点跨系统`).toBe(c.systemId)
+190:      expect(c.fromAssemblyId, `${c.id} 的两端相同`).not.toBe(c.toAssemblyId)
+194:  it('plane 合法，且同一对端点在同一平面上不重复建边', () => {
+197:      expect(PLANES.has(c.plane), `${c.id} 的 plane 非法：${c.plane}`).toBe(true)
+199:      expect(seen.has(key), `${c.id} 与已有连接重复（同平面同端点）`).toBe(false)
+204:  it('sourceIds 全部指向已登记的源', () => {
+207:        expect(sourceById.has(sid), `${c.id} 引用了未登记的源 ${sid}`).toBe(true)
+213:describe('证据纪律', () => {
+214:  it('所有源的 asOf 格式为 YYYY-MM', () => {
+215:    for (const s of pack.sources) expect(ASOF_RE.test(s.asOf), `${s.id}.asOf=${s.asOf}`).toBe(true)
+218:  it('每条 Claim 的 sourceId 存在、asOf 合法、evidence/status 取值合法', () => {
+220:      expect(sourceById.has(claim.sourceId), `${where} 引用了未登记的源 ${claim.sourceId}`).toBe(true)
+221:      expect(ASOF_RE.test(claim.asOf), `${where}.asOf=${claim.asOf} 不是 YYYY-MM`).toBe(true)
+222:      expect(EVIDENCE_TYPES.has(claim.evidence), `${where}.evidence=${claim.evidence} 非法`).toBe(true)
+223:      expect(STATUSES.has(claim.status), `${where}.status=${claim.status} 非法`).toBe(true)
+227:  it('★ verified_spec / vendor_claim 只能引用官方源（official_doc / official_press）', () => {
+232:      expect(
+239:  it('★ 券商/分析师源不得出现在任何 countClaim 或组件 specs 中', () => {
+243:        expect(banned.has(a.countClaim.sourceId), `${a.id}.countClaim 引用了券商源`).toBe(false)
+248:        expect(banned.has(claim.sourceId), `${c.id}.specs.${k} 引用了券商源`).toBe(false)
+262:  it('★ 非官方源进入 countClaim / 组件 specs 时，必须是 forecast 状态的分析师/预测证据', () => {
+269:      expect(allowedEvidence.has(claim.evidence), `${where} 用非官方源却标了 ${claim.evidence}`).toBe(true)
+270:      expect(claim.status, `${where} 用非官方源却不是 forecast 状态`).toBe('forecast')
+280:  it('★ 非官方源只能出现在 forecast 系统的装配树里', () => {
+287:        expect(systemStatus.get(a.systemId), `${a.id} 所属系统`).toBe('forecast')
+292:        expect(systemStatus.get(c.systemId), `${c.id} 所属系统`).toBe('forecast')
+297:  it('组件与系统的 sourceIds 全部指向已登记的源', () => {
+299:      for (const sid of c.sourceIds) expect(sourceById.has(sid), `${c.id} → ${sid}`).toBe(true)
+302:      for (const sid of s.sourceIds) expect(sourceById.has(sid), `${s.id} → ${sid}`).toBe(true)
+307:describe('状态一致性', () => {
+308:  it('shipping 系统的装配树里不出现 forecast 组件', () => {
+313:        expect(comp.status, `${sys.id} 是 shipping，但 ${a.id} 用了 ${comp.status} 组件 ${comp.id}`).not.toBe(
+320:  it('shipping 系统的 Claim 不应带 forecast 证据', () => {
+323:        expect(c.evidence, `${sys.id}.keySpecs.${k}`).not.toBe('forecast')
+324:        expect(c.status, `${sys.id}.keySpecs.${k}`).not.toBe('forecast')
+330:describe('组件不变量', () => {
+331:  it('只有 kind==="gpu" 的组件带 mathSpecs', () => {
+335:        expect(hasMath, `${c.id} 是 GPU 却没有 mathSpecs 字段（未公布应显式写 null）`).toBe(true)
+337:        expect(hasMath, `${c.id} 不是 GPU 却带了 mathSpecs`).toBe(false)
+342:  it('GPU 的 mathSpecs 若存在，关键数值为正且带 derivation 说明', () => {
+347:      expect(m.memoryGB, `${c.id}.mathSpecs.memoryGB`).toBeGreaterThan(0)
+348:      expect(m.bandwidthTBs, `${c.id}.mathSpecs.bandwidthTBs`).toBeGreaterThan(0)
+349:      expect(m.derivation.length, `${c.id}.mathSpecs.derivation 不能为空`).toBeGreaterThan(0)
+352:        if (v !== null) expect(v, `${c.id}.mathSpecs.${key}`).toBeGreaterThan(0)
+357:  it('每个组件都有 summary 与 presalesNote（售前话术不留空）', () => {
+359:      expect(c.summary.trim().length, `${c.id}.summary 为空`).toBeGreaterThan(0)
+360:      expect(c.presalesNote.trim().length, `${c.id}.presalesNote 为空`).toBeGreaterThan(0)
+364:  it('包内没有游离组件（每个组件至少被一个装配节点引用）', () => {
+367:    expect(orphans).toEqual([])
+371:describe('系统与场景', () => {
+372:  it('系统 keySpecs 至少包含 gpuCount 与 rackPowerKW', () => {
+374:      expect(Object.keys(s.keySpecs)).toContain('gpuCount')
+375:      expect(Object.keys(s.keySpecs)).toContain('rackPowerKW')
+379:  it('场景引用的系统、装配节点与平面均存在合法', () => {
+381:      expect(systemIds.has(scene.systemId), `${scene.id} 的 systemId`).toBe(true)
+384:        expect(node, `${scene.id} 的 focus ${scene.focusAssemblyId} 不存在`).toBeDefined()
+385:        expect(node!.systemId).toBe(scene.systemId)
+389:        expect(node, `${scene.id} 高亮了不存在的 ${id}`).toBeDefined()
+390:        expect(node!.systemId).toBe(scene.systemId)
+392:      for (const p of scene.planes) expect(PLANES.has(p), `${scene.id} 的平面 ${p}`).toBe(true)
+396:  it('childrenOf 与 parentId 互为逆关系', () => {
+398:      for (const child of childrenOf(a.id)) expect(child.parentId).toBe(a.id)
+403:describe('代际比较定义（B4 填充，替换原「comparisons 为空」占位断言）', () => {
+404:  it('comparisons 非空，且每条的左右系统都存在、不自比', () => {
+405:    expect(Array.isArray(pack.comparisons)).toBe(true)
+406:    expect(pack.comparisons.length).toBeGreaterThan(0)
+408:      expect(systemIds.has(c.leftSystemId), `${c.id} 的左系统 ${c.leftSystemId}`).toBe(true)
+409:      expect(systemIds.has(c.rightSystemId), `${c.id} 的右系统 ${c.rightSystemId}`).toBe(true)
+410:      expect(c.leftSystemId, `${c.id} 左右系统相同`).not.toBe(c.rightSystemId)
+414:  it('同一对系统只定义一次（方向敏感），且 summary / title 非空', () => {
+418:      expect(seen.has(key), `${c.id} 与已有定义重复`).toBe(false)
+420:      expect(c.title.trim().length, `${c.id}.title`).toBeGreaterThan(0)
+421:      expect(c.summary.length, `${c.id}.summary 至少一条要点`).toBeGreaterThan(0)
+422:      for (const s of c.summary) expect(s.trim().length, `${c.id}.summary 有空要点`).toBeGreaterThan(0)
+426:  it('rows 的 roleKey 在两侧至少一侧存在（不写不存在的 roleKey），narrative 非空', () => {
+434:        expect(seen.has(row.roleKey), `${c.id} 的 roleKey ${row.roleKey} 重复`).toBe(false)
+436:        expect(
+```
+</details></tool-use>
+
+_**Agent - sidechain (claude-opus-5 2026-08-22 14:45:58Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Inspect cluster layout slots
+
+`grep -n "scaleout-leaf\|scaleout-spine\|converged-switch\|oob-mgmt-switch\|control-plane-node\|external-storage\|facility-water-loop\|cdu\|rack-row\|'rack'\|CLUSTER" /Users/caoruixin/projects/aifactory/src/lib/layout.ts | head -60`
+
+```text
+12 matches in 10F:
+
+[file] /.../lib/layout.ts (3):
+   331: const rackCount = pack.assemblies.find((a) => a.systemId === systemId && a.ro...
+   340: else if (node.roleKey === 'rack') size = [RACK_WIDTH, rackHeight, RACK_DEPTH]
+   341: else if (node.roleKey === 'rack-row') size = [rackCount * RACK_PITCH, rackHei...
+
+[file] 128 (1):
+     0: {
+
+[file] 137 (1):
+     0: { size: [0.9, 2.0, 1.2], slots: () => [[-5.4, 1.0, 0]] },
+
+[file] 138 (1):
+     0: { size: [0.34, 0.34, 13], slots: () => [[-7.0, 0.35, 0]] },
+
+[file] 139 (1):
+     0: { size: [1.3, 2.0, 1.1], slots: () => [[5.4, 1.0, 0]] },
+
+[file] 142 (1):
+     0: { size: [0.62, 0.32, 0.9], slots: () => [[0, 1.09, -4.4]] },
+
+[file] 143 (1):
+     0: { size: [0.62, 0.32, 0.9], slots: () => [[0, 0.72, -4.4]] },
+
+[file] 144 (1):
+     0: { size: [0.62, 0.32, 0.9], slots: () => [[0, 0.35, -4.4]] },
+
+[file] 145 (1):
+     0: { size: [0.62, 0.2, 0.9], slots: () => [[2.4, 0.1, -4.4]] },
+
+[file] 146 (1):
+     0: {
+```
+</details></tool-use>
+
+_**Agent - sidechain (claude-opus-5 2026-08-22 14:45:58Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./src/components/scene/SceneRoot.tsx`
+
+```text
+280	      ))}
+281	    </Instances>
+282	  )
+283	}
+284	
+285	function ClusterScene({
+286	  layout,
+287	  rootId,
+288	  diff = null,
+289	}: {
+290	  layout: ResolvedLayout
+291	  rootId: string
+292	  diff?: DiffContext | null
+293	}) {
+294	  const root = assemblyById(rootId)
+295	  if (!root) return null
+296	  const clusterKids = childrenOf(rootId).filter((k) => k.lodLevel === 'cluster')
+297	
+298	  return (
+299	    <group>
+300	      {clusterKids.map((kid) => {
+301	        if (kid.roleKey === 'rack-row') {
+302	          const rowItem = layout.get(kid.id)
+303	          const rack = childrenOf(kid.id).find((r) => r.roleKey === 'rack')
+304	          return (
+305	            <group key={kid.id} position={rowItem?.slots[0] ?? [0, 0, 0]}>
+306	              {rack ? (
+307	                diff ? (
+308	                  <StaticRackInstances node={rack} layout={layout} diff={diff} />
+309	                ) : (
+310	                  <RackInstances node={rack} layout={layout} />
+311	                )
+312	              ) : null}
+313	            </group>
+314	          )
+315	        }
+316	        return (
+317	          <AssemblyBranch
+318	            key={kid.id}
+319	            node={kid}
+320	            layout={layout}
+321	            depth="cluster"
+322	            exploded={false}
+323	            diff={diff}
+324	          />
+325	        )
+326	      })}
+327	    </group>
+328	  )
+329	}
+330	
+331	// ─────────────────────────── 机架级 ───────────────────────────
+332	
+333	/** 邻架 ghost：共享同一份材质与几何，`raycast=null`，只提供空间参照。 */
+334	function GhostRacks({ layout, rackId, focusIndex }: { layout: ResolvedLayout; rackId: string; focusIndex: number }) {
+335	  const item = layout.get(rackId)
+336	  if (!item) return null
+337	  const others = item.slots.map((p, i) => ({ p, i })).filter(({ i }) => i !== focusIndex)
+338	  if (others.length === 0) return null
+339	  return (
+340	    <Instances limit={others.length} range={others.length} frustumCulled={false}>
+341	      <boxGeometry args={[item.size[0], item.size[1], item.size[2]]} />
+342	      {/* ghost 不设 per-instance color，材质色直接生效 */}
+343	      <meshStandardMaterial
+344	        color={SURFACE.ghost}
+345	        transparent
+346	        opacity={HIGHLIGHT.ghostOpacity}
+347	        depthWrite={false}
+348	        roughness={1}
+349	        metalness={0}
+350	      />
+351	      {others.map(({ p, i }) => (
+352	        <Instance key={i} position={p} raycast={() => null} />
+353	      ))}
+354	    </Instances>
+355	  )
+356	}
+357	
+358	function RackScene({
+359	  layout,
+```
+</details></tool-use>
+
+_**Agent - sidechain (claude-opus-5 2026-08-22 14:46:02Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./src/lib/layout.ts`
+
+```text
+110	  const slotU = span ? span.height / ctx.node.count : 1
+111	  return [
+112	    RACK_WIDTH * SLOT_WIDTH_RATIO,
+113	    slotU * U_METERS * SLOT_HEIGHT_RATIO,
+114	    RACK_DEPTH * SLOT_DEPTH_RATIO,
+115	  ]
+116	}
+117	
+118	/** 计算/交换托盘的外形（板级摆位全部相对它的中心）。 */
+119	const TRAY_SIZE: Vec3 = [
+120	  RACK_WIDTH * SLOT_WIDTH_RATIO,
+121	  U_METERS * SLOT_HEIGHT_RATIO,
+122	  RACK_DEPTH * SLOT_DEPTH_RATIO,
+123	]
+124	
+125	const PLACEMENTS: Record<string, Placement> = {
+126	  // ── cluster 层：机房内的「电、水、网、算」四件事各占一块地 ──
+127	  facility: { size: [28, 4.5, 18], slots: () => [[0, 0, 0]] },
+128	  'rack-row': {
+129	    size: [8 * RACK_PITCH, 2.2, RACK_DEPTH],
+130	    slots: () => [[0, 0, 0]],
+131	  },
+132	  rack: {
+133	    size: [RACK_WIDTH, 2.2, RACK_DEPTH],
+134	    slots: (count, ctx) =>
+135	      row(count, RACK_PITCH, ctx.rackHeight / 2, 0),
+136	  },
+137	  cdu: { size: [0.9, 2.0, 1.2], slots: () => [[-5.4, 1.0, 0]] },
+138	  'facility-water-loop': { size: [0.34, 0.34, 13], slots: () => [[-7.0, 0.35, 0]] },
+139	  'external-storage': { size: [1.3, 2.0, 1.1], slots: () => [[5.4, 1.0, 0]] },
+140	  // 交换层与管理节点堆成两个「网络机柜」立在机架列后方：
+141	  // 逐层贴着叠放（而不是悬空分散），才读得出「这是一柜设备」而非漂浮的方块。
+142	  'scaleout-spine': { size: [0.62, 0.32, 0.9], slots: () => [[0, 1.09, -4.4]] },
+143	  'scaleout-leaf': { size: [0.62, 0.32, 0.9], slots: () => [[0, 0.72, -4.4]] },
+144	  'converged-switch': { size: [0.62, 0.32, 0.9], slots: () => [[0, 0.35, -4.4]] },
+145	  'oob-mgmt-switch': { size: [0.62, 0.2, 0.9], slots: () => [[2.4, 0.1, -4.4]] },
+146	  'control-plane-node': {
+147	    size: [0.52, 0.09, 0.9],
+148	    slots: (count) => column(count, 0.11, -2.6, -4.4, 0.05),
+149	  },
+150	
+151	  // ── rack 层：占 U 位的走 rackU，纵向贯穿件单独摆 ──
+152	  'compute-tray': { size: [0, 0, 0], slots: rackUSlots },
+153	  'nvswitch-tray': { size: [0, 0, 0], slots: rackUSlots },
+154	  'power-shelf': { size: [0, 0, 0], slots: rackUSlots },
+155	  'inrack-mgmt-switch': { size: [0, 0, 0], slots: rackUSlots },
+156	  'dc-busbar': {
+157	    size: [0.09, 1.9, 0.09],
+158	    slots: () => [[0.22, 0, -RACK_DEPTH / 2 + 0.07]],
+159	  },
+160	  'liquid-manifold': {
+161	    size: [0.09, 1.9, 0.09],
+162	    slots: () => [[-0.22, 0, -RACK_DEPTH / 2 + 0.07]],
+163	  },
+164	  'nvlink-backplane': {
+165	    size: [RACK_WIDTH * 0.86, 0.9, 0.035],
+166	    slots: () => [[0, 0.1, -RACK_DEPTH / 2 + 0.17]],
+167	  },
+168	
+169	  // ── 计算托盘内部（board 级） ──
+170	  accelerator: {
+171	    size: [0.086, 0.012, 0.086],
+172	    slots: (count) => row(count, 0.13, 0.006, 0.16),
+173	    explode: { lift: 0.0, spread: 1.18 },
+174	  },
+175	  'host-cpu': {
+176	    size: [0.075, 0.01, 0.075],
+177	    slots: (count) => row(count, 0.22, 0.005, -0.1),
+178	    explode: { lift: 0.0, spread: 1.18 },
+179	  },
+180	  'gpu-hbm': {
+181	    // GPU 封装两侧各 4 颗堆栈（数量为视觉示意，见 asm.gb300.hbm 的 note）
+182	    size: [0.013, 0.014, 0.018],
+183	    slots: (count) => {
+184	      const half = Math.ceil(count / 2)
+185	      const out: Vec3[] = []
+186	      for (let i = 0; i < count; i += 1) {
+187	        const side = i < half ? -1 : 1
+188	        const k = i < half ? i : i - half
+189	        const n = i < half ? half : count - half
+```
+</details></tool-use>
+
+_**Agent - sidechain (claude-opus-5 2026-08-22 14:46:19Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./src/lib/palette.ts`
+
+```text
+80	  const cb = parse(b)
+81	  if (!ca || !cb) return a
+82	  const k = Math.min(Math.max(t, 0), 1)
+83	  const out = ca.map((v, i) => Math.round(v + (cb[i]! - v) * k))
+84	  return `#${out.map((v) => v.toString(16).padStart(2, '0')).join('')}`
+85	}
+86	
+87	/** 取单个 token 的颜色；未知 token 返回 `fallbackToken` 的颜色。 */
+88	export function color(token: string | null, fallbackToken: PaletteToken = 'dim'): string {
+89	  const p = palette()
+90	  if (token && token in p) return p[token as PaletteToken]
+91	  return p[fallbackToken]
+92	}
+93	
+94	/** 六平面 → 颜色。DOM 图例与 3D 连线共用。 */
+95	export const PLANE_TOKEN: Record<NetworkPlane, PaletteToken> = {
+96	  nvlink: 'plane-nvlink',
+97	  scaleout: 'plane-scaleout',
+98	  business: 'plane-business',
+99	  mgmt: 'plane-mgmt',
+100	  power: 'plane-power',
+101	  cooling: 'plane-cooling',
+102	}
+103	
+104	export function planeColor(plane: NetworkPlane): string {
+105	  return palette()[PLANE_TOKEN[plane]]
+106	}
+107	
+108	/** 六平面中文名。DOM 与降级表复用。 */
+109	export const PLANE_LABEL: Record<NetworkPlane, string> = {
+110	  nvlink: 'NVLink（机架内 scale-up）',
+111	  scaleout: 'Scale-out（East/West 计算网）',
+112	  business: '业务与存储（North/South）',
+113	  mgmt: '管理（带外/带内）',
+114	  power: '供电',
+115	  cooling: '液冷',
+116	}
+117	
+118	export const PLANE_ORDER: readonly NetworkPlane[] = [
+119	  'nvlink',
+120	  'scaleout',
+121	  'business',
+122	  'mgmt',
+123	  'power',
+124	  'cooling',
+125	]
+126	
+127	/**
+128	 * 产品状态 → 3D 材质语义。
+129	 * shipping = 实体、announced = 蓝调实体、forecast = 琥珀线框（「还没落地」的视觉暗示）。
+```
+</details></tool-use>
+
+_**Agent - sidechain (claude-opus-5 2026-08-22 14:46:19Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+List shared components
+
+`grep -nE "id: 'cmp\.shared\.|kind:" /Users/caoruixin/projects/aifactory/src/data/shared.ts`
+
+```text
+13:    id: 'cmp.shared.facility-room',
+14:    kind: 'facility',
+33:    id: 'cmp.shared.rack-row',
+34:    kind: 'facility',
+47:    id: 'cmp.shared.oberon-rack',
+48:    kind: 'rack',
+78:    id: 'cmp.shared.busbar',
+79:    kind: 'power',
+100:    id: 'cmp.shared.cdu',
+101:    kind: 'cooling',
+121:    id: 'cmp.shared.manifold',
+122:    kind: 'cooling',
+137:    id: 'cmp.shared.cold-plate',
+138:    kind: 'cooling',
+158:    id: 'cmp.shared.facility-water-loop',
+159:    kind: 'cooling',
+174:    id: 'cmp.shared.sn2201',
+175:    kind: 'switch',
+195:    id: 'cmp.shared.storage-array',
+196:    kind: 'storage',
+```
+</details></tool-use>
+
+_**Agent - sidechain (claude-opus-5 2026-08-22 14:46:21Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Search for power infrastructure and gateway components
+
+`grep -rniE "switchgear|pdu|ups|transformer|列头柜|配电柜|gateway|uplink.*wan|外网|北向|generator" /Users/caoruixin/projects/aifactory/src/data/ | head -30`
+
+```text
+/Users/caoruixin/projects/aifactory/src/data//flows.test.ts:120:describe('ingress / egress 复用同一条业务网络连接（物理事实：只有一条北向链路）', () => {
+/Users/caoruixin/projects/aifactory/src/data//flows.ts:30: * 这不是偷懒，而是如实反映 GB300 NVL72 的物理事实：ingress/egress 只有一条北向业务
+/Users/caoruixin/projects/aifactory/src/data//flows.ts:42:    id: 'flow.gb300.moe-inference.gateway',
+/Users/caoruixin/projects/aifactory/src/data//flows.ts:59:      '请求经北向业务网络到达目标托盘的 BlueField-3 DPU——它是这台机柜级计算机对外的安全与流量入口，独立于主机运行，即使托盘内主机被攻破也不影响管理面。',
+/Users/caoruixin/projects/aifactory/src/data//flows.ts:148:    description: '生成的 token 流式经 BlueField-3 DPU 与业务网络送回客户端——去程和回程走的是同一条北向链路。',
+/Users/caoruixin/projects/aifactory/src/data//shared.ts:40:      '一列多少个机架不是随便排的：受限于冷却支管流量与列头柜供电。扩容时先问「还能不能在同一列加」，跨列就要重新算网络布线长度。',
+/Users/caoruixin/projects/aifactory/src/data//gb300-nvl72.ts:1309:    summary: '控制面节点自身也接入带外网，保证管理软件挂掉时仍可远程恢复。',
+/Users/caoruixin/projects/aifactory/src/data//gb300-nvl72.ts:1356:    summary: '机房交流电经列头柜进入机架的 8 个电源架整流。整机架最高负载 142 kW。',
+```
+</details></tool-use>
+
+_**Agent - sidechain (claude-opus-5 2026-08-22 14:46:31Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Check store planes defaults and resolveLayout
+
+`grep -n "planes" /Users/caoruixin/projects/aifactory/src/store.ts | head -30; echo "=== resolveLayout ==="; grep -n "export function resolveLayout" -A 25 /Users/caoruixin/projects/aifactory/src/lib/layout.ts`
+
+```text
+17 matches in 9F:
+
+[file] /Users/caoruixin/projects/aifactory/src/store.ts (9):
+     9: * 3. persist 只落盘用户偏好（planes / reducedMotion / generation），
+   158: const planes = defaultPlanes()
+   159: if (o.planes && typeof o.planes === 'object') {
+   160: const p = o.planes as Record<string, unknown>
+   162: if (typeof p[key] === 'boolean') planes[key] = p[key]
+   172: planes,
+   208: const planes = defaultPlanes()
+   209: for (const key of PLANE_ORDER) planes[key] = scene.planes.includes(key)
+   217: planes,
+
+[file] 140 (1):
+     0: PlaneFlags
+
+[file] 151 (1):
+     0: defaultPlanes(),
+
+[file] 184 (1):
+     0: defaultPlanes(),
+
+[file] 224 (1):
+     0: (plane) => set((s) => ({ planes: { ...s.planes, [plane]: !s.planes[plane] } })),
+
+[file] 225 (1):
+     0: (patch) => set((s) => ({ planes: { ...s.planes, ...patch } })),
+
+[file] 263 (1):
+     0: s.planes,
+=== resolveLayout ===
+311:export function resolveLayout(
+312-  systemId: string,
+313-  pack: FactoryContentPack = FACTORY_PACK,
+314-): ResolvedLayout {
+315-  const out = new Map<string, LayoutItem>()
+316-  const root = pack.assemblies.find((a) => a.systemId === systemId && a.parentId === null)
+317-  if (!root) return out
+318-
+319-  const system = pack.systems.find((s) => s.id === systemId)
+320-  const rackUnits = system?.rackUnitsForLayout ?? DEFAULT_RACK_UNITS
+321-  const rackHeight = rackUnits * U_METERS
+322-
+323-  const byParent = new Map<string, AssemblyNode[]>()
+324-  for (const a of pack.assemblies) {
+325-    if (a.parentId === null) continue
+326-    const bucket = byParent.get(a.parentId)
+327-    if (bucket) bucket.push(a)
+328-    else byParent.set(a.parentId, [a])
+329-  }
+330-  const kidsOf = (id: string): AssemblyNode[] => byParent.get(id) ?? []
+331-  const rackCount = pack.assemblies.find((a) => a.systemId === systemId && a.roleKey === 'rack')?.count ?? 1
+332-
+333-  const walk = (node: AssemblyNode, parentSize: Vec3): void => {
+334-    const ctx: PlacementCtx = { parentSize, rackHeight, node }
+335-    const rule = PLACEMENTS[node.roleKey] ?? genericPlacement(ctx)
+336-
+```
+</details></tool-use>
+
+_**Agent - sidechain (claude-opus-5 2026-08-22 14:46:33Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Check content tests and planeFilter usage
+
+`grep -n "cluster" /Users/caoruixin/projects/aifactory/src/data/content.test.ts | head -30; echo "=== planeFilter uses ==="; grep -rn "planeFilter" /Users/caoruixin/projects/aifactory/src/ | head`
+
+```text
+0 matches for 'cluster'
+=== planeFilter uses ===
+/Users/caoruixin/projects/aifactory/src/components/scene/SceneRoot.tsx:477:  planeFilter?: readonly NetworkPlane[]
+/Users/caoruixin/projects/aifactory/src/components/scene/SceneRoot.tsx:487:  planeFilter,
+/Users/caoruixin/projects/aifactory/src/components/scene/SceneRoot.tsx:527:      <ConnectionLayer systemId={generation} layout={layout} depth={depth} planeFilter={planeFilter} />
+/Users/caoruixin/projects/aifactory/src/components/scene/ConnectionLayer.tsx:40:  planeFilter?: readonly NetworkPlane[]
+/Users/caoruixin/projects/aifactory/src/components/scene/ConnectionLayer.tsx:43:export default function ConnectionLayer({ systemId, layout, depth, planeFilter }: ConnectionLayerProps) {
+/Users/caoruixin/projects/aifactory/src/components/scene/ConnectionLayer.tsx:62:    const allowed = planeFilter ? new Set(planeFilter) : null
+/Users/caoruixin/projects/aifactory/src/components/scene/ConnectionLayer.tsx:75:  }, [routes, depth, planeFilter])
+/Users/caoruixin/projects/aifactory/src/components/scene/ComparisonView.tsx:157:              planeFilter={COMPARE_PLANES}
+/Users/caoruixin/projects/aifactory/src/components/scene/ComparisonView.tsx:168:              planeFilter={COMPARE_PLANES}
+```
+</details></tool-use>
+
+_**Agent - sidechain (claude-opus-5 2026-08-22 14:46:40Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Check default planes and cluster scene preset
+
+`grep -n "defaultPlanes" -A 8 /Users/caoruixin/projects/aifactory/src/store.ts | head -20; echo "=== gb300 cluster scene ==="; sed -n '1521,1560p' /Users/caoruixin/projects/aifactory/src/data/gb300-nvl72.ts`
+
+```text
+48:export function defaultPlanes(): PlaneFlags {
+49-  return PLANE_ORDER.reduce((acc, p) => {
+50-    acc[p] = true
+51-    return acc
+52-  }, {} as PlaneFlags)
+53-}
+54-
+55-export interface FactoryState extends DrillState {
+56-  /** 当前代际 = FactorySystem.id。B4 起可切换。 */
+--
+151:    planes: defaultPlanes(),
+152-    reducedMotion: false,
+153-    generation: DEFAULT_SYSTEM_ID,
+154-  }
+155-  if (!raw || typeof raw !== 'object') return fallback
+156-  const o = raw as Record<string, unknown>
+157-
+158:  const planes = defaultPlanes()
+159-  if (o.planes && typeof o.planes === 'object') {
+160-    const p = o.planes as Record<string, unknown>
+=== gb300 cluster scene ===
+export const GB300_SCENES: ScenePreset[] = [
+  {
+    id: 'scene.gb300.cluster-overview',
+    systemId: SYSTEM_ID,
+    title: '一座 AI 工厂长什么样',
+    narration:
+      '先看全景：一列机架、机房供配电与冷却水、外部存储与两层以太网交换。官方完整验证的规模是 8 个 SU（即 8 个 NVL72 机架）。这一层要建立的直觉是——AI Factory 是「机房 + 电 + 水 + 网」四件事凑齐才成立，不是买一堆卡。',
+    lodLevel: 'cluster',
+    focusAssemblyId: 'asm.gb300.facility',
+    planes: ['scaleout', 'power', 'cooling'],
+    highlightAssemblyIds: ['asm.gb300.rack', 'asm.gb300.cdu', 'asm.gb300.scaleout-spine'],
+    presalesNote:
+      '开场用这一屏定调：客户最先要回答的不是「买几张卡」，而是「机房能给多少电、冷却水接不接得住、网络怎么出机架」。',
+  },
+  {
+    id: 'scene.gb300.rack-anatomy',
+    systemId: SYSTEM_ID,
+    title: '拆开一个机架：18 + 9 的结构',
+    narration:
+      '聚焦单个机架：18 个计算托盘提供 72 张 GPU，9 个 NVLink 交换托盘（每个 2 颗 NVSwitch ASIC，合计 18 颗）把它们连成全互联；8 个电源架经直流母排供电；2 台 SN2201 做带外管理。每张 GPU 的 18 条 NVLink 恰好一颗 NVSwitch 一条——这就是「无阻塞」的物理含义。',
+    lodLevel: 'rack',
+    focusAssemblyId: 'asm.gb300.rack',
+    planes: ['nvlink', 'power'],
+    highlightAssemblyIds: [
+      'asm.gb300.compute-tray',
+      'asm.gb300.nvswitch-tray',
+      'asm.gb300.nvswitch-asic',
+      'asm.gb300.busbar',
+    ],
+    presalesNote:
+      '这一屏是全场最容易讲错的地方，务必咬准数字：18 个计算托盘、9 个交换托盘、18 颗 NVSwitch ASIC、72 张 GPU、36 颗 Grace。说错一个数字，懂行的客户就不信后面的了。',
+  },
+  {
+    id: 'scene.gb300.tray-teardown',
+    systemId: SYSTEM_ID,
+    title: '一个计算托盘里有什么',
+    narration:
+      '进到板级：2 颗 Grace CPU + 4 张 B300 GPU（每张 288 GB HBM3e）+ 2 块夹层板承载 4 张 ConnectX-8 SuperNIC + 1 张 BlueField-3 DPU + 本地 M.2 系统盘与 E1.S 缓存盘，整托盘液冷。GPU 与 NIC 是 1:1，CPU 与夹层板也是 1:1——处处均衡是这套设计的核心思路。',
+    lodLevel: 'board',
+    focusAssemblyId: 'asm.gb300.compute-tray',
+```
+</details></tool-use>
+
+_**Agent - sidechain (claude-opus-5 2026-08-22 14:46:43Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Count connections by plane per pack
+
+`grep -c "id: 'con\.ru\." /Users/caoruixin/projects/aifactory/src/data/rubin-ultra-nvl576.ts; echo "--- RU planes histogram ---"; grep -oE "plane: '[a-z]+'" /Users/caoruixin/projects/aifactory/src/data/rubin-ultra-nvl576.ts | sort | uniq -c; echo "--- rubin planes histogram ---"; grep -oE "plane: '[a-z]+'" /Users/caoruixin/projects/aifactory/src/data/vera-rubin-nvl72.ts | sort | uniq -c; echo "--- gb300 planes histogram ---"; grep -oE "plane: '[a-z]+'" /Users/caoruixin/projects/aifactory/src/data/gb300-nvl72.ts | sort | uniq -c`
+
+```text
+15 matches in 15F:
+
+[file] 1000 (1):
+     0: 'con.ru.manifold-cdu',
+
+[file] 1015 (1):
+     0: 'con.ru.cdu-facility-water',
+
+[file] 788 (1):
+     0: 'con.ru.gpu-nvswitch',
+
+[file] 809 (1):
+     0: 'con.ru.nvswitch-backplane',
+
+[file] 824 (1):
+     0: 'con.ru.tray-backplane',
+
+[file] 840 (1):
+     0: 'con.ru.nvswitch-optics',
+
+[file] 856 (1):
+     0: 'con.ru.optics-interrack',
+
+[file] 874 (1):
+     0: 'con.ru.facility-power-shelf',
+
+[file] 890 (1):
+     0: 'con.ru.power-shelf-busbar',
+
+[file] 905 (1):
+     0: 'con.ru.busbar-compute-tray',
+
+[file] 920 (1):
+     0: 'con.ru.busbar-nvswitch-tray',
+
+[file] 937 (1):
+     0: 'con.ru.tray-mgmt',
+
+[file] 952 (1):
+     0: 'con.ru.nvswitch-mgmt',
+
+[file] 969 (1):
+     0: 'con.ru.compute-tray-manifold',
+
+[file] 985 (1):
+     0: 'con.ru.nvswitch-tray-manifold',
+
+--- RU planes histogram ---
+   4 plane: 'cooling'
+   2 plane: 'mgmt'
+   5 plane: 'nvlink'
+   4 plane: 'power'
+--- rubin planes histogram ---
+   2 plane: 'business'
+   6 plane: 'cooling'
+   4 plane: 'mgmt'
+   4 plane: 'nvlink'
+   4 plane: 'power'
+   4 plane: 'scaleout'
+--- gb300 planes histogram ---
+   3 plane: 'business'
+   6 plane: 'cooling'
+   8 plane: 'mgmt'
+   4 plane: 'nvlink'
+   5 plane: 'power'
+   4 plane: 'scaleout'
+```
+</details></tool-use>
+
+_**Agent - sidechain (claude-opus-5 2026-08-22 14:47:00Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Check content.test.ts plane/connection invariants
+
+`grep -n "plane\|connection" /Users/caoruixin/projects/aifactory/src/data/content.test.ts | head -40`
+
+```text
+22 matches in 5F:
+
+[file] /.../data/content.test.ts (18):
+     6: connectionsOfPlane,
+   130: it.each(planes)('%s 平面至少有一条连接', (plane) => {
+   131: expect(connectionsOfPlane(SYSTEM_ID, plane).length).toBeGreaterThan(0)
+   135: const conn = FACTORY_PACK.connections.find((c) => c.id === 'con.gb300.gpu-nvs...
+   136: expect(conn.plane).toBe('nvlink')
+   138: expect(conn.medium).toBe('copper-backplane')
+   143: const topos = connectionsOfPlane(SYSTEM_ID, 'scaleout').map((c) => c.topology)
+   149: const conn = FACTORY_PACK.connections.find((c) => c.id === 'con.gb300.busbar-...
+   150: expect(conn.plane).toBe('power')
+   177: const coolingIds = connectionsOfPlane(SYSTEM_ID, 'cooling').map((c) => c.id)
+   472: expect(componentById('cmp.rubin-ultra.backplane')!.specs.medium!.value).toCon...
+   473: const nvlink = connectionsOfPlane(RU, 'nvlink').map((c) => c.id)
+   481: expect(connectionsOfPlane(RU, 'scaleout').length).toBe(0)
+   482: expect(connectionsOfPlane(RU, 'business').length).toBe(0)
+   561: for (const p of planes) {
+   562: expect(connectionsOfPlane(SYSTEM_ID, p).length, `GB300 ${p}`).toBeGreaterThan(0)
+   563: expect(connectionsOfPlane(VR, p).length, `Vera Rubin ${p}`).toBeGreaterThan(0)
+   566: expect(connectionsOfPlane(RU, p).length, `NVL576 ${p}`).toBeGreaterThan(0)
+
+[file] 128 (1):
+     0: NetworkPlane[] = ['nvlink', 'scaleout', 'business', 'mgmt', 'power', 'cooling']
+
+[file] 287 (1):
+     0: typeof VERA_RUBIN_CONNECTIONS,
+
+[file] 295 (1):
+     0: `${c.id}.bandwidth`, claim: c.bandwidth })
+
+[file] 560 (1):
+     0: NetworkPlane[] = ['nvlink', 'scaleout', 'business', 'mgmt', 'power', 'cooling']
+```
+</details></tool-use>
+
+_**Agent - sidechain (claude-opus-5 2026-08-22 14:47:00Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./src/data/pack.test.ts`
+
+```text
+180	describe('连接不变量', () => {
+181	  it('两端装配节点都存在，且与连接自身同系统', () => {
+182	    for (const c of pack.connections) {
+183	      expect(systemIds.has(c.systemId), `${c.id} 的 systemId 不存在`).toBe(true)
+184	      const from = assemblyById.get(c.fromAssemblyId)
+185	      const to = assemblyById.get(c.toAssemblyId)
+186	      expect(from, `${c.id} 的起点 ${c.fromAssemblyId} 不存在`).toBeDefined()
+187	      expect(to, `${c.id} 的终点 ${c.toAssemblyId} 不存在`).toBeDefined()
+188	      expect(from!.systemId, `${c.id} 的起点跨系统`).toBe(c.systemId)
+189	      expect(to!.systemId, `${c.id} 的终点跨系统`).toBe(c.systemId)
+190	      expect(c.fromAssemblyId, `${c.id} 的两端相同`).not.toBe(c.toAssemblyId)
+191	    }
+192	  })
+193	
+194	  it('plane 合法，且同一对端点在同一平面上不重复建边', () => {
+195	    const seen = new Set<string>()
+196	    for (const c of pack.connections) {
+197	      expect(PLANES.has(c.plane), `${c.id} 的 plane 非法：${c.plane}`).toBe(true)
+198	      const key = `${c.systemId}|${c.plane}|${c.fromAssemblyId}|${c.toAssemblyId}`
+199	      expect(seen.has(key), `${c.id} 与已有连接重复（同平面同端点）`).toBe(false)
+200	      seen.add(key)
+201	    }
+202	  })
+203	
+204	  it('sourceIds 全部指向已登记的源', () => {
+205	    for (const c of pack.connections) {
+206	      for (const sid of c.sourceIds) {
+207	        expect(sourceById.has(sid), `${c.id} 引用了未登记的源 ${sid}`).toBe(true)
+208	      }
+209	    }
+210	  })
+211	})
+```
+</details></tool-use>
+
+_**Agent - sidechain (claude-opus-5 2026-08-22 14:47:02Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Inspect RU interrack fabric and optics nodes
+
+`sed -n '580,600p' /Users/caoruixin/projects/aifactory/src/data/rubin-ultra-nvl576.ts; echo "=== ru optics ==="; grep -n "asm.ru.optics'" -A 12 /Users/caoruixin/projects/aifactory/src/data/rubin-ultra-nvl576.ts | head -20`
+
+```text
+      8,
+      '个',
+      'p.3 表①，Form Factor =「8x Oberon Racks」；p.4 立面图标注 VRU NVL576 (Rack 1) … (Rack 8)',
+    ),
+    lodLevel: 'cluster',
+    rackU: null,
+    note: '每机架 72 张 Rubin Ultra GPU（18 托架 × 4），8 机架合计 576 张。',
+  },
+  {
+    id: 'asm.ru.interrack-fabric',
+    systemId: SYSTEM_ID,
+    parentId: 'asm.ru.facility',
+    componentId: 'cmp.rubin-ultra.optics-module',
+    roleKey: 'interrack-scaleup-fabric',
+    label: '跨机架 scale-up 光互连（Dragonfly）',
+    count: 1,
+    countClaim: null,
+    lodLevel: 'cluster',
+    rackU: null,
+    note: '★ 本代新增的层：8 个机架之间用 NPO/CPO 光互连组成 Dragonfly 拓扑，把 NVLink 域从 72 卡扩到 576 卡。',
+  },
+=== ru optics ===
+765:    id: 'asm.ru.optics',
+766-    systemId: SYSTEM_ID,
+767-    parentId: 'asm.ru.nvswitch-tray',
+768-    componentId: 'cmp.rubin-ultra.optics-module',
+769-    roleKey: 'scaleup-optics',
+770-    label: 'NPO 光模块',
+771-    count: 16,
+772-    countClaim: sa<number>(
+773-      16,
+774-      '个',
+775-      'p.7 NPO 版托架俯视图：每颗 NVLink 7 Switch 旁 4 个 NPO 模块 × 4 颗 = 16 个',
+776-    ),
+777-    lodLevel: 'board',
+--
+843:    toAssemblyId: 'asm.ru.optics',
+844-    plane: 'nvlink',
+845-    topology: 'star',
+846-    medium: 'pcb-trace',
+847-    protocol: 'NVLink 7（电 → 光转换）',
+848-    bandwidth: null,
+```
+</details></tool-use>
+
+_**Agent - sidechain (claude-opus-5 2026-08-22 14:47:08Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./src/data/content.test.ts`
+
+```text
+466	    expect((shelf.specs.psusPerShelf!.value as number) * 18.3).toBeCloseTo(110, 0)
+467	  })
+468	
+469	  it('★ 跨机架 scale-up 光互连是本代新增层（机架内仍是铜）', () => {
+470	    expect(assemblyById('asm.ru.optics')).toBeDefined()
+471	    expect(assemblyById('asm.ru.interrack-fabric')!.roleKey).toBe('interrack-scaleup-fabric')
+472	    expect(componentById('cmp.rubin-ultra.backplane')!.specs.medium!.value).toContain('铜')
+473	    const nvlink = connectionsOfPlane(RU, 'nvlink').map((c) => c.id)
+474	    expect(nvlink).toContain('con.ru.optics-interrack')
+475	  })
+476	
+477	  it('★ 来源没写的东西不建模：全代际没有 scale-out / DPU 相关装配与连接', () => {
+478	    const roleKeys = new Set(RUBIN_ULTRA_ASSEMBLIES.map((a) => a.roleKey))
+479	    expect(roleKeys.has('scaleout-nic')).toBe(false)
+480	    expect(roleKeys.has('north-south-dpu')).toBe(false)
+481	    expect(connectionsOfPlane(RU, 'scaleout').length).toBe(0)
+482	    expect(connectionsOfPlane(RU, 'business').length).toBe(0)
+483	  })
+484	})
+485	
+486	describe('★ Rubin Ultra NVL576：证据纪律（全 forecast / analyst_estimate）', () => {
+487	  const claims = claimsAuthoredIn(
+488	    RUBIN_ULTRA_SYSTEM,
+489	    RUBIN_ULTRA_COMPONENTS,
+490	    RUBIN_ULTRA_ASSEMBLIES,
+491	    RUBIN_ULTRA_CONNECTIONS,
+492	  )
+493	
+494	  it('每条 Claim 都来自 SemiAnalysis、状态 forecast、证据 ∈ {analyst_estimate, forecast}', () => {
+495	    expect(claims.length).toBeGreaterThan(30)
+```
+</details></tool-use>
+
+_**Agent - sidechain (claude-opus-5 2026-08-22 14:47:09Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./src/data/content.test.ts`
+
+```text
+553	    for (const [id, start] of firstIdx) {
+554	      const count = order.filter((x) => x === id).length
+555	      expect(order.slice(start, start + count).every((x) => x === id), `${id} 的场景不连续`).toBe(true)
+556	    }
+557	  })
+558	
+559	  it('每代的六平面覆盖情况如实反映来源（GB300/Vera Rubin 六平面齐全，NVL576 只有四个）', () => {
+560	    const planes: NetworkPlane[] = ['nvlink', 'scaleout', 'business', 'mgmt', 'power', 'cooling']
+561	    for (const p of planes) {
+562	      expect(connectionsOfPlane(SYSTEM_ID, p).length, `GB300 ${p}`).toBeGreaterThan(0)
+563	      expect(connectionsOfPlane(VR, p).length, `Vera Rubin ${p}`).toBeGreaterThan(0)
+564	    }
+565	    for (const p of ['nvlink', 'power', 'mgmt', 'cooling'] as NetworkPlane[]) {
+566	      expect(connectionsOfPlane(RU, p).length, `NVL576 ${p}`).toBeGreaterThan(0)
+567	    }
+568	  })
+569	})
+570
+```
+</details></tool-use>
+
+_**Agent - sidechain (claude-opus-5 2026-08-22 14:47:10Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Git history for ConnectionLayer and routing test
+
+`git log --oneline -8 -- src/components/scene/ConnectionLayer.tsx src/lib/routing.test.ts 2>/dev/null`
+
+```text
+bb25126 修复 P1：机架内连线被托盘挡住，nvlink 平面在机架级等于没画
+e5763ba 性能收口：three 拆 vendor chunk + 修复 gl=off 首帧竞态 + NVLink 回归测试
+b377963 UI：代际切换 + 比较双视口 + 产能卡 + 汇报页
+fd354b3 3D + 面板：六平面连线、数据流播放粒子、FlowBar 步骤条
+3ab8a83 lib：连接路由 + 数据流时间轴（纯函数，零 three 导入）
+```
+</details></tool-use>
+
+_**Agent - sidechain (claude-opus-5 2026-08-22 14:47:17Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Check COMPARE_PLANES value
+
+`grep -n "COMPARE_PLANES" -B 3 -A 3 /Users/caoruixin/projects/aifactory/src/components/scene/ComparisonView.tsx | head -20`
+
+```text
+45-import type { DiffContext } from './SceneRoot'
+46-
+47-/** 比较视图只画这两个平面：其余四个在两个小视口里纯属噪音。 */
+48:const COMPARE_PLANES: readonly NetworkPlane[] = ['nvlink', 'scaleout']
+49-
+50-/**
+51- * 每个视口自带的灯光。
+--
+154-              level={level}
+155-              focusPath={focusPath}
+156-              diff={leftDiff}
+157:              planeFilter={COMPARE_PLANES}
+158-              showGround={false}
+159-            />
+160-          </View>
+--
+165-              level={level}
+166-              focusPath={rightFocusPath}
+167-              diff={rightDiff}
+168:              planeFilter={COMPARE_PLANES}
+```
+</details></tool-use>
+
+_**Agent - sidechain (claude-opus-5 2026-08-22 14:47:23Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Read worldPositionOf
+
+`grep -n "export function worldPositionOf" -A 22 /Users/caoruixin/projects/aifactory/src/lib/layout.ts`
+
+```text
+392:export function worldPositionOf(
+393-  layout: ResolvedLayout,
+394-  ancestorChain: readonly string[],
+395-  instanceIndex = 0,
+396-  exploded = false,
+397-): Vec3 {
+398-  let acc: Vec3 = [0, 0, 0]
+399-  ancestorChain.forEach((id, depth) => {
+400-    const item = layout.get(id)
+401-    if (!item) return
+402-    const idx = depth === ancestorChain.length - 1 ? instanceIndex : 0
+403-    const source = exploded ? item.explodedSlots : item.slots
+404-    const slot = source[Math.min(idx, source.length - 1)] ?? [0, 0, 0]
+405-    acc = vAdd(acc, slot)
+406-  })
+407-  return acc
+408-}
+```
+</details></tool-use>
+
+_**Agent - sidechain (claude-opus-5 2026-08-22 14:48:46Z)**_
+
+# Audit: why the cluster view looks unconnected
+
+## 1. ConnectionLayer plane filter at cluster depth
+
+`/Users/caoruixin/projects/aifactory/src/components/scene/ConnectionLayer.tsx:60-75` — the whole rule is one line:
+
+```ts
+const clusterView = depth === 'cluster'
+...
+if (clusterView && r.plane !== 'scaleout' && r.plane !== 'nvlink') continue   // line 69
+```
+
+So at `level='cluster'`, **four of six planes (business, mgmt, power, cooling) are hard-dropped in the view layer regardless of the `planes` toggles**. Only `scaleout` and `nvlink` survive. The header comment at lines 7-10 states the original intent ("集群级只画 scale-out"); lines 66-68 document the later NVLink allowance for the NVL576 inter-rack fabric.
+
+Depth mapping: `/Users/caoruixin/projects/aifactory/src/components/scene/SceneRoot.tsx:50-56`
+```ts
+const RENDER_DEPTH: Record<LodLevel, LodLevel> = { cluster: 'cluster', rack: 'rack', tray: 'board', board: 'board' }
+```
+consumed at `SceneRoot.tsx:504` and passed to `<ConnectionLayer … depth={depth} …/>` at `SceneRoot.tsx:527`.
+
+Second filter, unrelated to level: `ComparisonView.tsx:48` `COMPARE_PLANES = ['nvlink','scaleout']` (compare mode only).
+
+## 2. Routing depth collapse — confirmed
+
+`/Users/caoruixin/projects/aifactory/src/lib/routing.ts`
+
+- `visibleChain(assemblyId, depth)` (lines 96-104): walks `ancestorsOf(id)` root→leaf, keeps the **last** index where `levelIndex(chain[i].lodLevel) <= levelIndex(depth)`, returns the truncated prefix. `visibleAncestorAt` (107-110) is its last element.
+- `levelIndex` uses `LEVEL_ORDER = ['cluster','rack','tray','board']` (`/Users/caoruixin/projects/aifactory/src/lib/drill.ts:22,31`). At `depth='cluster'` only `lodLevel==='cluster'` nodes pass.
+- Degenerate-edge drop, `routing.ts:192-196`:
+```ts
+const fromId = fromChain[fromChain.length - 1]!
+const toId   = toChain[toChain.length - 1]!
+if (fromId === toId) continue // 退化边：两端收缩到同一个可见盒子
+```
+So yes: any connection whose two endpoints both live under `asm.gb300.rack` collapses to `rack↔rack` and is silently dropped **before** the plane filter runs.
+
+- Extra collapse: `worldPositionOf(layout, chain, 0, …)` (`/Users/caoruixin/projects/aifactory/src/lib/layout.ts:392-408`) uses `instanceIndex=0` for the leaf and slot 0 for all ancestors. Since `asm.gb300.rack` is **one** assembly node with `count: 8` (8 slots), every rack-anchored line is drawn to **rack slot 0 only** — one line, not eight.
+
+## 3. Full GB300 connection inventory (30 entries, `/Users/caoruixin/projects/aifactory/src/data/gb300-nvl72.ts:1009-1517`)
+
+No connections live in `shared.ts` (zero matches for `Connection`/`connections`).
+
+Cluster-visible resolution key: everything at/under `asm.gb300.rack` → `rack`. Cluster-level nodes resolve to themselves.
+
+| # | id | plane | from → to | topology | cluster resolve | status |
+|---|---|---|---|---|---|---|
+| 1 | `con.gb300.gpu-nvswitch` (1012) | nvlink | b300-gpu → nvswitch-asic | all-to-all | rack↔rack | **DEGENERATE** |
+| 2 | `con.gb300.nvswitch-backplane` (1032) | nvlink | nvswitch-asic → nvlink-backplane | bus | rack↔rack | **DEGENERATE** |
+| 3 | `con.gb300.tray-backplane` (1047) | nvlink | compute-tray → nvlink-backplane | bus | rack↔rack | **DEGENERATE** |
+| 4 | `con.gb300.grace-gpu-c2c` (1062) | nvlink | grace-cpu → b300-gpu | point-to-point | rack↔rack | **DEGENERATE** |
+| 5 | `con.gb300.gpu-cx8` (1080) | scaleout | b300-gpu → cx8-nic | point-to-point | rack↔rack | **DEGENERATE** |
+| 6 | `con.gb300.cx8-mezz` (1099) | scaleout | cx8-nic → mezz-board | point-to-point | rack↔rack | **DEGENERATE** |
+| 7 | `con.gb300.cx8-leaf` (1114) | scaleout | cx8-nic → scaleout-leaf | rail-optimized | rack↔scaleout-leaf | **DRAWN** ✅ |
+| 8 | `con.gb300.leaf-spine` (1135) | scaleout | scaleout-leaf → scaleout-spine | fat-tree | leaf↔spine | **DRAWN** ✅ (but see §7a) |
+| 9 | `con.gb300.bf3-converged` (1152) | business | bf3-dpu → converged-switch | star | rack↔converged-switch | distinct — **plane-filtered** |
+| 10 | `con.gb300.converged-storage` (1172) | business | converged-switch → storage | fat-tree | distinct | **plane-filtered** |
+| 11 | `con.gb300.mgmt-node-converged` (1192) | business | mgmt-node → converged-switch | star | distinct | **plane-filtered** |
+| 12 | `con.gb300.tray-bmc-mgmt` (1214) | mgmt | compute-tray → inrack-mgmt-switch | star | rack↔rack | **DEGENERATE** |
+| 13 | `con.gb300.nvswitch-tray-mgmt` (1234) | mgmt | nvswitch-tray → inrack-mgmt-switch | star | rack↔rack | **DEGENERATE** |
+| 14 | `con.gb300.bf3-oob` (1249) | mgmt | bf3-dpu → inrack-mgmt-switch | star | rack↔rack | **DEGENERATE** |
+| 15 | `con.gb300.power-shelf-mgmt` (1268) | mgmt | power-shelf → inrack-mgmt-switch | star | rack↔rack | **DEGENERATE** |
+| 16 | `con.gb300.inrack-oob-uplink` (1283) | mgmt | inrack-mgmt-switch → oob-fabric-switch | star | rack↔oob-fabric-switch | distinct — **plane-filtered** |
+| 17 | `con.gb300.mgmt-node-oob` (1298) | mgmt | mgmt-node → oob-fabric-switch | star | distinct | **plane-filtered** |
+| 18 | `con.gb300.leaf-oob` (1313) | mgmt | scaleout-leaf → oob-fabric-switch | star | distinct | **plane-filtered** |
+| 19 | `con.gb300.converged-oob` (1328) | mgmt | converged-switch → oob-fabric-switch | star | distinct | **plane-filtered** |
+| 20 | `con.gb300.facility-power-shelf` (1345) | power | **facility** → power-shelf | bus | facility↔rack | distinct — **plane-filtered** |
+| 21 | `con.gb300.power-shelf-busbar` (1360) | power | power-shelf → busbar | bus | rack↔rack | **DEGENERATE** |
+| 22 | `con.gb300.busbar-compute-tray` (1380) | power | busbar → compute-tray | bus | rack↔rack | **DEGENERATE** |
+| 23 | `con.gb300.busbar-nvswitch-tray` (1395) | power | busbar → nvswitch-tray | bus | rack↔rack | **DEGENERATE** |
+| 24 | `con.gb300.busbar-mgmt-switch` (1410) | power | busbar → inrack-mgmt-switch | bus | rack↔rack | **DEGENERATE** |
+| 25 | `con.gb300.gpu-cold-plate` (1428) | cooling | b300-gpu → tray-cold-plate | point-to-point | rack↔rack | **DEGENERATE** |
+| 26 | `con.gb300.cpu-cold-plate` (1443) | cooling | grace-cpu → tray-cold-plate | point-to-point | rack↔rack | **DEGENERATE** |
+| 27 | `con.gb300.tray-cold-plate-manifold` (1458) | cooling | tray-cold-plate → manifold | loop | rack↔rack | **DEGENERATE** |
+| 28 | `con.gb300.nvswitch-cold-plate-manifold` (1473) | cooling | nvswitch-cold-plate → manifold | loop | rack↔rack | **DEGENERATE** |
+| 29 | `con.gb300.manifold-cdu` (1488) | cooling | manifold → **cdu** | loop | rack↔cdu | distinct — **plane-filtered** |
+| 30 | `con.gb300.cdu-facility-water` (1503) | cooling | cdu → facility-water | loop | distinct | **plane-filtered** |
+
+**Tally at cluster depth:** 18 degenerate (dropped by `routing.ts`), 12 non-degenerate. Of those 12, the plane filter at `ConnectionLayer.tsx:69` allows only the 2 scaleout ones. So exactly **2 line objects reach the GPU**; 10 legitimately drawable room-level links (3 business, 4 mgmt, 1 power, 2 cooling) are suppressed by (a), and 18 by (b)-style depth collapse.
+
+## 4. Missing room-level links (no Connection entry at all)
+
+| Real-world link asked about | Present? | Notes |
+|---|---|---|
+| facility power feed → rack | **Partially** | `con.gb300.facility-power-shelf` (`facility → power-shelf`) collapses to `facility ↔ rack` — this *is* the room-level power edge, it exists but is plane-filtered. Note `asm.gb300.facility` is the tree **root**, and `ClusterScene` (`SceneRoot.tsx:296`) renders only `childrenOf(rootId)`, so the root box itself is never drawn — the line would emanate from an invisible 28×4.5×18 volume centre. |
+| switchgear / PDU / UPS / transformer / 列头柜 component | **MISSING** | Grep over `src/data/` finds no `switchgear`/`pdu`/`ups`/`transformer`/`generator` component or assembly. Shared components are only: facility-room, rack-row, oberon-rack, busbar, cdu, manifold, cold-plate, facility-water-loop, sn2201, storage-array (`/Users/caoruixin/projects/aifactory/src/data/shared.ts:13-196`). "列头柜" appears only in prose (`shared.ts:40`, `gb300-nvl72.ts:1356`). |
+| facility-water → CDU (primary loop) | **Present** | `con.gb300.cdu-facility-water` (#30). Plane-filtered at cluster. |
+| CDU → rack (secondary loop, cluster granularity) | **Partially** | Only via `con.gb300.manifold-cdu` (#29), whose rack end collapses to `rack`. No dedicated `cdu → rack` / `cdu → row` edge. |
+| mgmt-node → oob-fabric-switch | **Present** (#17), plane-filtered |
+| oob-fabric-switch → rack | **Present** via `con.gb300.inrack-oob-uplink` (#16), collapses `inrack-mgmt-switch → rack`; plane-filtered |
+| storage → converged-switch | **Present** (#10), plane-filtered |
+| storage → scaleout-leaf | **MISSING** — no edge |
+| scaleout-spine → scaleout-leaf | **Present** (#8), drawn |
+| scaleout-leaf → rack | **Present** via `con.gb300.cx8-leaf` (#7), drawn |
+| external/gateway ingress (business-plane entry point) | **MISSING** | No border/gateway/WAN assembly or connection. `flows.ts:30,42,148` explicitly models ingress/egress as re-using the same `bf3-dpu ↔ converged-switch` link, with a comment that there is only one north-bound path. |
+| row-level nodes as endpoints | **Unused** | `asm.gb300.row` (`rack-row`) is a cluster-level node but is the endpoint of **zero** connections. |
+
+## 5. Cluster-level assemblies (possible cluster endpoints)
+
+GB300, `/Users/caoruixin/projects/aifactory/src/data/gb300-nvl72.ts:587-738` — **11 nodes** with `lodLevel: 'cluster'`:
+
+| id | line | roleKey | count | parent |
+|---|---|---|---|---|
+| `asm.gb300.facility` | 590 | facility | 1 | null (root, not drawn) |
+| `asm.gb300.facility-water` | 603 | facility-water-loop | 1 | facility |
+| `asm.gb300.cdu` | 616 | cdu | 1 | facility |
+| `asm.gb300.scaleout-spine` | 629 | scaleout-spine | 1 | facility |
+| `asm.gb300.scaleout-leaf` | 642 | scaleout-leaf | 1 | facility |
+| `asm.gb300.converged-switch` | 655 | converged-switch | 1 | facility |
+| `asm.gb300.oob-fabric-switch` | 668 | oob-mgmt-switch | 1 | facility |
+| `asm.gb300.mgmt-node` | 681 | control-plane-node | 12 | facility |
+| `asm.gb300.storage` | 697 | external-storage | 1 | facility |
+| `asm.gb300.row` | 710 | rack-row | 1 | facility |
+| `asm.gb300.rack` | 723 | rack | 8 | row |
+
+Everything else is `rack` (7 nodes, lines 741-840), `tray` (2), or `board` (10).
+
+For comparison: Vera Rubin has 10 cluster nodes (same set **minus** `control-plane-node`, `/Users/caoruixin/projects/aifactory/src/data/vera-rubin-nvl72.ts:833-956`); Rubin Ultra has 6: facility, facility-water, cdu, row, rack, **`asm.ru.interrack-fabric`** (`/Users/caoruixin/projects/aifactory/src/data/rubin-ultra-nvl576.ts:520-599`).
+
+## 6. Tests locking current behaviour
+
+`/Users/caoruixin/projects/aifactory/src/lib/routing.test.ts:73-95`, describe block `集群视图的 nvlink 平面（B4 交接问题③ 回归覆盖）`:
+
+- `it('GB300：cluster 深度下没有任何非退化的 nvlink 路由')` (line 78) →
+  `expect(routes.filter(r => r.plane === 'nvlink')).toHaveLength(0)`
+- `it('Rubin Ultra NVL576：cluster 深度下保留跨机架 scale-up 光互连（唯一预期的 nvlink 路由）')` (line 88) →
+  `expect(nvlinkRoutes.map(r => r.connectionId)).toEqual(['con.ru.optics-interrack'])`
+
+The block comment (74-77, 84-87) explicitly asserts the GB300 emptiness is "correct without extra filtering" and warns against deleting the NVL576 line while "fixing" GB300. Added in commit `e5763ba` ("… + NVLink 回归测试").
+
+Other locks in the same file:
+- `routing.test.ts:19-23` — `visibleAncestorAt('asm.gb300.b300-gpu'|'nvswitch-asic'|'compute-tray', 'cluster') === 'asm.gb300.rack'`
+- `routing.test.ts:55-59` — `con.gb300.gpu-nvswitch` must NOT appear at cluster depth
+- `routing.test.ts:47-53` — at `rack` depth **all six** planes must have ≥1 route
+
+`/Users/caoruixin/projects/aifactory/src/data/pack.test.ts` invariants any new `Connection` must satisfy:
+- `:181-192` — `systemId` exists; `fromAssemblyId`/`toAssemblyId` both exist, both same system as the connection; `fromAssemblyId !== toAssemblyId`
+- `:194-202` — `plane ∈ PLANES` enum; uniqueness key `systemId|plane|from|to` must not repeat
+- `:204-210` — every `sourceIds[i]` must be a registered source
+- `:60-71` — global ID uniqueness + `con.` prefix and `ID_TAIL_RE` naming
+- `:87-102` — no `undefined` anywhere (JSON round-trip equality, `:82-85`)
+- Claim rules applying to `bandwidth`: `:218-224` (`sourceId` registered, `asOf` = `YYYY-MM`, legal `evidence`/`status`), `:227-238` (`verified_spec`/`vendor_claim` may only cite `official_doc`/`official_press`), `:239-249` (broker/analyst sources banned from `countClaim` and component `specs`), `:262-271` (non-official source ⇒ evidence must be analyst/forecast **and** `status: 'forecast'`), `:280-293` (non-official sources only in `forecast` systems)
+
+`/Users/caoruixin/projects/aifactory/src/data/content.test.ts`:
+- `:130-131` — each of the six planes has ≥1 GB300 connection
+- `:559-568` — GB300 and Vera Rubin must cover all six planes; NVL576 only `nvlink/power/mgmt/cooling`
+- `:477-483` — NVL576 must have **zero** `scaleout` and **zero** `business` connections (`★ 来源没写的东西不建模`)
+
+## 7. Legend / cross-pack notes
+
+**(a) Why it reads as *one* line, not two.** Both surviving scaleout routes render, but `/Users/caoruixin/projects/aifactory/src/lib/layout.ts:142-143` places them stacked:
+```ts
+'scaleout-spine': { size: [0.62, 0.32, 0.9], slots: () => [[0, 1.09, -4.4]] },
+'scaleout-leaf':  { size: [0.62, 0.32, 0.9], slots: () => [[0, 0.72, -4.4]] },
+```
+Same X and Z, 0.37 m apart in Y, inside a 28×18 m room. `con.gb300.leaf-spine` is therefore a ~0.4 m vertical stub between two touching boxes — visually invisible at cluster camera distance. Only `con.gb300.cx8-leaf` (rack slot 0 → leaf) reads as a line, and it originates from a single rack because of the `instanceIndex = 0` behaviour noted in §2.
+
+**(b) Legend.** `/Users/caoruixin/projects/aifactory/src/components/panels/PlaneToggles.tsx:36-55` renders **all six** `PLANE_ORDER` checkboxes unconditionally — it never reads the drill level, so at cluster the user sees six live-looking toggles of which four are no-ops. The only signal is the static footnote at `:57-60` ("集群总览只画 scale-out 主干…"), which is now stale w.r.t. the NVLink allowance. Store defaults have all six planes `true` (`/Users/caoruixin/projects/aifactory/src/store.ts:48-53`); the cluster tour scene narrows them to `['scaleout','power','cooling']` (`gb300-nvl72.ts:1530`, applied at `store.ts:208-209`) — of which power and cooling still cannot render at cluster.
+
+**(c) Other packs at cluster depth.**
+
+- **Vera Rubin NVL72** (24 connections: 4 nvlink / 4 scaleout / 2 business / 4 mgmt / 4 power / 6 cooling). Same shape as GB300, slightly thinner: **no** `control-plane-node` assembly and hence no `mgmt-node-*` edges, and no `leaf-oob` / `converged-oob`. Cluster-drawable: `con.rubin.cx9-leaf`, `con.rubin.leaf-spine` (scaleout, rendered) + `bf4-converged`, `converged-storage`, `inrack-oob-uplink`, `facility-power-shelf`, `manifold-cdu`, `cdu-facility-water` (filtered). Same 2-lines-rendered outcome.
+- **Rubin Ultra NVL576** (15 connections: 5 nvlink / 4 power / 2 mgmt / 4 cooling; zero scaleout, zero business by design). Cluster-drawable: `con.ru.optics-interrack` (nvlink — the one line the test pins), plus `con.ru.facility-power-shelf`, `con.ru.manifold-cdu`, `con.ru.cdu-facility-water` (filtered). It has **no** `scaleout-leaf/spine`, `converged-switch`, `oob-fabric-switch`, `mgmt-node`, or `storage` cluster nodes at all.
+
+Net: **no pack has any room-level connection that GB300 lacks.** All three packs share the identical set of "real" room-level cooling/power edges (`facility→power-shelf`, `manifold→cdu`, `cdu→facility-water`); none has a power-source component, a CDU→rack edge, or an external gateway.
+
+_**Agent (claude-fable-5 2026-08-22 14:51:47Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Write"><details>
+<summary>Tool use: **Write**</summary>
+
+```md
+# v1.1 真实性与可读性修复：机房级全连接 + 数据流↔硬件关联
+
+## Context
+
+模拟器 v1.0 已交付并部署（https://caoruixin.github.io/aifactory-sim/ ，仓库 ~/projects/aifactory）。用户实际使用后提出两个成立的问题：
+
+**问题 A（集群视图失真）**：机房设备（机架/交换机/CDU/存储/管理节点/水管/配电）看起来互不相连。审计结论（已完成，事实如下）：
+- `ConnectionLayer.tsx:69` 在 cluster 深度硬过滤：只放行 scaleout+nvlink，**业务/管理/供电/液冷四个平面即使开关打开也不画**；数据包里已有 10 条合法机房级连接被压掉（3 business / 4 mgmt / 1 power / 2 cooling，含 manifold↔CDU、CDU↔一次侧水路、facility→电源架、带外管理上联、DPU→业务交换机→存储）。
+- 内容真缺口：无「机房配电」部件（列头柜/配电柜）；`con.gb300.facility-power-shelf` 的起点是从不渲染的树根 `asm.gb300.facility`（`ClusterScene` 只画 `childrenOf(rootId)`），线会从空气长出。
+- 视觉缺陷：`routing.ts` 对 count>1 的端点只用 instanceIndex 0 → 8 台机架只有第 1 台有线；`layout.ts:142-143` 里 leaf/spine 两盒贴叠（Y 差 0.37m），leaf-spine 线不可见。
+
+**问题 B（数据流与硬件关联不清）**：播放推理数据流时只有线加粗/小亮点，与具体硬件对不上。如 KV 写入实际是 GPU↔HBM，但 HBM 只有一颗极小常亮微光（`FlowLayer` beacon，半径 0.018），参与步骤的硬件本体不发光、FlowBar 不显示「本步涉及哪些硬件」；托盘/板级下通往托盘外端点（业务交换机等）的线拖成冲出画面的长斜线（用户截图所示）。
+
+目标：集群视图如实呈现六平面机房级连接；数据流每一步与参与硬件的视觉/交互绑定明确。
+
+## 关键既有事实（审计已确认，实现时勿重查）
+
+- 30 条 GB300 连接的逐条 cluster 深度判定见审计：18 条退化（机架内，正确不画）、12 条非退化（2 条 scaleout 已画，10 条被平面过滤）。**放开过滤后大部分连接自动出现，内容层只需补配电一块。**
+- `routing.ts:192-196` 退化边丢弃正确，保留；`visibleChain/visibleAncestorAt` 是折叠入口。
+- 锁行为的测试：`routing.test.ts:78`（GB300 cluster 无 nvlink 路由——**与本次改动不冲突，保留**）、`:88`（NVL576 保留 `con.ru.optics-interrack`——保留）、`:47-53`（rack 深度六平面各≥1）；`pack.test.ts` 连接不变量（端点存在/同系统/from≠to/plane 枚举/`systemId|plane|from|to` 唯一/无 undefined/JSON 往返）；`content.test.ts:130,559-568`（GB300 与 Vera Rubin 六平面覆盖、NVL576 仅 nvlink/power/mgmt/cooling、`:477-483` NVL576 零 scaleout/business）。
+- 高亮机制：选中/悬停走 Hotspot 的 emissive（共享材质需注意——per-mesh 高亮已有现成路径）；透明翻转需 `useTransparencyProgramSync`（GenericShapes，B5 ghost 修复引入）。**不做全局压暗**（共享材质做不了 per-instance 压暗）；只做「参与硬件增亮 + 非当前平面的线降透明」。
+- `PLANE_TOGGLES` 脚注已过时（还写着「集群只画 scale-out」）；cluster 导览场景 preset 收窄 planes 为 `['scaleout','power','cooling']`（`gb300-nvl72.ts:1530`）——放开过滤后正好生效。
+- `FlowStep` 已有 `connectionIds` + `highlightAssemblyIds`；kv-write 步已引用 HBM。types.ts 只增不改（可选字段 `| null`）。
+- 三代包同构：Vera Rubin 同样有 8 条可画机房级连接被压；NVL576 有 3 条（power/cooling）。修改需三代同享（组件层代码本就按 systemId 泛化）。
+
+## 改动设计
+
+### A. 机房级全连接
+
+**A1 放开视图过滤** — `src/components/scene/ConnectionLayer.tsx`
+删除 `:69` 的 cluster 硬过滤，改为：任何**非退化**路由，只要其平面开关打开就画。默认视觉秩序交给场景 preset（导览已收窄平面）与用户开关，不再由渲染层越权决定。同步更新头注释与 `PlaneToggles.tsx:57-60` 脚注（改为「机架内部连接在机架级可见；集群级呈现房间级干线」）。
+
+**A2 机架扇出** — `src/lib/routing.ts`（纯函数，零 three）
+新增：当连接端点折叠到 count>1 的集群可见节点（当前即 `roleKey==='rack'` 的 8 实例）时，对每个实例产出一条路由（`instanceIndex` 0..count-1，路径/LUT 各自独立，id 带 `#i` 后缀区分且保持确定性）。上限保护：仅对 cluster 深度 + rack roleKey 扇出，避免 mgmt-node(12) 等也炸开（mgmt-node 仍用单锚点）。测试：扇出条数=8、确定性、非 rack 端点不扇出、既有 nvlink 两条回归测试不破坏。
+
+**A3 配电内容补全** — `src/data/shared.ts` + 三代数据文件 + `src/lib/layout.ts`
+- `shared.ts` 新增「机房配电（列头柜/配电母线）」组件：kind `power`，summary/presalesNote 写清「市电→配电→电源架→母排」链路；规格 Claim 全部 `value: null`（RA 未给配电柜参数），sourceIds 引 NVIDIA RA 供电页（存在性）；不发明数字。
+- 三代各加 1 个 cluster 级装配节点（roleKey `facility-power`，parent=facility），并把 `con.*.facility-power-shelf` 的 from 端从 facility 根改指到它——线从可见盒子出发。NVL576 沿用（其电源架 claim 仍为 forecast，连接本身不带 claim，不触发证据规则）。
+- `layout.ts` `PLACEMENTS` 加 `facility-power` 摆位（机架排端头、busway 沿排走向）；同时把 `scaleout-leaf`/`scaleout-spine` 拉开（spine 上移+横向错位，leaf 靠近机架列），让 leaf-spine 干线可见。
+- 测试更新：pack/content 测试对新节点/改边的引用完整性自动覆盖；`content.test.ts` 补「三代各有 facility-power 节点且 power 平面在 cluster 深度有非退化路由」。
+
+### B. 数据流↔硬件关联
+
+**B1 参与硬件增亮** — `src/store.ts` + `src/components/scene/`（SceneRoot/GenericShapes/Hotspot 既有高亮路径）
+store 增 `flow.activeAssemblyIds: string[]`（粗粒度，仅步骤切换时更新，非每帧）：由当前步 `connectionIds` 端点（经 `visibleAncestorAt` 折叠到当前深度）∪ `highlightAssemblyIds` 计算（纯函数放 `lib/flowTimeline.ts`，附测试）。播放/选步时这些装配体走与「选中」同级的 emissive 增亮（复用既有机制，区别色：用 `--color-accent-2`）；HBM beacon 保留但半径按 LOD 深度放大（cluster×4 / rack×2.5 / board×1，顺带解决 P2「集群级粒子近乎不可见」）。粒子同样按深度缩放。
+
+**B2 FlowBar 步骤卡挂硬件** — `src/components/panels/FlowBar.tsx`
+当前步骤卡下方渲染「本步涉及」chips：来自 `flow.activeAssemblyIds`，显示组件中文名，点击 = `select(id)`（右栏详情跟随）+ 相机不动。kv-write 步即会出现「HBM 显存」chip，点开能看到 KV Cache 相关叙述。narration 已有的逻辑层/物理层徽章保留。
+
+**B3 当前步骤线强调 + 非相关线退让** — `ConnectionLayer.tsx`
+播放中：当前步 `connectionIds` 对应的线加粗（linewidth ×1.8）+ 提亮；其余已开平面的线降透明至 ~35%（透明翻转必须走 `useTransparencyProgramSync` 同款 `needsUpdate` 处理，防 B5 ghost 同类问题）。停止播放恢复。`reducedMotion` 下这就是主要反馈（现状的静态高亮升级为「粗+亮 vs 淡」对比）。
+
+**B4 托盘/板级的出界线改「传送门」stub** — `src/lib/routing.ts` + `ConnectionLayer`
+tray/board 深度下，若连接另一端在焦点子树之外（`visibleChain` 不含焦点祖先），不再画到真实远端：路径在焦点包围盒外 ~0.6m 处截断为短 stub，末端由 DOM（drei `<Html>`，白名单内）挂小标签「→ 业务交换机」（远端组件名，点击可选中远端）。解决截图里冲出画面的长斜线。纯函数部分（截断点计算）进 routing.ts 附测试。
+
+### 测试与验收
+
+- 单测：routing 扇出/传送门截断/activeAssemblyIds 推导各加用例；既有 349 条不回归（cluster nvlink 两条测试显式保留）。
+- E2E（`tests/e2e/factory.spec.ts`）：新增/更新——① cluster 深度开启 power+cooling 后像素变化 >0 且配电→机架可见（像素占比断言，沿用既有 drawImage 对比法）；② 8 机架扇出（对比单机架时代基线差异）；③ 播放至 kv-write 步：FlowBar 出现「HBM」chip、点击后右栏出现 HBM 详情（DOM 断言）；④ 板级 ingress 步无出界长线（截图基线）。受影响的旧基线（cluster/rack 全平面/板级）用 `--update-snapshots` 重建并逐张人工核对说明。
+- 门禁：`npm run typecheck && npm test && npm run build` + `PLAYWRIGHT_USE_CHROME_CHANNEL=1 npm run test:e2e` 全绿。
+- 部署：`npm run build:pages` + 推送 gh-pages，线上验证 https://caoruixin.github.io/aifactory-sim/ 集群视图六平面。
+
+### 执行方式
+
+单个实现代理（opus，内容证据纪律 + 3D 改动混合），完成后主循环（fable）复核：cluster 六平面截图、证据规则测试、两条 nvlink 回归测试未被删改；再更新线上部署。已决事项（不再询问）：不建模「外部网关」实体（流程里 ingress 保持逻辑步，避免无来源部件）；不做全局压暗（共享材质限制）；mgmt-node 不扇出（12 实例会糊）。
+
+### 关键文件
+
+- src/components/scene/ConnectionLayer.tsx（放开过滤、线强调/退让、传送门标签）
+- src/lib/routing.ts + routing.test.ts（机架扇出、出界截断）
+- src/data/shared.ts、gb300-nvl72.ts、vera-rubin-nvl72.ts、rubin-ultra-nvl576.ts（配电组件/节点/改边）
+- src/lib/layout.ts（facility-power 摆位、leaf/spine 拉开）
+- src/lib/flowTimeline.ts、src/store.ts、src/components/panels/FlowBar.tsx、src/components/scene/FlowLayer.tsx（activeAssemblyIds、chips、beacon/粒子按深度缩放）
+- src/components/panels/PlaneToggles.tsx（脚注更新）
+- tests/e2e/factory.spec.ts（新断言 + 基线重建）
+
+```
+
+```text
+The file /Users/caoruixin/.claude/plans/the-goal-toasty-charm.md has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-08-22 14:52:15Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Find what triggers camera reset on flow step click
+
+`grep -n "onClick\|setFlow\|applyScene\|drillTo" src/components/panels/FlowBar.tsx | head -12; echo ---; grep -n "useEffect\|setLookAt\|pumpFrames" src/components/scene/CameraRig.tsx | head -12`
+
+```text
+8 matches in 4F:
+
+[file] 100 (1):
+     0: v })}
+
+[file] 47 (1):
+     0: number) => setFlow({ stepIdx: Math.min(Math.max(idx, 0), segments.length - 1) })
+
+[file] 48 (1):
+     0: !flow.playing })
+
+[file] src/components/panels/FlowBar.tsx (5):
+---
+4: * 层级或焦点一变，就 `setLookAt(...preset, enableTransition)` 平滑飞过去，
+12: * 拖拽/触摸/滚轮输入，`setLookAt` 等程序化方法照常生效——正合移动端「导览按钮驱动
+22:import { pumpFrames } from './pump'
+46:  // useLayoutEffect 而非 useEffect：必须赶在浏览器绘制**之前**把相机放好，
+58:    void c.setLookAt(
+67:    return pumpFrames(invalidate, animate ? 1500 : 0)
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-08-22 14:52:22Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./src/components/scene/CameraRig.tsx`
+
+```text
+1	/**
+2	 * 相机控制：drei `<CameraControls>` + `lib/cameraPresets.ts` 的纯数学机位。
+3	 *
+4	 * 层级或焦点一变，就 `setLookAt(...preset, enableTransition)` 平滑飞过去，
+5	 * 并按该级的 fit 距离 clamp 缩放范围（防止在板级把镜头推进芯片内部，
+6	 * 或在集群级拉到看不见机架）。
+7	 *
+8	 * ⚠️ frameloop 是 `demand`：平滑飞行期间没有任何东西会自动请求帧，
+9	 *    所以过渡开始时手动 pump 一段 rAF。`reducedMotion` 下直接瞬移，不 pump。
+10	 *
+11	 * `interactive=false`（移动端用）：`CameraControls.enabled = false` 只关掉用户的
+12	 * 拖拽/触摸/滚轮输入，`setLookAt` 等程序化方法照常生效——正合移动端「导览按钮驱动
+13	 * 机位、但不希望手指划动和页面滚动打架」的需求。
+14	 */
+15	
+16	import { CameraControls } from '@react-three/drei'
+17	import { useThree } from '@react-three/fiber'
+18	import { useLayoutEffect, useRef } from 'react'
+19	import { cameraPresetFor } from '../../lib/cameraPresets'
+20	import { layoutOf } from '../../lib/layout'
+21	import { useFactoryStore } from '../../store'
+22	import { pumpFrames } from './pump'
+23	
+24	export interface CameraRigProps {
+25	  /** false = 禁用用户手动 orbit/缩放/平移（程序化机位切换不受影响）。默认 true。 */
+26	  interactive?: boolean
+27	}
+28	
+29	export default function CameraRig({ interactive = true }: CameraRigProps = {}) {
+30	  const controls = useRef<CameraControls | null>(null)
+31	  /**
+32	   * 首次落位必须是**瞬移**：平滑过渡靠 rAF 推进，而后台/未聚焦标签页会节流 rAF——
+33	   * 那种情况下相机会永远停在 `<Canvas camera>` 的默认机位，画面看上去像是空的
+34	   * （深链、E2E 截图、后台预热全都会踩到）。开场直接就位，之后的切换才做动画。
+35	   */
+36	  const firstApply = useRef(true)
+37	  const invalidate = useThree((s) => s.invalidate)
+38	  const width = useThree((s) => s.size.width)
+39	  const height = useThree((s) => s.size.height)
+40	
+41	  const generation = useFactoryStore((s) => s.generation)
+42	  const level = useFactoryStore((s) => s.level)
+43	  const focusPath = useFactoryStore((s) => s.focusPath)
+44	  const reducedMotion = useFactoryStore((s) => s.reducedMotion)
+45	
+46	  // useLayoutEffect 而非 useEffect：必须赶在浏览器绘制**之前**把相机放好，
+47	  // 否则首帧会用 <Canvas camera> 的默认机位渲染一次，而 demand 模式下
+48	  // 「补一帧」要等 rAF——后台标签页里 rAF 被节流时，那一帧空画面会一直挂着。
+49	  useLayoutEffect(() => {
+50	    const c = controls.current
+51	    if (!c) return
+52	    const aspect = height > 0 ? width / height : 16 / 9
+53	    const preset = cameraPresetFor(level, focusPath, layoutOf(generation), { aspect })
+54	    c.minDistance = preset.minDistance
+55	    c.maxDistance = preset.maxDistance
+56	    const animate = !reducedMotion && !firstApply.current
+57	    firstApply.current = false
+58	    void c.setLookAt(
+59	      preset.position[0],
+60	      preset.position[1],
+61	      preset.position[2],
+62	      preset.target[0],
+63	      preset.target[1],
+64	      preset.target[2],
+65	      animate,
+66	    )
+67	    return pumpFrames(invalidate, animate ? 1500 : 0)
+68	  }, [level, focusPath, generation, width, height, reducedMotion, invalidate])
+69	
+70	  return (
+71	    <CameraControls
+72	      ref={controls}
+73	      makeDefault
+74	      enabled={interactive}
+75	      // 拖拽/滚轮期间也要请求帧，否则 demand 模式下画面不动
+76	      onChange={() => invalidate()}
+77	      // 示意场景不需要仰角翻到地面以下
+78	      maxPolarAngle={Math.PI * 0.495}
+79	    />
+80	  )
+81	}
+82
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-08-22 14:52:56Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/caoruixin/.claude/plans/the-goal-toasty-charm.md has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-08-22 14:53:12Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/caoruixin/.claude/plans/the-goal-toasty-charm.md has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-08-22 14:53:24Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/caoruixin/.claude/plans/the-goal-toasty-charm.md has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-08-22 14:53:30Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/caoruixin/.claude/plans/the-goal-toasty-charm.md has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-08-22 15:07:22Z)**_
+
+<tool-use data-tool-type="generic" data-tool-name="ExitPlanMode"><details>
+<summary>Tool use: **ExitPlanMode**</summary>
+
+```text
+The user doesn't want to proceed with this tool use. The tool use was rejected (eg. if it was a file edit, the new_string was NOT written to the file). To tell you how to proceed, the user said:
+invoke codex( model: gpt-5.6 sol  , model_reasoning_effort: "xhigh" ) to review the plan and fix the P0/P1 issues which you agree with  ,continue the loop until there's no  agreed P0/P1  in the review verdict or finishing 2 rounds
+
+Note: The user's next message may contain a correction or preference. Pay close attention — if they explain what went wrong or how they'd prefer you to work, consider saving that to memory for future sessions.
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-08-22 15:07:51Z)**_
+
+收到:用 codex（gpt-5.6 sol，xhigh 推理）评审计划，逐条判断其发现，修掉我认同的 P0/P1，循环最多 2 轮。先确认 codex CLI 可用及参数写法：
+
+_**Agent (claude-fable-5 2026-08-22 15:07:55Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Check codex CLI availability and exec flags
+
+`which codex && codex --version 2>&1 | head -2; codex exec --help 2>&1 | grep -E "sandbox|--model|-c |--cd|reasoning" | head -12`
+
+```text
+/Users/caoruixin/.npm-global/bin/codex
+codex-cli 0.144.1
+          Examples: - `-c model="o3"` - `-c 'sandbox_permissions=["disk-full-read-access"]'` - `-c
+          Enable a feature (repeatable). Equivalent to `-c features.<name>=true`
+          Disable a feature (repeatable). Equivalent to `-c features.<name>=false`
+  -m, --model <MODEL>
+  -s, --sandbox <SANDBOX_MODE>
+          Select the sandbox policy to use when executing model-generated shell commands
+      --dangerously-bypass-approvals-and-sandbox
+          Skip all confirmation prompts and execute commands without sandboxing. EXTREMELY
+          DANGEROUS. Intended solely for running in environments that are externally sandboxed
+  -C, --cd <DIR>
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-08-22 15:18:22Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Round 1: codex xhigh review of the plan
+
+```bash
+codex exec -s read-only -m gpt-5.6-sol -c model_reasoning_effort='"xhigh"' 'You are reviewing an implementation PLAN (not yet implemented) for this repo (a React19+Vite+R3F digital-twin app, all gates currently green: 349 vitest + 13 playwright).
+
+Read the plan file: /Users/caoruixin/.claude/plans/the-goal-toasty-charm.md
+Then verify its claims and design against the ACTUAL code in this repo (read-only). Key files it touches: src/components/scene/ConnectionLayer.tsx, CameraRig.tsx, FlowLayer.tsx, src/lib/routing.ts, layout.ts, flowTimeline.ts, src/data/*.ts (gb300-nvl72/vera-rubin-nvl72/rubin-ultra-nvl576/shared/pack.test/content.test), src/components/panels/FlowBar.tsx, PlaneToggles.tsx, src/store.ts, tests/e2e/factory.spec.ts.
+
+Review dimensions: (1) factual errors — does the plan mis-describe the code (line refs, root-cause claims, e.g. the camera-reset root cause)? (2) will the plan break existing locked tests/invariants (pack.test.ts JSON-roundtrip & claim/evidence rules, routing.test.ts cluster-nvlink regression pair, content.test.ts plane coverage incl. NVL576 restrictions)? (3) design defects that would produce visible bugs (shared-material highlight pitfalls, drei Line linewidth updates, transparency program recompilation, instanced-mesh raycast/bounding issues, per-frame state in zustand, demand frameloop interactions); (4) missed requirements vs the three user problems: A cluster view shows almost no room-level connections; B flow steps not visually tied to hardware (e.g. KV-write should evidently involve HBM); C user camera gets reset when clicking flow steps (canvas resize triggers preset re-apply).
+
+Severity: P0 = plan as written is unimplementable, contradicts the codebase, or would break existing green gates/data-evidence rules. P1 = significant flaw: wrong root cause, missed stated requirement, or design that will visibly misbehave. P2 = polish.
+
+Output: numbered findings, each with [P0|P1|P2] | claim (one sentence) | evidence (file:line from THIS repo or plan section) | why it matters | concrete suggested fix. End with a line exactly: "VERDICT: P0=<n> P1=<n> P2=<n>". Do not propose new scope beyond the three user problems.' 2>&1 | tail -80
+```
+
+```text
+Command did not complete within its 600s timeout and was moved to the background (ID: buws0zve9). Output is being written to: /private/tmp/claude-501/-Users-caoruixin-projects-aifactory/0dd4a781-3421-4623-a115-2871b33e019e/tasks/buws0zve9.output. You will be notified when it completes. To check interim output, use Read on that file path.
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-08-22 15:18:40Z)**_
+
+codex（gpt-5.6-sol，xhigh）评审运行时间超过 10 分钟，已转入后台继续执行。完成通知到达后我会：逐条判断其发现（同意/不同意并给理由）→ 修掉我认同的 P0/P1 → 视结果决定是否进行第 2 轮评审（最多 2 轮）→ 然后再次提交计划请你批准。
+
+---
+
+_**User (2026-08-22 15:22:24Z)**_
+
+<task-notification>
+<task-id>buws0zve9</task-id>
+<tool-use-id>toolu_019LvLWyLbcza9M7i6mECP8e</tool-use-id>
+<output-file>/private/tmp/claude-501/-Users-caoruixin-projects-aifactory/0dd4a781-3421-4623-a115-2871b33e019e/tasks/buws0zve9.output</output-file>
+<status>completed</status>
+<summary>Background command "Round 1: codex xhigh review of the plan" completed (exit code 0)</summary>
+</task-notification>
+
+---
+
+_**Agent (claude-fable-5 2026-08-22 15:22:30Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `/private/tmp/claude-501/-Users-caoruixin-projects-aifactory/0dd4a781-3421-4623-a115-2871b33e019e/tasks/buws0zve9.output`
+
+```text
+1	   333	  component,
+2	   334	  selfId,
+3	   335	  onJump,
+4	   336	}: {
+5	   337	  component: HardwareComponent
+6	   338	  selfId: string
+7	   339	  onJump: (id: string) => void
+8	   340	}) {
+9	   341	  const uses = assembliesUsingComponent(component.id).filter((a) => a.id !== selfId)
+10	   342	  if (uses.length === 0) return null
+11	   343	  return (
+12	   344	    <p className="mt-2 text-[11px] leading-relaxed text-dim">
+13	   345	      同一组件还出现在：
+14	   346	      {uses.map((a, i) => (
+15	   347	        <span key={a.id}>
+16	   348	          {i > 0 ? '、' : ' '}
+17	   349	          <button type="button" onClick={() => onJump(a.id)} className="text-accent underline">
+18	   350	            {a.label}
+19	   351	          </button>
+20	   352	        </span>
+21	   353	      ))}
+22	   354	    </p>
+23	   355	  )
+24	   356	}
+25	   357	
+26	   358	function SourceLine({ sourceId }: { sourceId: string }) {
+27	   359	  const source = sourceById(sourceId)
+28	   360	  if (!source) return <li className="text-dim">{sourceId}</li>
+29	
+30	codex
+31	1. [P0] | A2’s “one route per rack instance” contradicts the locked NVL576 invariant it promises to preserve. | Evidence: [plan:36](/Users/caoruixin/.claude/plans/the-goal-toasty-charm.md:36) expands every cluster route folded onto an eight-instance rack; `con.ru.optics-interrack` has exactly that shape at [rubin-ultra-nvl576.ts:856](/Users/caoruixin/projects/aifactory/src/data/rubin-ultra-nvl576.ts:856), while [routing.test.ts:93](/Users/caoruixin/projects/aifactory/src/lib/routing.test.ts:93) requires exactly one semantic route. | Why it matters: returning eight routes fails the locked test; suffixing `connectionId` also breaks flow lookup because [routing.ts:225](/Users/caoruixin/projects/aifactory/src/lib/routing.ts:225) indexes by content connection ID. | Concrete suggested fix: preserve one `RoutedConnection` per content connection and attach separately keyed instance paths, or expand geometry only in the render layer while keeping `connectionId` unchanged.
+32	
+33	2. [P1] | A single stored `flow.activeAssemblyIds`, updated only on step changes, cannot correctly serve both exact hardware chips and LOD-collapsed scene highlights. | Evidence: [plan:47](/Users/caoruixin/.claude/plans/the-goal-toasty-charm.md:47) collapses only connection endpoints and leaves `highlightAssemblyIds` exact; KV-write contains only HBM and Grace IDs at [flows.ts:87](/Users/caoruixin/projects/aifactory/src/data/flows.ts:87), which are not mounted at cluster/rack depth, while navigation changes depth independently of `setFlow`. | Why it matters: KV-write can have no glowing hardware at rack/cluster level, and stored IDs become stale after drilling or changing generation. | Concrete suggested fix: derive two sets from `{system, episode, step, depth}`—exact referenced IDs for chips and every ID collapsed through `visibleAncestorAt` for scene highlighting—rather than storing derived IDs in Zustand.
+34	
+35	3. [P1] | The plan leaves board-level flow paths and beacons in compact coordinates while the hardware is rendered exploded. | Evidence: board rendering passes `exploded` into `AssemblyBranch` at [SceneRoot.tsx:430](/Users/caoruixin/projects/aifactory/src/components/scene/SceneRoot.tsx:430), but `ConnectionLayer` receives only depth at [SceneRoot.tsx:527](/Users/caoruixin/projects/aifactory/src/components/scene/SceneRoot.tsx:527); routing defaults `exploded=false` at [routing.ts:186](/Users/caoruixin/projects/aifactory/src/lib/routing.ts:186), and FlowLayer uses that default at [FlowLayer.tsx:54](/Users/caoruixin/projects/aifactory/src/components/scene/FlowLayer.tsx:54) plus hard-coded `false` for HBM at [FlowLayer.tsx:114](/Users/caoruixin/projects/aifactory/src/components/scene/FlowLayer.tsx:114). | Why it matters: thicker lines, particles, and portal stubs will still be visibly detached from exploded hardware. | Concrete suggested fix: pass the actual `level`/`exploded` state to both layers and use it consistently in routing and `worldPositionOf`.
+36	
+37	4. [P1] | B4 does not define the necessary incident-route filtering or the correct rendered subtree for portal stubs. | Evidence: [routing.ts:189](/Users/caoruixin/projects/aifactory/src/lib/routing.ts:189) currently routes every system connection; at board level the focus may be a GPU, but [SceneRoot.tsx:515](/Users/caoruixin/projects/aifactory/src/components/scene/SceneRoot.tsx:515) renders its containing tray. | Why it matters: routes with neither endpoint in the displayed tray can remain as room-spanning lines, while using the raw board focus can incorrectly stub links between two visible tray components. | Concrete suggested fix: pass the rendered scene anchor (`anchor.trayAssemblyId`), keep full routes when both endpoints are inside it, create one stub when exactly one is inside, and drop routes when neither is inside.
+38	
+39	5. [P1] | C1’s proposed effect split would leave camera distance clamps stale after navigation. | Evidence: [plan:62](/Users/caoruixin/.claude/plans/the-goal-toasty-charm.md:62) assigns clamp updates to an effect depending only on width/height, whereas the current clamps are recalculated alongside level/focus/generation at [CameraRig.tsx:53](/Users/caoruixin/projects/aifactory/src/components/scene/CameraRig.tsx:53). | Why it matters: drilling from cluster to board can retain cluster-scale min/max distances, permitting unusable zoom ranges. | Concrete suggested fix: memoize the preset from navigation state plus aspect; the navigation effect should update clamps and `setLookAt`, while the resize effect updates clamps and conditionally refits only when `userMoved` is false.
+40	
+41	6. [P1] | The proposed camera E2E assertion can pass even when the camera really resets. | Evidence: [plan:71](/Users/caoruixin/.claude/plans/the-goal-toasty-charm.md:71) only requires the post-click screenshot to differ from a default baseline, but clicking a step already changes line width/opacity at [ConnectionLayer.tsx:90](/Users/caoruixin/projects/aifactory/src/components/scene/ConnectionLayer.tsx:90), and the plan adds further hardware highlights. | Why it matters: a reset default camera plus changed flow pixels still differs from the default baseline; resizing also changes image dimensions trivially. | Concrete suggested fix: assert camera position/target before versus after the click and resize through minimal test telemetry, and separately assert that the canvas bounding-box height stays constant across step changes.
+42	
+43	7. [P1] | The proposed cluster/rack HBM beacon scaling is incompatible with the existing beacon visibility and instance model. | Evidence: HBM positions are explicitly suppressed below tray depth at [FlowLayer.tsx:107](/Users/caoruixin/projects/aifactory/src/components/scene/FlowLayer.tsx:107); if that guard is removed, [FlowLayer.tsx:109](/Users/caoruixin/projects/aifactory/src/components/scene/FlowLayer.tsx:109) produces one position per assembly type and [FlowLayer.tsx:114](/Users/caoruixin/projects/aifactory/src/components/scene/FlowLayer.tsx:114) selects instance 0. | Why it matters: the advertised cluster/rack multipliers are either dead code or place one misleading HBM dot on only the first rack. | Concrete suggested fix: keep HBM beacons only where HBM meshes are actually rendered and use collapsed assembly highlighting at coarse LODs; scale moving particles independently.
+44	
+45	8. [P2] | B3 unnecessarily prescribes runtime transparency recompilation for lines that are already permanently transparent. | Evidence: `<Line transparent>` is unconditional at [ConnectionLayer.tsx:97](/Users/caoruixin/projects/aifactory/src/components/scene/ConnectionLayer.tsx:97), while `useTransparencyProgramSync` exists for toggling transparent state at [GenericShapes.tsx:157](/Users/caoruixin/projects/aifactory/src/components/scene/GenericShapes.tsx:157). | Why it matters: flipping `transparent` adds avoidable material/ref complexity and another failure mode. | Concrete suggested fix: keep line materials transparent permanently and change only opacity, color, and linewidth.
+46	
+47	9. [P2] | A3’s proposed content test can pass without actually rewiring the power connection. | Evidence: the current bad edge starts at the root at [gb300-nvl72.ts:1347](/Users/caoruixin/projects/aifactory/src/data/gb300-nvl72.ts:1347), yet it is already non-degenerate because routing only rejects equal folded endpoints at [routing.ts:196](/Users/caoruixin/projects/aifactory/src/lib/routing.ts:196). | Why it matters: “facility-power node exists” plus “some cluster power route exists” does not prove the visible node is the route source. | Concrete suggested fix: assert each generation’s exact `facility-power-shelf.fromAssemblyId` and the resulting route’s `fromAssemblyId` equal the new facility-power assembly.
+48	
+49	10. [P2] | The KV-write chips still omit the GPU, and the claimed HBM detail view does not currently contain KV-cache narration. | Evidence: KV-write highlights HBM and Grace but not B300 at [flows.ts:87](/Users/caoruixin/projects/aifactory/src/data/flows.ts:87); the HBM detail copy discusses weights and decode bandwidth at [gb300-nvl72.ts:201](/Users/caoruixin/projects/aifactory/src/data/gb300-nvl72.ts:201), contrary to [plan:50](/Users/caoruixin/.claude/plans/the-goal-toasty-charm.md:50). | Why it matters: the UI does not fully express the plan’s own “GPU↔HBM” hardware story. | Concrete suggested fix: add the existing B300 assembly to KV-write’s `highlightAssemblyIds` and add a short KV-cache sentence to the HBM narrative without inventing a new connection or numeric claim.
+50	
+51	11. [P2] | The claim that the leaf-spine route is “invisible” is overstated by the actual renderer. | Evidence: the boxes are separated by 0.37 m at [layout.ts:142](/Users/caoruixin/projects/aifactory/src/lib/layout.ts:142), and the route is rendered above geometry with `depthTest={false}` at [ConnectionLayer.tsx:99](/Users/caoruixin/projects/aifactory/src/components/scene/ConnectionLayer.tsx:99). | Why it matters: this is a readability improvement, not an established root cause of missing connectivity. | Concrete suggested fix: retain the spacing change only as visual polish and verify it with the cluster screenshot instead of treating it as required for route existence.
+52	
+53	VERDICT: P0=1 P1=6 P2=4
+54	hook: Stop
+55	hook: Stop Completed
+56	tokens used
+57	208,442
+58	1. [P0] | A2’s “one route per rack instance” contradicts the locked NVL576 invariant it promises to preserve. | Evidence: [plan:36](/Users/caoruixin/.claude/plans/the-goal-toasty-charm.md:36) expands every cluster route folded onto an eight-instance rack; `con.ru.optics-interrack` has exactly that shape at [rubin-ultra-nvl576.ts:856](/Users/caoruixin/projects/aifactory/src/data/rubin-ultra-nvl576.ts:856), while [routing.test.ts:93](/Users/caoruixin/projects/aifactory/src/lib/routing.test.ts:93) requires exactly one semantic route. | Why it matters: returning eight routes fails the locked test; suffixing `connectionId` also breaks flow lookup because [routing.ts:225](/Users/caoruixin/projects/aifactory/src/lib/routing.ts:225) indexes by content connection ID. | Concrete suggested fix: preserve one `RoutedConnection` per content connection and attach separately keyed instance paths, or expand geometry only in the render layer while keeping `connectionId` unchanged.
+59	
+60	2. [P1] | A single stored `flow.activeAssemblyIds`, updated only on step changes, cannot correctly serve both exact hardware chips and LOD-collapsed scene highlights. | Evidence: [plan:47](/Users/caoruixin/.claude/plans/the-goal-toasty-charm.md:47) collapses only connection endpoints and leaves `highlightAssemblyIds` exact; KV-write contains only HBM and Grace IDs at [flows.ts:87](/Users/caoruixin/projects/aifactory/src/data/flows.ts:87), which are not mounted at cluster/rack depth, while navigation changes depth independently of `setFlow`. | Why it matters: KV-write can have no glowing hardware at rack/cluster level, and stored IDs become stale after drilling or changing generation. | Concrete suggested fix: derive two sets from `{system, episode, step, depth}`—exact referenced IDs for chips and every ID collapsed through `visibleAncestorAt` for scene highlighting—rather than storing derived IDs in Zustand.
+61	
+62	3. [P1] | The plan leaves board-level flow paths and beacons in compact coordinates while the hardware is rendered exploded. | Evidence: board rendering passes `exploded` into `AssemblyBranch` at [SceneRoot.tsx:430](/Users/caoruixin/projects/aifactory/src/components/scene/SceneRoot.tsx:430), but `ConnectionLayer` receives only depth at [SceneRoot.tsx:527](/Users/caoruixin/projects/aifactory/src/components/scene/SceneRoot.tsx:527); routing defaults `exploded=false` at [routing.ts:186](/Users/caoruixin/projects/aifactory/src/lib/routing.ts:186), and FlowLayer uses that default at [FlowLayer.tsx:54](/Users/caoruixin/projects/aifactory/src/components/scene/FlowLayer.tsx:54) plus hard-coded `false` for HBM at [FlowLayer.tsx:114](/Users/caoruixin/projects/aifactory/src/components/scene/FlowLayer.tsx:114). | Why it matters: thicker lines, particles, and portal stubs will still be visibly detached from exploded hardware. | Concrete suggested fix: pass the actual `level`/`exploded` state to both layers and use it consistently in routing and `worldPositionOf`.
+63	
+64	4. [P1] | B4 does not define the necessary incident-route filtering or the correct rendered subtree for portal stubs. | Evidence: [routing.ts:189](/Users/caoruixin/projects/aifactory/src/lib/routing.ts:189) currently routes every system connection; at board level the focus may be a GPU, but [SceneRoot.tsx:515](/Users/caoruixin/projects/aifactory/src/components/scene/SceneRoot.tsx:515) renders its containing tray. | Why it matters: routes with neither endpoint in the displayed tray can remain as room-spanning lines, while using the raw board focus can incorrectly stub links between two visible tray components. | Concrete suggested fix: pass the rendered scene anchor (`anchor.trayAssemblyId`), keep full routes when both endpoints are inside it, create one stub when exactly one is inside, and drop routes when neither is inside.
+65	
+66	5. [P1] | C1’s proposed effect split would leave camera distance clamps stale after navigation. | Evidence: [plan:62](/Users/caoruixin/.claude/plans/the-goal-toasty-charm.md:62) assigns clamp updates to an effect depending only on width/height, whereas the current clamps are recalculated alongside level/focus/generation at [CameraRig.tsx:53](/Users/caoruixin/projects/aifactory/src/components/scene/CameraRig.tsx:53). | Why it matters: drilling from cluster to board can retain cluster-scale min/max distances, permitting unusable zoom ranges. | Concrete suggested fix: memoize the preset from navigation state plus aspect; the navigation effect should update clamps and `setLookAt`, while the resize effect updates clamps and conditionally refits only when `userMoved` is false.
+67	
+68	6. [P1] | The proposed camera E2E assertion can pass even when the camera really resets. | Evidence: [plan:71](/Users/caoruixin/.claude/plans/the-goal-toasty-charm.md:71) only requires the post-click screenshot to differ from a default baseline, but clicking a step already changes line width/opacity at [ConnectionLayer.tsx:90](/Users/caoruixin/projects/aifactory/src/components/scene/ConnectionLayer.tsx:90), and the plan adds further hardware highlights. | Why it matters: a reset default camera plus changed flow pixels still differs from the default baseline; resizing also changes image dimensions trivially. | Concrete suggested fix: assert camera position/target before versus after the click and resize through minimal test telemetry, and separately assert that the canvas bounding-box height stays constant across step changes.
+69	
+70	7. [P1] | The proposed cluster/rack HBM beacon scaling is incompatible with the existing beacon visibility and instance model. | Evidence: HBM positions are explicitly suppressed below tray depth at [FlowLayer.tsx:107](/Users/caoruixin/projects/aifactory/src/components/scene/FlowLayer.tsx:107); if that guard is removed, [FlowLayer.tsx:109](/Users/caoruixin/projects/aifactory/src/components/scene/FlowLayer.tsx:109) produces one position per assembly type and [FlowLayer.tsx:114](/Users/caoruixin/projects/aifactory/src/components/scene/FlowLayer.tsx:114) selects instance 0. | Why it matters: the advertised cluster/rack multipliers are either dead code or place one misleading HBM dot on only the first rack. | Concrete suggested fix: keep HBM beacons only where HBM meshes are actually rendered and use collapsed assembly highlighting at coarse LODs; scale moving particles independently.
+71	
+72	8. [P2] | B3 unnecessarily prescribes runtime transparency recompilation for lines that are already permanently transparent. | Evidence: `<Line transparent>` is unconditional at [ConnectionLayer.tsx:97](/Users/caoruixin/projects/aifactory/src/components/scene/ConnectionLayer.tsx:97), while `useTransparencyProgramSync` exists for toggling transparent state at [GenericShapes.tsx:157](/Users/caoruixin/projects/aifactory/src/components/scene/GenericShapes.tsx:157). | Why it matters: flipping `transparent` adds avoidable material/ref complexity and another failure mode. | Concrete suggested fix: keep line materials transparent permanently and change only opacity, color, and linewidth.
+73	
+74	9. [P2] | A3’s proposed content test can pass without actually rewiring the power connection. | Evidence: the current bad edge starts at the root at [gb300-nvl72.ts:1347](/Users/caoruixin/projects/aifactory/src/data/gb300-nvl72.ts:1347), yet it is already non-degenerate because routing only rejects equal folded endpoints at [routing.ts:196](/Users/caoruixin/projects/aifactory/src/lib/routing.ts:196). | Why it matters: “facility-power node exists” plus “some cluster power route exists” does not prove the visible node is the route source. | Concrete suggested fix: assert each generation’s exact `facility-power-shelf.fromAssemblyId` and the resulting route’s `fromAssemblyId` equal the new facility-power assembly.
+75	
+76	10. [P2] | The KV-write chips still omit the GPU, and the claimed HBM detail view does not currently contain KV-cache narration. | Evidence: KV-write highlights HBM and Grace but not B300 at [flows.ts:87](/Users/caoruixin/projects/aifactory/src/data/flows.ts:87); the HBM detail copy discusses weights and decode bandwidth at [gb300-nvl72.ts:201](/Users/caoruixin/projects/aifactory/src/data/gb300-nvl72.ts:201), contrary to [plan:50](/Users/caoruixin/.claude/plans/the-goal-toasty-charm.md:50). | Why it matters: the UI does not fully express the plan’s own “GPU↔HBM” hardware story. | Concrete suggested fix: add the existing B300 assembly to KV-write’s `highlightAssemblyIds` and add a short KV-cache sentence to the HBM narrative without inventing a new connection or numeric claim.
+77	
+78	11. [P2] | The claim that the leaf-spine route is “invisible” is overstated by the actual renderer. | Evidence: the boxes are separated by 0.37 m at [layout.ts:142](/Users/caoruixin/projects/aifactory/src/lib/layout.ts:142), and the route is rendered above geometry with `depthTest={false}` at [ConnectionLayer.tsx:99](/Users/caoruixin/projects/aifactory/src/components/scene/ConnectionLayer.tsx:99). | Why it matters: this is a readability improvement, not an established root cause of missing connectivity. | Concrete suggested fix: retain the spacing change only as visual polish and verify it with the cluster screenshot instead of treating it as required for route existence.
+79	
+80	VERDICT: P0=1 P1=6 P2=4
+81
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-08-22 15:23:27Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/caoruixin/.claude/plans/the-goal-toasty-charm.md has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-08-22 15:23:38Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/caoruixin/.claude/plans/the-goal-toasty-charm.md has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-08-22 15:23:55Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+<tool_use_error>String to replace not found in file.
+String: **B1 参与硬件增亮** — `src/store.ts` + `src/components/scene/`（SceneRoot/GenericShapes/Hotspot 既有高亮路径）
+store 增 `flow.activeAssemblyIds: string[]`（粗粒度，仅步骤切换时更新，非每帧）：由当前步 `connectionIds` 端点（经 `visibleAncestorAt` 折叠到当前深度）∪ `highlightAssemblyIds` 计算（纯函数放 `lib/flowTimeline.ts`，附测试）。播放/选步时这些装配体走与「选中」同级的 emissive 增亮（复用既有机制，区别色：用 `--color-accent-2`）；HBM beacon 保留但半径按 LOD 深度放大（cluster×4 / rack×2.5 / board×1，顺带解决 P2「集群级粒子近乎不可见」）；粒子同样按深度缩放。
+(note: Edit also tried swapping \uXXXX escapes and their characters; neither form matched, so the mismatch is likely elsewhere in old_string. Re-read the file and copy the exact surrounding text.)</tool_use_error>
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-08-22 15:24:07Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `/Users/caoruixin/.claude/plans/the-goal-toasty-charm.md`
+
+```text
+44	### B. 数据流↔硬件关联
+45	
+46	**B1 参与硬件增亮** — `src/store.ts` + `src/components/scene/`（SceneRoot/GenericShapes/Hotspot 既有高亮路径）
+47	store 增 `flow.activeAssemblyIds: string[]`（粗粒度，仅步骤切换时更新，非每帧）：由当前步 `connectionIds` 端点（经 `visibleAncestorAt` 折叠到当前深度）∪ `highlightAssemblyIds` 计算（纯函数放 `lib/flowTimeline.ts`，附测试）。播放/选步时这些装配体走与「选中」同级的 emissive 增亮（复用既有机制，区别色：用 `--color-accent-2`）；HBM beacon 保留但半径按 LOD 深度放大（cluster×4 / rack×2.5 / board×1，顺带解决 P2「集群级粒子近乎不可见」）。粒子同样按深度缩放。
+48	
+49	**B2 FlowBar 步骤卡挂硬件** — `src/components/panels/FlowBar.tsx`
+50	当前步骤卡下方渲染「本步涉及」chips：来自 `flow.activeAssemblyIds`，显示组件中文名，点击 = `select(id)`（右栏详情跟随）+ 相机不动。kv-write 步即会出现「HBM 显存」chip，点开能看到 KV Cache 相关叙述。narration 已有的逻辑层/物理层徽章保留。
+51	
+52	**B3 当前步骤线强调 + 非相关线退让** — `ConnectionLayer.tsx`
+53	播放中：当前步 `connectionIds` 对应的线加粗（linewidth ×1.8）+ 提亮；其余已开平面的线降透明至 ~35%（透明翻转必须走 `useTransparencyProgramSync` 同款 `needsUpdate` 处理，防 B5 ghost 同类问题）。停止播放恢复。`reducedMotion` 下这就是主要反馈（现状的静态高亮升级为「粗+亮 vs 淡」对比）。
+54	
+55	**B4 托盘/板级的出界线改「传送门」stub** — `src/lib/routing.ts` + `ConnectionLayer`
+56	tray/board 深度下，若连接另一端在焦点子树之外（`visibleChain` 不含焦点祖先），不再画到真实远端：路径在焦点包围盒外 ~0.6m 处截断为短 stub，末端由 DOM（drei `<Html>`，白名单内）挂小标签「→ 业务交换机」（远端组件名，点击可选中远端）。解决截图里冲出画面的长斜线。纯函数部分（截断点计算）进 routing.ts 附测试。
+57	
+58	### C. 视角归用户所有（相机不再被没收）
+59	
+60	**C1 拆分 CameraRig 效果** — `src/components/scene/CameraRig.tsx`
+61	- 效果 A（导航飞行）：依赖仅 `[level, focusPath, generation]`（+reducedMotion 决定是否动画）→ `setLookAt(preset)`。这是唯一允许程序化改机位的路径（下钻/面包屑/导览/代际切换）。
+62	- 效果 B（尺寸自适应）：依赖 `[width, height]` → 只重算并更新 `minDistance/maxDistance` clamp 与 preset 缓存，**不 setLookAt**。例外：用户自上次程序化落位后未动过相机（用 CameraControls `controlstart` 事件维护 `userMoved` ref），则允许 resize 时重新 fit——深链首屏 + 窗口调整仍居中，动过相机的人永不被打扰。
+63	- `firstApply` 瞬移逻辑保留。数据流的任何交互（stepIdx/playing/速度/平面开关）不触碰 level/focusPath，依赖拆分后天然不再引发飞行。
+64	
+65	**C2 FlowBar 高度稳定**（辅助，消除画布抖动）— `src/components/panels/FlowBar.tsx`
+66	当前步骤卡展开导致底栏高度跳变（正是触发 resize 的源头）。改为底栏固定高度：narration/presalesNote/chips 区域固定行高 + 内部滚动或收纳，步骤切换不再改变画布尺寸——既消除相机诱因，也消除画面上下跳动。
+67	
+68	### 测试与验收
+69	
+70	- 单测：routing 扇出/传送门截断/activeAssemblyIds 推导各加用例；既有 349 条不回归（cluster nvlink 两条测试显式保留）。
+71	- E2E（`tests/e2e/factory.spec.ts`）：新增/更新——① cluster 深度开启 power+cooling 后像素变化 >0 且配电→机架可见（像素占比断言，沿用既有 drawImage 对比法）；② 8 机架扇出（对比单机架时代基线差异）；③ 播放至 kv-write 步：FlowBar 出现「HBM」chip、点击后右栏出现 HBM 详情（DOM 断言）；④ 板级 ingress 步无出界长线（截图基线）；⑤ **相机保持**：Playwright 鼠标拖拽旋转 → 点击任一流步骤 → 截图与「默认机位」基线**不相同**（像素对比断言视角未被复位），且窗口 resize 后仍不复位。受影响的旧基线（cluster/rack 全平面/板级）用 `--update-snapshots` 重建并逐张人工核对说明。
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-08-22 15:24:20Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/caoruixin/.claude/plans/the-goal-toasty-charm.md has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-08-22 15:24:26Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/caoruixin/.claude/plans/the-goal-toasty-charm.md has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-08-22 15:24:30Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/caoruixin/.claude/plans/the-goal-toasty-charm.md has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-08-22 15:24:44Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/caoruixin/.claude/plans/the-goal-toasty-charm.md has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-08-22 15:24:52Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/caoruixin/.claude/plans/the-goal-toasty-charm.md has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-08-22 15:25:01Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/caoruixin/.claude/plans/the-goal-toasty-charm.md has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-08-22 15:25:11Z)**_
+
+第 1 轮的 11 条发现已全部落进计划。启动第 2 轮 codex 评审（后台运行）：
+
+_**Agent (claude-fable-5 2026-08-22 15:25:20Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Round 2: codex re-review of revised plan
+
+```bash
+codex exec -s read-only -m gpt-5.6-sol -c model_reasoning_effort='"xhigh"' 'ROUND 2 of 2. You previously reviewed the implementation plan at /Users/caoruixin/.claude/plans/the-goal-toasty-charm.md and reported: [P0] rack fan-out would break the locked NVL576 single-route test & connectionId indexing; [P1] stored activeAssemblyIds stale/depth-blind; [P1] exploded-coordinate mismatch for lines/particles; [P1] portal-stub containment underspecified (anchor tray, three-way rule); [P1] stale camera clamps after navigation; [P1] weak camera E2E assertion; [P1] HBM beacon scaling at coarse LOD misleading; plus 4 P2s (line transparency already on, exact rewiring assertion, KV-write missing GPU chip + HBM narration, leaf-spine visibility overstated).
+
+The plan has been REVISED to address all 11. Re-read the revised plan file and verify each prior finding is now correctly resolved (not just mentioned), and check whether the revisions introduced NEW defects. Verify against actual repo code (read-only) where needed. Same severity rubric: P0 = unimplementable/contradicts codebase/breaks green gates or data-evidence rules; P1 = wrong root cause, missed requirement (A: cluster room-level connectivity, B: flow-step↔hardware linkage, C: user camera preserved on flow-step clicks/resize), or design that will visibly misbehave; P2 = polish. Do NOT re-raise resolved items or propose new scope beyond the three user problems.
+
+Output: numbered findings in the same format ([P0|P1|P2] | claim | evidence file:line | why | fix), listing ONLY residual or newly-introduced issues. End with exactly: "VERDICT: P0=<n> P1=<n> P2=<n>".' 2>&1 | tail -40
+```
+
+```text
+Command running in background with ID: bu7jybje6. Output is being written to: /private/tmp/claude-501/-Users-caoruixin-projects-aifactory/0dd4a781-3421-4623-a115-2871b33e019e/tasks/bu7jybje6.output. You will be notified when it completes. To check interim output, use Read on that file path.
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-08-22 15:25:32Z)**_
+
+第 2 轮评审已在后台运行（第 1 轮耗时约 13 分钟，这轮预计相近）。完成后我会判定残留发现：若没有我认同的 P0/P1（或已到 2 轮上限），就按约定结束评审循环并提交计划审批。
+
+第 1 轮小结：codex 报 1 P0 + 6 P1 + 4 P2，**11 条我全部认同并已修入计划**。含金量最高的三条：
+- **P0**：我原设计的「机架扇出为 8 条路由」会打破 NVL576 的锁定回归测试、且 `#i` 后缀会击穿数据流按连接 ID 建的路径索引——已改为「一条路由挂多条实例几何路径」，语义路由数不变；
+- 相机修复的计划措辞会导致下钻后缩放限位失效（clamp 只放在了 resize 效果里）——已改为导航效果同时更新 clamp；
+- 相机 E2E 断言原来用「截图与默认基线不同」——流高亮本身就会改像素，相机真复位了也能假通过——已改为位姿遥测断言。
+
+---
+
+_**User (2026-08-22 15:32:37Z)**_
+
+<task-notification>
+<task-id>bu7jybje6</task-id>
+<tool-use-id>toolu_01WVceL5rice1DtNZmwVM1Hc</tool-use-id>
+<output-file>/private/tmp/claude-501/-Users-caoruixin-projects-aifactory/0dd4a781-3421-4623-a115-2871b33e019e/tasks/bu7jybje6.output</output-file>
+<status>completed</status>
+<summary>Background command "Round 2: codex re-review of revised plan" completed (exit code 0)</summary>
+</task-notification>
+
+---
+
+_**Agent (claude-fable-5 2026-08-22 15:32:46Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `/private/tmp/claude-501/-Users-caoruixin-projects-aifactory/0dd4a781-3421-4623-a115-2871b33e019e/tasks/bu7jybje6.output`
+
+```text
+1	    83	        <Section title="它是干嘛的">
+2	    84	          <p className="text-sm leading-relaxed">{component.summary}</p>
+3	    85	          {node.note ? <p className="mt-2 text-xs leading-relaxed text-dim">{node.note}</p> : null}
+4	    86	        </Section>
+5	    87	
+6	    88	        {/* ── 售前话术 ── */}
+7	    89	        <div className="rounded-lg border border-warn/30 bg-warn/10 p-3">
+8	    90	          <h3 className="text-[11px] font-semibold tracking-widest text-warn uppercase">
+9	    91	            售前怎么解释
+10	    92	          </h3>
+11	    93	          <p className="mt-1.5 text-sm leading-relaxed">{component.presalesNote}</p>
+12	    94	        </div>
+13	    95	
+14	    96	        {/* ── 数量证据 ── */}
+15	    97	        {node.countClaim ? (
+16	    98	          <Section title="数量出处">
+17	    99	            <ClaimRow name="每个上级里的数量" claim={node.countClaim} />
+18	   100	          </Section>
+19	
+20	codex
+21	The routing/data/highlighting revisions now reconcile with the locked semantic-route identity and the exploded/containment rules. I found three remaining interaction gaps, all within the existing camera/linkage requirements; none are data-gate or build-contract blockers.
+22	codex
+23	1. [P1] | `controlstart` alone does not detect wheel-only zoom, so the resize effect can still reset a user-adjusted camera. | evidence `/Users/caoruixin/.claude/plans/the-goal-toasty-charm.md:67`, `node_modules/camera-controls/readme.md:201,210` | `camera-controls` explicitly states wheel input emits no `controlstart`; after wheel zoom, `userMoved` remains false and resize refits the preset, violating C. | fix: also mark movement from wheel input on the connected canvas, or distinguish user-originated updates from programmatic transitions; add a wheel→resize pose assertion.
+24	
+25	2. [P1] | The equivalent interactive camera in comparison mode remains resize-reset-prone. | evidence `src/components/scene/ComparisonView.tsx:244-262`, `src/pages/FactoryPage.tsx:157`, `/Users/caoruixin/.claude/plans/the-goal-toasty-charm.md:64-68` | `CompareCameraRig` still unconditionally calls `setLookAt` whenever width or height changes, while the revised split applies only to `CameraRig`; comparison mode remains manually controllable and still displays the shared footer. | fix: apply the same navigation/resize split and user-movement tracking to `CompareCameraRig`, preferably through a shared hook, and cover comparison-mode resize in the pose E2E.
+26	
+27	3. [P1] | Hardware-chip clicks cannot guarantee that the promised detail panel becomes visible. | evidence `/Users/caoruixin/.claude/plans/the-goal-toasty-charm.md:53`, `src/pages/FactoryPage.tsx:47,143-150` | `FlowBar` calling only `select(id)` updates the selected assembly, but the right-panel tab is local `FactoryPage` state; if the user is viewing “产能粗估,” the hardware detail remains hidden. | fix: lift/pass the right-tab action so a hardware-chip click both selects the assembly and activates `detail`; test from the capacity tab.
+28	
+29	VERDICT: P0=0 P1=3 P2=0
+30	hook: Stop
+31	hook: Stop Completed
+32	tokens used
+33	193,157
+34	1. [P1] | `controlstart` alone does not detect wheel-only zoom, so the resize effect can still reset a user-adjusted camera. | evidence `/Users/caoruixin/.claude/plans/the-goal-toasty-charm.md:67`, `node_modules/camera-controls/readme.md:201,210` | `camera-controls` explicitly states wheel input emits no `controlstart`; after wheel zoom, `userMoved` remains false and resize refits the preset, violating C. | fix: also mark movement from wheel input on the connected canvas, or distinguish user-originated updates from programmatic transitions; add a wheel→resize pose assertion.
+35	
+36	2. [P1] | The equivalent interactive camera in comparison mode remains resize-reset-prone. | evidence `src/components/scene/ComparisonView.tsx:244-262`, `src/pages/FactoryPage.tsx:157`, `/Users/caoruixin/.claude/plans/the-goal-toasty-charm.md:64-68` | `CompareCameraRig` still unconditionally calls `setLookAt` whenever width or height changes, while the revised split applies only to `CameraRig`; comparison mode remains manually controllable and still displays the shared footer. | fix: apply the same navigation/resize split and user-movement tracking to `CompareCameraRig`, preferably through a shared hook, and cover comparison-mode resize in the pose E2E.
+37	
+38	3. [P1] | Hardware-chip clicks cannot guarantee that the promised detail panel becomes visible. | evidence `/Users/caoruixin/.claude/plans/the-goal-toasty-charm.md:53`, `src/pages/FactoryPage.tsx:47,143-150` | `FlowBar` calling only `select(id)` updates the selected assembly, but the right-panel tab is local `FactoryPage` state; if the user is viewing “产能粗估,” the hardware detail remains hidden. | fix: lift/pass the right-tab action so a hardware-chip click both selects the assembly and activates `detail`; test from the capacity tab.
+39	
+40	VERDICT: P0=0 P1=3 P2=0
+41
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-08-22 15:33:12Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/caoruixin/.claude/plans/the-goal-toasty-charm.md has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-08-22 15:33:15Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/caoruixin/.claude/plans/the-goal-toasty-charm.md has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-08-22 15:33:18Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/caoruixin/.claude/plans/the-goal-toasty-charm.md has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-08-22 16:11:29Z)**_
+
+<tool-use data-tool-type="generic" data-tool-name="ExitPlanMode"><details>
+<summary>Tool use: **ExitPlanMode**</summary>
+
+```text
+User has approved your plan. You can now start coding. Start with updating your todo list if applicable
+
+Your plan has been saved to: /Users/caoruixin/.claude/plans/the-goal-toasty-charm.md
+You can refer back to it if needed during implementation.
+
+## Approved Plan:
+# v1.1 真实性与可读性修复：机房级全连接 + 数据流↔硬件关联
+
+## Context
+
+模拟器 v1.0 已交付并部署（https://caoruixin.github.io/aifactory-sim/ ，仓库 ~/projects/aifactory）。用户实际使用后提出两个成立的问题：
+
+**问题 A（集群视图失真）**：机房设备（机架/交换机/CDU/存储/管理节点/水管/配电）看起来互不相连。审计结论（已完成，事实如下）：
+- `ConnectionLayer.tsx:69` 在 cluster 深度硬过滤：只放行 scaleout+nvlink，**业务/管理/供电/液冷四个平面即使开关打开也不画**；数据包里已有 10 条合法机房级连接被压掉（3 business / 4 mgmt / 1 power / 2 cooling，含 manifold↔CDU、CDU↔一次侧水路、facility→电源架、带外管理上联、DPU→业务交换机→存储）。
+- 内容真缺口：无「机房配电」部件（列头柜/配电柜）；`con.gb300.facility-power-shelf` 的起点是从不渲染的树根 `asm.gb300.facility`（`ClusterScene` 只画 `childrenOf(rootId)`），线会从空气长出。
+- 视觉缺陷：`routing.ts` 对 count>1 的端点只用 instanceIndex 0 → 8 台机架只有第 1 台有线；`layout.ts:142-143` 里 leaf/spine 两盒贴叠（Y 差 0.37m），leaf-spine 线不可见。
+
+**问题 C（视角被没收，根因已定位）**：用户手动旋转/缩放后，点击底部数据流步骤，视角被强制打回默认机位。根因：`CameraRig.tsx:49-68` 的 `useLayoutEffect` 依赖里含 `width, height`，且触发即无条件 `setLookAt(preset)`。FlowBar 的当前步骤卡展开/收起会改变底栏高度 → 画布 resize → effect 重放 → 相机复位。任何改变画布尺寸的操作（点步骤、窗口调整）都会清掉用户视角。
+
+**问题 B（数据流与硬件关联不清）**：播放推理数据流时只有线加粗/小亮点，与具体硬件对不上。如 KV 写入实际是 GPU↔HBM，但 HBM 只有一颗极小常亮微光（`FlowLayer` beacon，半径 0.018），参与步骤的硬件本体不发光、FlowBar 不显示「本步涉及哪些硬件」；托盘/板级下通往托盘外端点（业务交换机等）的线拖成冲出画面的长斜线（用户截图所示）。
+
+目标：集群视图如实呈现六平面机房级连接；数据流每一步与参与硬件的视觉/交互绑定明确。
+
+## 关键既有事实（审计已确认，实现时勿重查）
+
+- 30 条 GB300 连接的逐条 cluster 深度判定见审计：18 条退化（机架内，正确不画）、12 条非退化（2 条 scaleout 已画，10 条被平面过滤）。**放开过滤后大部分连接自动出现，内容层只需补配电一块。**
+- `routing.ts:192-196` 退化边丢弃正确，保留；`visibleChain/visibleAncestorAt` 是折叠入口。
+- 锁行为的测试：`routing.test.ts:78`（GB300 cluster 无 nvlink 路由——**与本次改动不冲突，保留**）、`:88`（NVL576 保留 `con.ru.optics-interrack`——保留）、`:47-53`（rack 深度六平面各≥1）；`pack.test.ts` 连接不变量（端点存在/同系统/from≠to/plane 枚举/`systemId|plane|from|to` 唯一/无 undefined/JSON 往返）；`content.test.ts:130,559-568`（GB300 与 Vera Rubin 六平面覆盖、NVL576 仅 nvlink/power/mgmt/cooling、`:477-483` NVL576 零 scaleout/business）。
+- 高亮机制：选中/悬停走 Hotspot 的 emissive（共享材质需注意——per-mesh 高亮已有现成路径）；透明翻转需 `useTransparencyProgramSync`（GenericShapes，B5 ghost 修复引入）。**不做全局压暗**（共享材质做不了 per-instance 压暗）；只做「参与硬件增亮 + 非当前平面的线降透明」。
+- `PLANE_TOGGLES` 脚注已过时（还写着「集群只画 scale-out」）；cluster 导览场景 preset 收窄 planes 为 `['scaleout','power','cooling']`（`gb300-nvl72.ts:1530`）——放开过滤后正好生效。
+- `FlowStep` 已有 `connectionIds` + `highlightAssemblyIds`；kv-write 步已引用 HBM。types.ts 只增不改（可选字段 `| null`）。
+- 三代包同构：Vera Rubin 同样有 8 条可画机房级连接被压；NVL576 有 3 条（power/cooling）。修改需三代同享（组件层代码本就按 systemId 泛化）。
+
+## 改动设计
+
+### A. 机房级全连接
+
+**A1 放开视图过滤** — `src/components/scene/ConnectionLayer.tsx`
+删除 `:69` 的 cluster 硬过滤，改为：任何**非退化**路由，只要其平面开关打开就画。默认视觉秩序交给场景 preset（导览已收窄平面）与用户开关，不再由渲染层越权决定。同步更新头注释与 `PlaneToggles.tsx:57-60` 脚注（改为「机架内部连接在机架级可见；集群级呈现房间级干线」）。
+
+**A2 机架扇出** — `src/lib/routing.ts`（纯函数，零 three）
+**保持每条内容连接一条 `RoutedConnection`、`connectionId` 不变**（否则打破 `routing.test.ts:93` 对 NVL576 `con.ru.optics-interrack` 恰一条路由的锁定断言，且 `routing.ts:225` 按内容连接 id 建的索引会被 `#i` 后缀击穿——flowTimeline 查不到路径）。做法：`RoutedConnection` 增加 `instancePaths: Path[]` —— 当端点折叠到 count>1 的 rack 节点（cluster 深度 + roleKey==='rack' 限定，mgmt-node 等仍单锚点）时，主路径（instance 0，flow 粒子沿用它）之外为每个实例附加一条几何路径；渲染层把全部 `instancePaths` 画成线。测试：`instancePaths.length===8`、确定性、主路径与旧行为一致、既有两条 nvlink 回归测试**原样通过**（路由条数不变）。
+
+**A3 配电内容补全** — `src/data/shared.ts` + 三代数据文件 + `src/lib/layout.ts`
+- `shared.ts` 新增「机房配电（列头柜/配电母线）」组件：kind `power`，summary/presalesNote 写清「市电→配电→电源架→母排」链路；规格 Claim 全部 `value: null`（RA 未给配电柜参数），sourceIds 引 NVIDIA RA 供电页（存在性）；不发明数字。
+- 三代各加 1 个 cluster 级装配节点（roleKey `facility-power`，parent=facility），并把 `con.*.facility-power-shelf` 的 from 端从 facility 根改指到它——线从可见盒子出发。NVL576 沿用（其电源架 claim 仍为 forecast，连接本身不带 claim，不触发证据规则）。
+- `layout.ts` `PLACEMENTS` 加 `facility-power` 摆位（机架排端头、busway 沿排走向）；leaf/spine 拉开间距**属纯视觉打磨**（线本身 `depthTest=false` 画在最上层，并非「看不见」的根因），以集群截图验证即可。
+- 测试更新：pack/content 测试对新节点/改边的引用完整性自动覆盖；`content.test.ts` 补的断言必须**精确锁改线本身**：三代 `con.*.facility-power-shelf` 的 `fromAssemblyId` === 新 facility-power 装配节点，且 cluster 深度产出的对应路由 `fromAssemblyId` 同样等于它（仅断「存在某条 power 路由」会漏过未改线的情况——现有 facility→power-shelf 边本就非退化）。
+
+### B. 数据流↔硬件关联
+
+**B1 参与硬件增亮** — `src/lib/flowTimeline.ts` + `src/components/scene/`（SceneRoot/GenericShapes/Hotspot 既有高亮路径）
+**不在 store 里存派生 ID**（存了会在下钻/切代际后失效：kv-write 引用的 HBM 装配在 cluster/rack 深度未挂载，而深度变化不经过 setFlow）。改为纯函数 `flowStepFocus(episode, stepIdx, depth)`（放 flowTimeline.ts，附测试），组件内按 `[stepIdx, depth, generation]` useMemo 派生**两个集合**：
+- `chipIds`：步骤引用的精确装配 ID（connectionIds 端点原值 ∪ highlightAssemblyIds）→ 供 FlowBar chips；
+- `sceneHighlightIds`：上述 ID 经 `visibleAncestorAt(depth)` 折叠后的集合 → 供 3D 高亮（kv-write 在机架级折叠为「计算托盘」发光，语义正确，任何深度都有反馈）。
+3D 高亮走与「选中」同级的 emissive 机制（区别色 `--color-accent-2`）。**HBM beacon 维持仅 tray/board 深度显示**（保留 `FlowLayer.tsx:107` 的守卫——粗深度若强行显示只会在第 1 台机架放一颗误导光点，粗深度的反馈由折叠高亮承担）；流动粒子半径按深度独立缩放（cluster×4 / rack×2.5 / board×1，顺带解决 P2「集群级粒子近乎不可见」）。
+
+**B2 FlowBar 步骤卡挂硬件** — `src/components/panels/FlowBar.tsx`
+当前步骤卡下方渲染「本步涉及」chips：来自 `chipIds`，显示组件中文名，点击 = `select(id)` **并激活右栏「部件详情」tab**（tab 是 `FactoryPage.tsx:47` 的本地 state——用户停在「产能粗估」tab 时只 select 看不到详情；把 tab 切换动作下传或上提）+ 相机不动。内容配套两处小改（不加连接、不加数字 claim）：`flows.ts` kv-write 步的 `highlightAssemblyIds` 补上 B300 GPU（现只有 HBM+Grace，讲不完整「GPU 写 KV 进 HBM」的故事）；`gb300-nvl72.ts` HBM 组件叙述补一句 KV Cache（现文案只讲权重与 decode 带宽，chip 点开要能自洽）。narration 已有的逻辑层/物理层徽章保留。
+
+**B3 当前步骤线强调 + 非相关线退让** — `ConnectionLayer.tsx`
+播放中：当前步 `connectionIds` 对应的线加粗（linewidth ×1.8）+ 提亮；其余已开平面的线降 `opacity` 至 ~0.35。**线材质本就常开 `transparent`（`ConnectionLayer.tsx:97`），只改 opacity/linewidth/color，不翻转 transparent，不需要程序重编译处理**（`useTransparencyProgramSync` 仅在 mesh 透明翻转场景使用）。停止播放恢复。`reducedMotion` 下这就是主要反馈（静态高亮升级为「粗+亮 vs 淡」对比）。
+
+**B4 托盘/板级的出界线改「传送门」stub + 修 exploded 坐标失配** — `src/lib/routing.ts` + `ConnectionLayer` + `FlowLayer`
+- **归属判定以「实际渲染的子树根」为准，不是 focus 本身**：board 深度下 focus 可能是 GPU，但 `SceneRoot.tsx:515` 渲染的是其所在托盘——containment root = scene anchor 的托盘装配。三分规则：两端都在托盘内 → 画完整线；恰一端在内 → 在托盘包围盒外 ~0.6m 截断为 stub，末端 drei `<Html>` 小标签「→ 业务交换机」（远端组件名，点击选中远端）；**两端都不在内 → 整条丢弃**（现状 `routing.ts:189` 会把全系统连接都路由出来，正是截图长斜线的另一半来源）。纯函数（三分归类 + 截断点）进 routing.ts 附测试。
+- **修既有 exploded 失配**：board 级硬件按 explode 偏移渲染（`SceneRoot.tsx:430`），但 routing 与 FlowLayer 的 `worldPositionOf` 全部走 `exploded=false`（`routing.ts:186`、`FlowLayer.tsx:54,114`）——线/粒子/beacon 落在收拢坐标上，与拆开的硬件明显脱节。把实际 exploded 状态从 SceneRoot 传入两层并贯穿 `worldPositionOf` 调用。
+
+### C. 视角归用户所有（相机不再被没收）
+
+**C1 拆分 CameraRig 效果** — `src/components/scene/CameraRig.tsx`
+- preset 按 `[level, focusPath, generation, aspect]` useMemo 一份，两个效果共用。
+- 效果 A（导航飞行）：依赖 `[level, focusPath, generation]`（+reducedMotion 决定是否动画）→ **更新 min/maxDistance clamp + `setLookAt(preset)`**（clamp 必须在此更新——只放 resize 效果里会导致下钻后仍套着集群级的缩放限位）。这是唯一允许程序化改机位的路径（下钻/面包屑/导览/代际切换）。
+- 效果 B（尺寸自适应）：依赖 `[width, height]` → 更新 clamp，**不 setLookAt**。例外：用户自上次程序化落位后未动过相机才允许 resize 重新 fit。**`userMoved` 不能只靠 `controlstart`**——camera-controls 文档明确 wheel 缩放不触发 controlstart；需 `controlstart` + canvas 元素上的 `wheel`（及 `pointerdown`）DOM 监听共同置位，程序化 `setLookAt` 完成后复位。
+- **同一套拆分与 `userMoved` 逻辑抽成共享 hook，`ComparisonView.tsx` 内的 `CompareCameraRig`（:244-262，同样可手动操控且当前 resize 即无条件 `setLookAt`）一并接入**——否则比较模式下点步骤/调窗口仍会没收视角。
+- `firstApply` 瞬移逻辑保留。数据流的任何交互（stepIdx/playing/速度/平面开关）不触碰 level/focusPath，依赖拆分后天然不再引发飞行。
+
+**C2 FlowBar 高度稳定**（辅助，消除画布抖动）— `src/components/panels/FlowBar.tsx`
+当前步骤卡展开导致底栏高度跳变（正是触发 resize 的源头）。改为底栏固定高度：narration/presalesNote/chips 区域固定行高 + 内部滚动或收纳，步骤切换不再改变画布尺寸——既消除相机诱因，也消除画面上下跳动。
+
+### 测试与验收
+
+- 单测：routing `instancePaths` 扇出/传送门三分归类与截断/`flowStepFocus` 两集合推导/exploded 贯穿各加用例；既有 349 条不回归（cluster nvlink 两条测试显式保留且路由条数不变）。
+- E2E（`tests/e2e/factory.spec.ts`）：新增/更新——① cluster 深度开启 power+cooling 后像素变化 >0 且配电→机架可见（像素占比断言，沿用既有 drawImage 对比法）；② 8 机架扇出（像素对比）；③ 播放至 kv-write 步：FlowBar 出现「HBM」「B300 GPU」chips、点击后右栏详情跟随（DOM 断言）；④ 板级 ingress 步无出界长线（截图基线）；⑤ **相机保持用位姿断言而非截图差异**（流高亮本身就会改像素，「与默认基线不同」在相机已复位时也能假通过）：CameraRig 在 controls 变化时把 position/target 写入 `data-camera-pose`（或 `window.__cameraPose`，仅 dev/e2e 暴露），断言「拖拽 → 点步骤/resize → 位姿不变」；**补两条**：「仅 wheel 缩放 → resize → 位姿不变」（wheel 不触发 controlstart 的回归）与「比较模式下拖拽 → resize → 位姿不变」；另断言步骤切换前后 canvas 高度恒定（验证 C2）；chip 用例从「产能粗估」tab 出发点击，断言右栏切到部件详情。受影响的旧基线（cluster/rack 全平面/板级）用 `--update-snapshots` 重建并逐张人工核对说明。
+- 门禁：`npm run typecheck && npm test && npm run build` + `PLAYWRIGHT_USE_CHROME_CHANNEL=1 npm run test:e2e` 全绿。
+- 部署：`npm run build:pages` + 推送 gh-pages，线上验证 https://caoruixin.github.io/aifactory-sim/ 集群视图六平面。
+
+### 执行方式
+
+单个实现代理（opus，内容证据纪律 + 3D 改动混合），完成后主循环（fable）复核：cluster 六平面截图、证据规则测试、两条 nvlink 回归测试未被删改；再更新线上部署。已决事项（不再询问）：不建模「外部网关」实体（流程里 ingress 保持逻辑步，避免无来源部件）；不做全局压暗（共享材质限制）；mgmt-node 不扇出（12 实例会糊）。
+
+### 关键文件
+
+- src/components/scene/ConnectionLayer.tsx（放开过滤、线强调/退让、传送门标签）
+- src/lib/routing.ts + routing.test.ts（机架扇出、出界截断）
+- src/data/shared.ts、gb300-nvl72.ts、vera-rubin-nvl72.ts、rubin-ultra-nvl576.ts（配电组件/节点/改边）
+- src/lib/layout.ts（facility-power 摆位、leaf/spine 拉开）
+- src/lib/flowTimeline.ts、src/store.ts、src/components/panels/FlowBar.tsx、src/components/scene/FlowLayer.tsx（activeAssemblyIds、chips、beacon/粒子按深度缩放）
+- src/components/panels/PlaneToggles.tsx（脚注更新）
+- src/components/scene/CameraRig.tsx（效果拆分 + userMoved，视角归用户）
+- tests/e2e/factory.spec.ts（新断言 + 基线重建）
+```
+</details></tool-use>
+
+---
+
+_**User (2026-08-22 16:11:32Z)**_
+
+[Request interrupted by user]
+
+---
+
+_**User (2026-08-22 16:12:15Z)**_
+
+save the plan first and  then organise a self-contained prompt which i can push the work in another session.
+
+---
+
+_**Agent (claude-fable-5 2026-08-22 16:12:31Z)**_
+
+好的：把批准的计划固化进仓库，并给你一份可直接投给新会话的自包含提示词。
+
+_**Agent (claude-fable-5 2026-08-22 16:12:33Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Copy approved plan into repo as PLAN-v1.1.md
+
+`cp /Users/caoruixin/.claude/plans/the-goal-toasty-charm.md /Users/caoruixin/projects/aifactory/PLAN-v1.1.md && head -3 /Users/caoruixin/projects/aifactory/PLAN-v1.1.md`
+
+```text
+# v1.1 真实性与可读性修复：机房级全连接 + 数据流↔硬件关联
+// ... 93 more lines (total: 94)
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-08-22 16:13:05Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Write"><details>
+<summary>Tool use: **Write**</summary>
+
+```md
+# v1.1 实施提示词（自包含，可直接投给新会话）
+
+> 用法：在 `~/projects/aifactory` 目录里开新 Claude Code 会话，把下面整段粘贴进去（或直接说「读 PROMPT-v1.1.md 并执行」）。
+
+---
+
+请实施本仓库的 **v1.1 修复批次**。完整实施计划在仓库根目录 `PLAN-v1.1.md`——**先完整读它**，它已经过两轮 codex（gpt-5.6-sol, xhigh）评审、14 条 P0/P1/P2 发现全部修入，按计划原样实施；如需偏离必须在报告中给出理由。
+
+## 项目背景（30 秒版）
+
+这是「AI Factory 3D 数字孪生模拟器」（Vite 7 + React 19 + TS strict + R3F + zustand + Tailwind v4），v1.0 已交付：三代 NVIDIA 系统（GB300 NVL72 已量产 / Vera Rubin NVL72 已发布 / Rubin Ultra NVL576 分析师预测）的 3D 下钻、六平面连线、推理数据流动画、代际比较、产能粗估、`/report` 汇报页、2D 降级、移动端。已部署 GitHub Pages。v1.1 修三个用户实测问题：**A** 集群视图机房设备看起来互不相连（放开平面过滤 + 补配电部件 + 8 机架扇出）；**B** 数据流步骤与具体硬件对不上（参与硬件发光 + 步骤 chips + 出界线改传送门 + 修 exploded 坐标脱节）；**C** 用户旋转缩放后点数据流步骤视角被强制复位（CameraRig 效果拆分 + userMoved + 底栏定高）。
+
+## 硬约束（违反即返工）
+
+1. `src/lib/` **零 three 导入**（纯元组数学，node 环境 Vitest 依赖此）。
+2. `src/data/types.ts` **只增不改**；可选字段一律 `| null` 而非 `?:`（JSON 往返测试锁定）。
+3. 颜色一律经 `src/lib/palette.ts` 读 CSS 变量，3D 侧不得硬编码 hex。
+4. 每帧动画值放 ref，**绝不进 zustand store**。
+5. `/report` 与 `?gl=off` 降级路径**不得加载 three-vendor** chunk（E2E 网络断言锁定）。
+6. drei 导入白名单：`Instances/Instance, Line, Html, CameraControls, View, Edges, Grid`。
+7. 证据纪律：不发明数字；官方未公布的 Claim `value: null`；verified_spec/vendor_claim 只能引官方源（pack.test.ts 锁定）。
+8. **锁定测试不得删改**：`routing.test.ts` 的两条 cluster-nvlink 回归（GB300 零条 / NVL576 恰一条 `con.ru.optics-interrack`）——A2 扇出必须保持每条内容连接一条路由（`instancePaths` 方案，见计划）。
+9. 禁止修改 `~/projects/llms-study`（只读参考）。
+
+## 门禁与验证
+
+- 每个逻辑提交后：`npm run typecheck && npm test && npm run build` 全绿（当前基线 349 单测）。
+- E2E：`PLAYWRIGHT_USE_CHROME_CHANNEL=1 npm run test:e2e`（沙箱装不了 bundled Chromium，config 已支持系统 Chrome channel；当前基线 13 用例）。按计划新增断言（相机保持必须用**位姿遥测**断言，不能用截图差异——流高亮改像素会造成假通过）；受影响旧基线 `--update-snapshots` 重建并逐张核对。
+- 浏览器实测注意：claude-in-chrome 的标签页常年 `document.hidden` → rAF 节流、canvas 空白；**视觉证据一律用 headless Playwright**，交互断言用 `javascript_tool` 派发真实 `HTMLElement.click()`。
+- 完成后部署：`npm run build:pages` → dist 推送到 `https://github.com/caoruixin/aifactory-sim.git` 的 `gh-pages` 分支（`cd dist && git init -b gh-pages && git add -A && git commit -m deploy && git push -f https://github.com/caoruixin/aifactory-sim.git gh-pages`），线上验证 https://caoruixin.github.io/aifactory-sim/ 集群视图六平面与相机保持。
+- git 提交按逻辑分次，最后一条提交信息末尾加：`Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>`；同时把 main 推到 origin。
+
+## 报告要求
+
+如实报告：完成清单、typecheck/test/build/test:e2e 实际数字、每个新 E2E 断言的结果、与 PLAN-v1.1.md 的任何偏差及理由、线上部署验证结论。不得只报「完成」。
+
+## 收尾
+
+全部绿灯后，把 `PLAN-v1.1.md` 顶部加一行「✅ 已于 <日期> 实施完成（提交 <hash>）」，连同实现一起提交。
+
+```
+
+```text
+File created successfully at: /Users/caoruixin/projects/aifactory/PROMPT-v1.1.md (file state is current in your context — no need to Read it back)
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-08-22 16:13:13Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Commit and push plan and prompt files
+
+```bash
+git add PLAN-v1.1.md PROMPT-v1.1.md && git commit -q -m "固化 v1.1 计划（两轮 codex 评审后定稿）+ 跨会话实施提示词
+
+Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>" && git push -q origin main && git log --oneline | head -2 && git status --short | head -2
+```
+
+```text
+ok 2 files changed, 133 insertions(+)
+ok
+ok
+12dabe3 固化 v1.1 计划（两轮 codex 评审后定稿）+ 跨会话实施提示词
+2133b16 GitHub Pages 部署适配（DEPLOY_BASE/basename/404 兜底）+ 四周学习计划
+ M .specstory/history/2026-08-22_02-58-35Z-the-goal-ai-factory.md
+ M .specstory/statistics.json
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-08-22 16:13:26Z)**_
+
+已完成两件事，都提交并推送到了 GitHub（`main` 分支，提交 `12dabe3`）：
+
+1. **计划已固化进仓库**：`~/projects/aifactory/PLAN-v1.1.md` —— 两轮 codex 评审后的定稿全文（14 条发现全部修入）。
+2. **自包含提示词**：`~/projects/aifactory/PROMPT-v1.1.md` —— 新会话无需任何本对话上下文即可执行。
+
+**新会话最省事的启动方式**（在 `~/projects/aifactory` 目录里开 Claude Code，只说一句）：
+
+```
+读 PROMPT-v1.1.md 并执行
+```
+
+提示词内含五块内容，保证新会话不踩坑：
+
+- **30 秒项目背景** + 三个待修问题（A 机房全连接 / B 数据流↔硬件绑定 / C 视角归用户）的摘要，细节指向 `PLAN-v1.1.md`；
+- **9 条硬约束**：lib 零 three 导入、types 只增不改、颜色走 palette、每帧值不进 store、降级路径不拉 three、drei 白名单、证据纪律、两条锁定回归测试不得删改、llms-study 只读；
+- **门禁与验证**：349 单测基线、`PLAYWRIGHT_USE_CHROME_CHANNEL=1` 跑 E2E、相机断言必须用位姿遥测（不能用截图差异）、沙箱浏览器 rAF 节流的规避方法；
+- **部署收尾**：`build:pages` → 推 gh-pages → 线上验证 https://caoruixin.github.io/aifactory-sim/ ；
+- **报告要求**：实际数字 + 偏差理由，不得只报「完成」。
