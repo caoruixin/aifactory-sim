@@ -18,9 +18,14 @@
  */
 import { expect, test, type Page, type TestInfo } from '@playwright/test'
 import { FACTORY_PACK } from '../../src/data'
+import type { LensChapter, NetworkPlane } from '../../src/data/types'
 import { compareSystems } from '../../src/lib/compare'
+import { emphasizedConnectionIds } from '../../src/lib/connectionEmphasis'
+import { kvTransferLadder, kvTransferRungsOf } from '../../src/lib/kvTransfer'
 import { layoutOf } from '../../src/lib/layout'
+import { DEFAULT_LENS_ID, chapterPlaneFlags, lensChapterAt } from '../../src/lib/lens'
 import { reportComparisonGroups } from '../../src/lib/reportSections'
+import { kvBytesPerToken } from '../../src/lib/roofline'
 import { routeConnections } from '../../src/lib/routing'
 
 const GB300 = 'sys.gb300-nvl72'
@@ -121,6 +126,67 @@ async function gotoAndSettle(page: Page, path: string, settleMs = 500): Promise<
   // FramePump 补帧窗口过完（见下面比较模式用例里单独加长的等待）。这里给个
   // 统一的保守 settle，避免每条截图用例各自摸索时间常数。
   await page.waitForTimeout(settleMs)
+}
+
+// ─────────────────────────── v1.6 切面用的共享 helper ───────────────────────────
+
+/** 章节（`?lens=&chapter=` 的 chapter 是 **1 起算**的，与手册链接同口径）。 */
+function chapterOf(lensId: string, humanNo: number): LensChapter {
+  const chapter = lensChapterAt(lensId, humanNo - 1)
+  if (!chapter) throw new Error(`${lensId} 没有第 ${humanNo} 章`)
+  return chapter
+}
+
+/**
+ * 六平面开关必须**逐项**等于 `chapterPlaneFlags(chapter)`。
+ *
+ * ★ 期望值从 `src/lib/lens.ts` 的纯函数算出来，不在测试里抄一遍平面清单：
+ *   内容包改了章节 planes，这里自动跟着改；真出错时才红。
+ *   选择器用 `[data-plane-toggle=]` 而不是 `section ul li:nth-child()`——切面左栏
+ *   比导览左栏多一个 `<section>`（章节列表），位置型选择器在这一屏太脆。
+ */
+async function expectChapterPlanes(page: Page, chapter: LensChapter, label: string): Promise<void> {
+  const want = chapterPlaneFlags(chapter)
+  for (const plane of Object.keys(PLANE_ROW) as NetworkPlane[]) {
+    const input = page.locator(`[data-plane-toggle="${plane}"] input`)
+    if (want[plane]) await expect(input, `${label} · ${plane} 应当开`).toBeChecked()
+    else await expect(input, `${label} · ${plane} 应当关`).not.toBeChecked()
+  }
+}
+
+/**
+ * 「当前正停在这一章」的完整断言：代际 / 层级 / 焦点 / 左栏高亮 / 右栏面板 / 六平面。
+ * 全部期望值来自章节数据本身（`focusAssemblyId === null` 的纯叙事章不比焦点——
+ * 与 `isChapterStateDirty` 的口径一致）。
+ */
+async function expectOnChapter(
+  page: Page,
+  lensId: string,
+  chapterIdx: number,
+  chapter: LensChapter,
+): Promise<void> {
+  const tag = `${lensId}#${chapterIdx + 1}`
+  await expect(page.locator('main'), tag).toHaveAttribute('data-mode', 'lens')
+  const anchor = page.locator('[data-generation][data-mode]')
+  await expect(anchor, tag).toHaveAttribute('data-generation', chapter.systemId)
+  await expect(anchor, tag).toHaveAttribute('data-level', chapter.lodLevel)
+  await expect(anchor, tag).toHaveAttribute('data-lens-id', lensId)
+  await expect(anchor, tag).toHaveAttribute('data-lens-chapter', String(chapterIdx))
+  if (chapter.focusAssemblyId !== null) {
+    await expect(anchor, tag).toHaveAttribute('data-focus-id', chapter.focusAssemblyId)
+  }
+  // 左栏：本章高亮，且**只有它**一章（同导览 `data-tour-scene-active` 的体例）
+  await expect(page.locator(`[data-lens-chapter="${chapter.id}"]`), tag).toHaveAttribute(
+    'data-lens-chapter-active',
+    '1',
+  )
+  await expect(page.locator('[data-lens-chapter-active="1"]'), tag).toHaveCount(1)
+  // 右栏：章节面板就是这一章
+  await expect(page.locator('[data-lens-chapter-panel]'), tag).toHaveAttribute(
+    'data-lens-chapter-panel',
+    chapter.id,
+  )
+  await expectChapterPlanes(page, chapter, tag)
 }
 
 // ─────────────────────────── 1~3：桌面结构截图 ───────────────────────────
@@ -1449,4 +1515,347 @@ test('移动·W-C HGX 导览站可推进（第五代没有掉出移动端主流�
   await expect(page.locator('[data-tour-stop]')).toHaveAttribute('data-tour-stop', '2')
   // 第 3 站是选型站
   await expect(page.locator('[data-tour-stop]')).toContainText('域')
+})
+
+// ═════════════════════ v1.6 W-D2：领域切面（第四个 ExplorerMode） ═════════════════════
+//
+// 这一组覆盖 lens 模式的**四条落地路径**：顶栏模式按钮、左栏章节点击、`?lens=` 深链、
+// 移动端入口行。共同的纪律与导览那一组完全一致——期望值全部 import 自 `src/lib/`
+// 的纯函数（`lensChapterAt` / `chapterPlaneFlags` / `emphasizedConnectionIds` /
+// `kvTransferLadder`），测试里不抄任何一份章节清单或数字。
+
+test('桌面·W-D 顶栏「切面」按钮：一次把代际/层级/焦点/平面全部落地（不是空壳）', async ({
+  page,
+}, testInfo) => {
+  onlyOn(testInfo, 'desktop')
+  // BreadcrumbBar 的切面按钮走的是 `setLens`（不是裸 `setMode`）——只切 mode 会进到
+  // 一个「左栏在切面里、3D 还停在上一屏」的空壳，这条用例锁的就是「基座真的播下去了」。
+  await gotoAndSettle(page, '/?motion=off', 500)
+  await expect(page.locator('main')).toHaveAttribute('data-mode', 'explore')
+  // 顶栏三个模式按钮（explore / compare / lens）——v1.6 从两个变三个，基线全量重拍的根因。
+  await expect(page.locator('button[data-mode]')).toHaveCount(3)
+
+  await page.click('button[data-mode="lens"]')
+  await page.waitForTimeout(900)
+
+  // 没有历史 ⇒ 落到默认切面的第 1 章；期望值从 lib/lens.ts 现算，不写死。
+  const first = chapterOf(DEFAULT_LENS_ID, 1)
+  await expectOnChapter(page, DEFAULT_LENS_ID, 0, first)
+  await expect(page.locator('button[data-mode="lens"]')).toHaveAttribute('aria-pressed', 'true')
+  // 右栏被章节内容接管（部件详情/产能页签让位），因果链行数与内容包逐位核对
+  await expect(page.locator('[data-right-tab]')).toHaveCount(0)
+  await expect(page.locator('[data-causal-node]')).toHaveCount(first.chain.length)
+})
+
+test('桌面·W-D 章节切换：平面逐项核对 + 跨代章真的换机器（相机不闪跳）', async ({ page }, testInfo) => {
+  onlyOn(testInfo, 'desktop')
+  await gotoAndSettle(page, '/?lens=network&chapter=1&motion=off', 700)
+  const ch1 = chapterOf('lens.network', 1)
+  const ch2 = chapterOf('lens.network', 2)
+  const ch3 = chapterOf('lens.network', 3)
+  await expectOnChapter(page, 'lens.network', 0, ch1)
+
+  // ① 同代换章（rack → cluster）：active 迁移、平面整组换掉
+  await page.click(`[data-lens-chapter="${ch2.id}"]`)
+  await page.waitForTimeout(900)
+  await expectOnChapter(page, 'lens.network', 1, ch2)
+  await expect(page.locator(`[data-lens-chapter="${ch1.id}"]`)).toHaveAttribute(
+    'data-lens-chapter-active',
+    '0',
+  )
+
+  // ② 跨代章（第 3 章 pin 在 Vera Rubin）：代际必须跟着章节换
+  //    ——章节自带 systemId，这是切面与导览最大的差别（导览站永远在本代际内）。
+  expect(ch3.systemId, '第 3 章应当是跨代章').not.toBe(ch2.systemId)
+  const poseBefore = await cameraPose(page)
+  await page.click(`[data-lens-chapter="${ch3.id}"]`)
+  await page.waitForTimeout(1200)
+  await expectOnChapter(page, 'lens.network', 2, ch3)
+  await expect(page.locator('[data-fallback-2d]')).toHaveCount(0)
+  // 换代 = 换整棵装配树 ⇒ 相机必须飞到新机位（位姿保持不变反而说明 3D 没跟上）
+  expect(await cameraPose(page), '跨代换章后相机没有跟着走').not.toBe(poseBefore)
+})
+
+test('桌面·W-D ?lens= 深链：一次到位 / 与 ?tour= 互斥 / ?mode=explore 覆盖退出', async ({
+  page,
+}, testInfo) => {
+  onlyOn(testInfo, 'desktop')
+  const ch2 = chapterOf('lens.network', 2)
+
+  // ① 一次到位：手册任务卡的链接形态
+  await gotoAndSettle(page, '/?lens=network&chapter=2&motion=off', 700)
+  await expectOnChapter(page, 'lens.network', 1, ch2)
+
+  // ② 两个基座互斥、lens 赢：`?tour=` 指的是 rack 级 nvlink 站，若它也落了地，
+  //    层级会变成 rack、平面会变成 nvlink——这里必须仍然是第 2 章的 cluster + scaleout。
+  await gotoAndSettle(page, '/?lens=network&chapter=2&tour=scene.gb300.learn-plane-nvlink&motion=off', 700)
+  await expectOnChapter(page, 'lens.network', 1, ch2)
+  // 左栏是 LensPanel 而不是 TourPanel ⇒ 一个导览站条目都不该在
+  await expect(page.locator('[data-tour-scene]')).toHaveCount(0)
+
+  // ③ 显式 `?mode=explore` 最后落地，盖掉基座强制的 'lens'：
+  //    基座写下的层级/焦点/平面保留（用户要的就是那一屏），但章节不再「生效」。
+  await gotoAndSettle(page, '/?lens=network&chapter=2&mode=explore&motion=off', 700)
+  await expect(page.locator('main')).toHaveAttribute('data-mode', 'explore')
+  const anchor = page.locator('[data-generation][data-mode]')
+  await expect(anchor).toHaveAttribute('data-level', ch2.lodLevel)
+  await expect(anchor).toHaveAttribute('data-focus-id', ch2.focusAssemblyId ?? '')
+  await expectChapterPlanes(page, ch2, 'mode=explore 覆盖后')
+  // 残留的 lensId/序号还在 store 里，但 `activeLensChapter` 的门条件（mode==='lens'）不满足
+  await expect(anchor).toHaveAttribute('data-lens-id', 'lens.network')
+  await expect(anchor).toHaveAttribute('data-lens-chapter', '1')
+  await expect(page.locator('[data-lens-chapter-active="1"]')).toHaveCount(0)
+  await expect(page.locator('[data-lens-chapter-panel]')).toHaveCount(0)
+})
+
+test('桌面·W-D ?lens=storage&chapter=1&gl=off：连接表高亮集合 = 章节强调集合 + 不加载 three-vendor', async ({
+  page,
+}, testInfo) => {
+  onlyOn(testInfo, 'desktop')
+  const requestedUrls: string[] = []
+  page.on('request', (req) => requestedUrls.push(req.url()))
+
+  const ch1 = chapterOf('lens.storage', 1)
+  await gotoAndSettle(page, '/?lens=storage&chapter=1&gl=off', 400)
+  await expect(page.locator('main')).toHaveAttribute('data-mode', 'lens')
+  await expect(page.locator('main')).toHaveAttribute('data-gl', 'none')
+  await expect(page.locator('[data-fallback-2d]')).toHaveCount(1)
+  await expect(page.locator('[data-generation][data-mode]')).toHaveAttribute(
+    'data-generation',
+    ch1.systemId,
+  )
+
+  // ★ 期望集合来自 `connectionEmphasis`（3D 与降级共用的唯一裁决者），不是把三条 ID 抄一遍：
+  //   哪天优先级规则改了，这里会跟着改而不是悄悄失真。
+  const want = [
+    ...emphasizedConnectionIds({
+      mode: 'lens',
+      lens: { lensId: 'lens.storage', chapterIdx: 0 },
+      stepConnectionIds: [],
+      flowPlaying: false,
+      reducedMotion: false,
+      systemId: ch1.systemId,
+    }),
+  ].sort()
+  expect(want.length, '本章应当有被强调的连接').toBeGreaterThan(0)
+
+  await page.click('[data-fallback-2d] [data-tab="connections"]')
+  await page.waitForTimeout(200)
+  const active = page.locator('[data-connection-row][data-active="1"]')
+  await expect(active).toHaveCount(want.length)
+  const got = (
+    await active.evaluateAll((els) => els.map((e) => e.getAttribute('data-connection-row') ?? ''))
+  ).sort()
+  expect(got).toEqual(want)
+  // 对照：本页还有别的连接行，「全亮」不算通过
+  expect(await page.locator('[data-connection-row]').count()).toBeGreaterThan(want.length)
+
+  // 硬规则：`?gl=off` 全程一次 three-vendor 请求都不该有（切面模式同样适用）
+  expect(requestedUrls.filter((u) => u.includes('three-vendor')), '切面 + ?gl=off 加载了 three-vendor').toEqual(
+    [],
+  )
+})
+
+/**
+ * 时长格式化：**刻意**与 `LensCalculator.formatSeconds` 保持同一份实现。
+ *
+ * 数字本身来自 `kvTransferLadder`（import 自 src，不在测试里手算），这里复制的只是
+ * 「µs / ms / s 三档怎么写」的展示规则——组件的局部函数没有导出，为了一个显示细节
+ * 去改 src 的导出面不划算；格式一旦改动，这条用例会红并提醒同步。
+ */
+function formatSecondsLikeUi(seconds: number): string {
+  const ms = seconds * 1000
+  if (ms < 1) return `${(ms * 1000).toFixed(0)} µs`
+  if (ms < 1000) return `${ms.toFixed(ms < 10 ? 2 : 1)} ms`
+  return `${(ms / 1000).toFixed(2)} s`
+}
+
+test('桌面·W-D kv-transfer 计算器：三档链路输出 = kvTransfer 纯函数结果（含 null 档）', async ({
+  page,
+}, testInfo) => {
+  onlyOn(testInfo, 'desktop')
+  // 网络切面第 6 章（域的大小决定并行方式，pin HGX B300）挂的就是这个计算器。
+  const ch6 = chapterOf('lens.network', 6)
+  expect(ch6.calculatorId).toBe('kv-transfer')
+  await gotoAndSettle(page, '/?lens=network&chapter=6&motion=off', 700)
+  await expectOnChapter(page, 'lens.network', 5, ch6)
+  await expect(page.locator('[data-lens-calc]')).toHaveAttribute('data-lens-calc', 'kv-transfer')
+
+  const model = FACTORY_PACK.models[0]!
+  const perToken = kvBytesPerToken(model.kvSpec)
+  expect(perToken, `${model.name} 应当有可算的 KV 口径`).not.toBeNull()
+  const { rungs } = kvTransferRungsOf(ch6.systemId)
+  const out = page.locator('[data-lens-calc-out]')
+
+  // 默认上下文 8192 tokens（组件的初始 state），改成 32768 后再核一遍——
+  // 输出跟着输入走，才说明界面接的是纯函数而不是一串死文本。
+  for (const contextTokens of [8192, 32_768]) {
+    if (contextTokens !== 8192) {
+      await page.fill('[data-lens-calc] input[type="number"]', String(contextTokens))
+      await page.waitForTimeout(300)
+    }
+    const kvGB = (perToken! * contextTokens) / 1e9
+    await expect(out, `${contextTokens} tokens 的 KV 体积`).toContainText(`${kvGB.toFixed(3)} GB`)
+
+    const results = kvTransferLadder(kvGB, rungs)
+    expect(results.length).toBe(3)
+    for (const r of results) {
+      const row = out.locator('li').filter({ hasText: r.label })
+      await expect(row, `${r.label} @ ${contextTokens}`).toHaveCount(1)
+      // 官方没给带宽的那一档（业务存储网 · HGX）必须显示「无法估算」，绝不显示 0
+      await expect(row, `${r.label} @ ${contextTokens}`).toContainText(
+        r.seconds === null ? '无法估算' : formatSecondsLikeUi(r.seconds),
+      )
+    }
+    // 至少一档是 null（HGX 这一代的业务存储网带宽官方未公布）——null 传播不是摆设
+    expect(results.some((r) => r.seconds === null), 'kv-transfer 三档应有 null 档').toBe(true)
+  }
+})
+
+test('桌面·W-D ?motion=off 下换章：连接强调真的落到画面上（相机不动的纯净差分）', async ({
+  page,
+}, testInfo) => {
+  onlyOn(testInfo, 'desktop')
+  // ★ 差分口径为什么干净：存储切面第 1 章与第 4 章**同代际、同层级、同焦点、同平面**
+  //   （都是 GB300 机房总览 + 只开业务网），唯一的差别就是 highlightConnectionIds
+  //   ——第 1 章亮整条分发路径（3 条），第 4 章只亮对象存储那一条。
+  //   坏状态（连接强调没接到 3D）下这个比值恒为 0；实测约 2.3%。
+  const ch1 = chapterOf('lens.storage', 1)
+  const ch4 = chapterOf('lens.storage', 4)
+  expect(ch4.systemId).toBe(ch1.systemId)
+  expect(ch4.lodLevel).toBe(ch1.lodLevel)
+  expect(ch4.focusAssemblyId).toBe(ch1.focusAssemblyId)
+  expect(chapterPlaneFlags(ch4)).toEqual(chapterPlaneFlags(ch1))
+  expect(ch4.highlightConnectionIds).not.toEqual(ch1.highlightConnectionIds)
+
+  await gotoAndSettle(page, '/?lens=storage&chapter=1&motion=off', 1200)
+  await expect(page.locator('[data-fallback-2d]')).toHaveCount(0)
+  const canvas = page.locator('canvas').first()
+  const poseBefore = await cameraPose(page)
+  const before = (await canvas.screenshot()).toString('base64')
+
+  await page.click(`[data-lens-chapter="${ch4.id}"]`)
+  await page.waitForTimeout(1500)
+  await expectOnChapter(page, 'lens.storage', 3, ch4)
+  const after = (await canvas.screenshot()).toString('base64')
+
+  // 相机没动 —— 否则「画面变了」这件事毫无说服力（同 W2 场景高亮那条用例的纪律）
+  expect(await cameraPose(page), '同视角换章却动了相机').toBe(poseBefore)
+  expect(
+    await changedPixelRatio(page, before, after),
+    '换章后画面没有变化（连接强调没有落到 3D？）',
+  ).toBeGreaterThan(0.002)
+})
+
+test('桌面·W-D 切面中手动换代：章节失效出空态，点任意一章即可续读', async ({ page }, testInfo) => {
+  onlyOn(testInfo, 'desktop')
+  // 章节 pin 死代际，手动换代 = 宣告本章视角失效：清序号但**不清 lensId、不改 mode**
+  //（悄悄退回 explore 会让人以为界面自己乱跳，见 store.setGeneration 的注释）。
+  await gotoAndSettle(page, '/?lens=network&chapter=1&motion=off', 700)
+  await expectOnChapter(page, 'lens.network', 0, chapterOf('lens.network', 1))
+
+  await page.click(`button[data-generation="${LPX}"]`)
+  await page.waitForTimeout(800)
+  const anchor = page.locator('[data-generation][data-mode]')
+  await expect(anchor).toHaveAttribute('data-generation', LPX)
+  await expect(page.locator('main')).toHaveAttribute('data-mode', 'lens') // 还在切面里
+  await expect(anchor).toHaveAttribute('data-lens-id', 'lens.network') // 切面没丢
+  await expect(anchor).toHaveAttribute('data-lens-chapter', '-1') // 章节失效
+  await expect(page.locator('[data-lens-chapter-active="1"]')).toHaveCount(0)
+  await expect(page.locator('[data-lens-chapter-panel]')).toHaveCount(0)
+  const empty = page.locator('[data-lens-chapter-empty]')
+  await expect(empty).toHaveCount(1)
+  await expect(empty).toBeVisible()
+  await expect(empty).toContainText('已失效')
+  // 空态里必须点名当前代际（否则用户不知道是自己换代造成的）
+  await expect(empty).toContainText('Groq')
+  // 左栏章节列表还在——空态不是死胡同
+  await expect(page.locator(`[data-lens-chapter="${chapterOf('lens.network', 3).id}"]`)).toHaveCount(1)
+
+  // 点第 3 章（pin 在 Vera Rubin）：一步同时换代 + 恢复章节
+  const ch3 = chapterOf('lens.network', 3)
+  await page.click(`[data-lens-chapter="${ch3.id}"]`)
+  await page.waitForTimeout(1200)
+  await expectOnChapter(page, 'lens.network', 2, ch3)
+  await expect(page.locator('[data-lens-chapter-empty]')).toHaveCount(0)
+})
+
+test('桌面·W-D 切面第 1 章 3D 基线（lens-network-ch1）', async ({ page }, testInfo) => {
+  onlyOn(testInfo, 'desktop')
+  // v1.6 唯一的新增基线：左栏切面章节列表 + 中央机架级 NVLink 强调 + 右栏因果链，
+  // 一张图同时锁住三个新面板的版式。内容正确性由上面的 DOM 用例守，这张只守大改动。
+  await gotoAndSettle(page, '/?lens=network&chapter=1&motion=off', 1200)
+  await expect(page.locator('[data-fallback-2d]')).toHaveCount(0)
+  await expectOnChapter(page, 'lens.network', 0, chapterOf('lens.network', 1))
+  await expect(page).toHaveScreenshot('lens-network-ch1.png')
+})
+
+test('移动·W-D 切面流程：入口 → 推进章节 → 不横向溢出 → Drawer 出因果链 → 退出', async ({
+  page,
+}, testInfo) => {
+  onlyOn(testInfo, 'mobile')
+  const noOverflow = async (label: string) => {
+    const m = await page.evaluate(() => ({
+      doc: document.scrollingElement?.scrollWidth ?? document.documentElement.scrollWidth,
+      win: window.innerWidth,
+    }))
+    expect(m.doc, `${label} 在 390px 下横向溢出（${m.doc} > ${m.win}）`).toBeLessThanOrEqual(m.win)
+  }
+
+  await gotoAndSettle(page, '/?motion=off', 600)
+  await expect(page.locator('[data-mobile-view]')).toHaveCount(1)
+  // 未进切面时入口行在、退出按钮不在
+  await expect(page.locator('[data-mobile-lens-entry]')).toHaveCount(1)
+  await expect(page.locator('[data-mobile-lens-exit]')).toHaveCount(0)
+  await noOverflow('导览态')
+
+  // ① 进入网络切面（点入口 tab = setLens 续读，没有历史就是第 1 章）
+  const ch1 = chapterOf('lens.network', 1)
+  const ch2 = chapterOf('lens.network', 2)
+  await page.click('[data-mobile-lens-tab="lens.network"]')
+  await page.waitForTimeout(900)
+  await expect(page.locator('main')).toHaveAttribute('data-mode', 'lens')
+  await expect(page.locator('[data-mobile-lens-tab="lens.network"]')).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  )
+  await expect(page.locator('[data-lens-chapter-nav]')).toHaveAttribute('data-lens-chapter-nav', ch1.id)
+  await expect(page.locator('[data-mobile-view]')).toHaveAttribute('data-generation', ch1.systemId)
+  await expect(page.locator(`[data-lens-chapter="${ch1.id}"]`)).toHaveAttribute(
+    'data-lens-chapter-active',
+    '1',
+  )
+  // 导览块让位给章节导航：两者不该同时在屏上
+  await expect(page.locator('[data-tour-stop]')).toHaveCount(0)
+  await noOverflow('切面第 1 章')
+
+  // ② 「下一章 ▶」推进
+  await page.click('[data-lens-next="1"]')
+  await page.waitForTimeout(900)
+  await expect(page.locator('[data-lens-chapter-nav]')).toHaveAttribute('data-lens-chapter-nav', ch2.id)
+  await expect(page.locator('[data-mobile-view]')).toHaveAttribute('data-generation', ch2.systemId)
+  await noOverflow('切面第 2 章')
+
+  // ③ 「本章内容 ▸」打开底部 Drawer：内嵌的就是桌面那块 LensChapterPanel
+  await expect(page.locator('[data-causal-node]')).toHaveCount(0) // 抽屉未开时不渲染
+  await page.click('[data-lens-open-chapter]')
+  await page.waitForTimeout(500)
+  await expect(page.locator('[data-drawer="bottom"]')).toHaveCount(1)
+  await expect(page.locator('[data-lens-chapter-panel]')).toHaveAttribute(
+    'data-lens-chapter-panel',
+    ch2.id,
+  )
+  await expect(page.locator('[data-causal-node]')).toHaveCount(ch2.chain.length)
+  await expect(page.locator('[data-drawer="bottom"]')).not.toContainText('**') // 富文本照旧要吃掉星号
+  await noOverflow('本章内容抽屉')
+
+  // ④ 退出切面：回到导览态（左侧入口行仍在，导览块回来）
+  await page.click('[data-drawer="bottom"] button:has-text("关闭")')
+  await page.waitForTimeout(300)
+  await page.click('[data-mobile-lens-exit]')
+  await page.waitForTimeout(600)
+  await expect(page.locator('main')).toHaveAttribute('data-mode', 'explore')
+  await expect(page.locator('[data-lens-chapter-nav]')).toHaveCount(0)
+  await expect(page.locator('[data-tour-stop]')).toHaveCount(1)
+  await noOverflow('退出切面后')
 })
