@@ -307,4 +307,49 @@ export const SHARED_COMPONENTS: HardwareComponent[] = [
       capacityTB: notPublished('TB', RA_SOURCE, '参考架构不指定存储厂商与容量，由客户方案决定。'),
     },
   },
+  {
+    // v1.6 W-A：存储切面的 L3 层（模型分发货仓 / 归档镜像）。溯源边界照冷板先例：
+    // GB300 / HGX 两份参考架构都**不涉及对象存储选型**（全文零出现 object storage / S3），
+    // 「L3 对象存储」是按行业通行推理架构做的建模描述——官方出处只到「远端对象/云存储
+    // 属于 KV 分层与模型分发架构的一层」这一前提（Dynamo KVBM 文档），部件规格一律 value: null。
+    id: 'cmp.shared.object-storage',
+    kind: 'storage',
+    name: 'L3 对象存储（模型货仓 / 归档）',
+    vendor: '第三方存储厂商 / 云服务商',
+    status: 'shipping',
+    summary:
+      '集群外层的对象存储（S3 兼容口径）：模型权重的分发货仓、检查点与 KV 归档的最终去处。' +
+      '⚠️ 行业通行架构的建模描述——GB300/HGX 参考架构均不涉及对象存储选型，' +
+      '官方出处只到「remote file/object/cloud storage 属于 KV 分层的一层」（Dynamo KVBM 文档）。',
+    presalesNote:
+      '讲存储分层时把它放在最外圈：L1 是托盘里的 NVMe、L2 是高性能共享存储、L3 就是这里——' +
+      '容量最便宜、带宽最不承诺。它的两个业务角色：① 模型分发的「货仓」（新副本从这里拉权重，' +
+      '配 Model Streamer 可以 S3 直读进显存）；② 归档与镜像（MTTR 的另一半是「坏了之后从哪儿恢复」）。' +
+      '⚠️ 选型、容量、吞吐都在参考架构范围之外，报数请以客户存储方案为准。',
+    visual: { shape: 'storage-array', colorToken: 'plane-business' },
+    imageUrl: null,
+    sourceIds: ['src.nvidia-dynamo-docs'],
+    specs: {
+      capacityPB: claim({
+        value: null,
+        unit: 'PB',
+        sourceId: 'src.nvidia-dynamo-docs',
+        asOf: '2026-09',
+        confidence: 'low',
+        note:
+          '行业通行架构的建模描述，非官方规格：GB300/HGX 参考架构均不涉及对象存储，' +
+          'NVIDIA 官方材料也未给任何容量口径——由客户方案决定，本项目不编数。',
+      }),
+      aggregateThroughputGBs: claim({
+        value: null,
+        unit: 'GB/s',
+        sourceId: 'src.nvidia-dynamo-docs',
+        asOf: '2026-09',
+        confidence: 'low',
+        note:
+          '行业通行架构的建模描述，非官方规格：对象存储吞吐取决于集群规模与厂商实现，' +
+          '官方未公布任何目标值（对比：L2 共享存储有「每节点最高 40 GB/s」的官方目标）。',
+      }),
+    },
+  },
 ]

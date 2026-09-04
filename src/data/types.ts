@@ -11,7 +11,7 @@
  * 4. 跨代比较永不解析 ID 字符串，只用 `AssemblyNode.roleKey` 配对。
  *
  * ID 前缀规范（`pack.test.ts` 用 regex 强制）：
- *   src. | cmp. | sys. | asm. | con. | flow. | cmpdef. | scene.
+ *   src. | cmp. | sys. | asm. | con. | flow. | cmpdef. | scene. | tech. | lens.
  */
 
 // ─────────────────────────── 证据体系 ───────────────────────────
@@ -407,6 +407,121 @@ export interface ScenePreset {
   presalesNote: string | null
 }
 
+// ─────────────────────────── 领域切面（v1.6：技术注册表 + 因果链） ───────────────────────────
+
+/**
+ * 推理业务指标（v1.6）。`cost-per-token` 仅用于叙事标注，本项目不为它出任何数字
+ * （tokens/成本 的换算涉及商务口径，超出证据纪律能覆盖的范围）。
+ */
+export type InferenceMetric =
+  | 'ttft' // Time To First Token
+  | 'tpot' // Time Per Output Token
+  | 'throughput' // 吞吐（tok/s）
+  | 'cold-start' // 冷启动（权重从存储进 HBM）
+  | 'kv-hit' // KV cache 命中率
+  | 'scalability' // 扩展性（跨机并行的可扩展程度）
+  | 'mttr' // Mean Time To Repair
+  | 'cost-per-token' // ⚠️ 仅叙事标注，不出数
+
+/** serving runtime 技术的类别（v1.6 技术注册表用）。 */
+export type TechniqueCategory =
+  | 'transport' // 传输层（NIXL / GDS）
+  | 'collective' // 集合通信（SHARP / EP all-to-all）
+  | 'kv-management' // KV 管理（KVBM）
+  | 'model-loading' // 模型加载（Model Streamer）
+  | 'orchestration' // 编排（PD 分离）
+  | 'routing' // 网络路由（rail / adaptive routing）
+
+/**
+ * 内联中文标签的关键数字行。⚠️ 不进 `specLabel` 体系——这些数字不参与跨代规格配对，
+ * `key` 只要求在所属 technique / chapter 内唯一，`label` 直接是中文显示名。
+ */
+export interface FigureRow {
+  key: string
+  label: string
+  claim: Claim
+}
+
+/**
+ * serving runtime 技术注册项（`tech.*`）。跨代实体，不属于任何系统文件。
+ * 3D 侧**不建软件层实体**——它只在切面因果链与技术卡里出现。
+ */
+export interface RuntimeTechnique {
+  id: string // tech.*
+  name: string
+  fullName: string | null
+  vendor: string
+  status: ProductStatus
+  category: TechniqueCategory
+  summary: string
+  presalesNote: string
+  /** 依赖的硬件角色（每个键至少存在于一个系统的装配树，pack.test 强制）。 */
+  requiresRoleKeys: string[]
+  planes: NetworkPlane[]
+  /**
+   * 影响的推理环节（复用 flows 的受控枚举）。
+   * ⚠️ 允许空数组：模型加载类技术（cold-start 链路）发生在七阶段推理流之外。
+   */
+  affectsPhases: FlowPhase[]
+  affectsMetrics: InferenceMetric[]
+  figures: FigureRow[]
+  docUrl: string | null
+  sourceIds: string[]
+}
+
+/**
+ * 因果链一行：硬件 → 技术 → 环节 → 指标。
+ * `hardwareRoleKeys` 在**本章 systemId 内**解析（跨代语义键纪律，永不解析 ID）。
+ */
+export interface ChainLink {
+  id: string // 章节内唯一
+  /** [] = 不经硬件（L4 数据库/向量库这类「不在机架里」的叙事行）。 */
+  hardwareRoleKeys: string[]
+  /** null = 硬件直达指标（如 OOB 管理网 → MTTR，中间没有 serving 技术）。 */
+  techniqueId: string | null
+  /** ⚠️ 允许空数组：cold-start 等发生在七阶段推理流之外的链路。 */
+  phases: FlowPhase[]
+  metrics: InferenceMetric[]
+  narrative: string // RichText（支持 **粗体**）
+}
+
+/**
+ * 切面章节。内嵌场景字段（不引用 ScenePreset——避免污染 TourPanel、
+ * 避免给 ScenePreset 加必填字段回填 21 个既有场景）。
+ */
+export interface LensChapter {
+  id: string // 必须以父 lens id + '.' 开头（pack.test 强制）
+  title: string
+  /** 三段式：①看到什么 ②谁连谁+关键数字 ③没有这层会怎样。 */
+  narration: string
+  systemId: string // 章节 pin 代际（可跨代）
+  lodLevel: LodLevel
+  focusAssemblyId: string | null
+  planes: NetworkPlane[]
+  highlightAssemblyIds: string[]
+  /** 新能力：强调连接线（存储路径动线）。ScenePreset 没有这个字段（刻意）。 */
+  highlightConnectionIds: string[]
+  chain: ChainLink[] // ≥1 行
+  keyFigures: FigureRow[]
+  /** 计算器分发键（UI 在 W-C 落地；这里只是数据字段）。 */
+  calculatorId: 'kv-transfer' | 'model-load' | 'kv-restore' | null
+  /** 代际对照跳转（跳转自带换代），指向**同一 lens 内**的真实章节 id。 */
+  crossRefs: { label: string; chapterId: string }[]
+  presalesNote: string | null
+  sourceIds: string[]
+}
+
+/** 领域切面（`lens.*`）：横向视角的学习板块，首批网络 + 存储。 */
+export interface DomainLens {
+  id: string // lens.*
+  domain: 'network' | 'storage'
+  title: string
+  summary: string
+  presalesNote: string | null
+  chapters: LensChapter[]
+  sourceIds: string[]
+}
+
 // ─────────────────────────── 模型（roofline 输入） ───────────────────────────
 
 export type AttentionType = 'MHA' | 'MQA' | 'GQA' | 'MLA' | 'DSA'
@@ -452,6 +567,8 @@ export interface FactoryContentPack {
   comparisons: ComparisonDefinition[]
   scenes: ScenePreset[]
   models: ModelSpec[]
+  techniques: RuntimeTechnique[]
+  lenses: DomainLens[]
 }
 
 /** ID 前缀 → 集合名，`pack.test.ts` 据此强制命名规范。 */
@@ -464,4 +581,6 @@ export const ID_PREFIX = {
   flows: 'flow.',
   comparisons: 'cmpdef.',
   scenes: 'scene.',
+  techniques: 'tech.',
+  lenses: 'lens.',
 } as const

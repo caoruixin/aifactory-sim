@@ -29,8 +29,11 @@ import {
   RUBIN_ULTRA_SCENES,
   RUBIN_ULTRA_SYSTEM,
 } from './rubin-ultra-nvl576'
+import { NETWORK_LENS } from './lenses/network'
+import { STORAGE_LENS } from './lenses/storage'
 import { SHARED_COMPONENTS } from './shared'
 import { SOURCES } from './sources'
+import { TECHNIQUES } from './techniques'
 import {
   VERA_RUBIN_ASSEMBLIES,
   VERA_RUBIN_COMPONENTS,
@@ -41,12 +44,14 @@ import {
 import type {
   AssemblyNode,
   Connection,
+  DomainLens,
   FactoryContentPack,
   FactorySystem,
   FlowEpisode,
   HardwareComponent,
   ModelSpec,
   NetworkPlane,
+  RuntimeTechnique,
   ScenePreset,
   SourceRef,
 } from './types'
@@ -102,6 +107,9 @@ export const FACTORY_PACK: FactoryContentPack = {
     ...HGX_B300_SCENES,
   ],
   models: MODELS,
+  // v1.6 W-A：切面学习板块的两个新集合（跨代实体，不属于任何系统文件）
+  techniques: TECHNIQUES,
+  lenses: [NETWORK_LENS, STORAGE_LENS],
 }
 
 // ─────────────────────────── byId 索引 ───────────────────────────
@@ -118,6 +126,8 @@ const assemblyIndex = indexBy(FACTORY_PACK.assemblies)
 const connectionIndex = indexBy(FACTORY_PACK.connections)
 const sceneIndex = indexBy(FACTORY_PACK.scenes)
 const modelIndex = indexBy(FACTORY_PACK.models)
+const techniqueIndex = indexBy(FACTORY_PACK.techniques)
+const lensIndex = indexBy(FACTORY_PACK.lenses)
 
 // ─────────────────────────── 查询辅助（纯函数） ───────────────────────────
 
@@ -147,6 +157,14 @@ export function sceneById(id: string): ScenePreset | undefined {
 
 export function modelById(id: string): ModelSpec | undefined {
   return modelIndex.get(id)
+}
+
+export function techniqueById(id: string): RuntimeTechnique | undefined {
+  return techniqueIndex.get(id)
+}
+
+export function lensById(id: string): DomainLens | undefined {
+  return lensIndex.get(id)
 }
 
 /** 某系统的全部装配节点。 */
@@ -260,6 +278,8 @@ export interface PackStats {
   comparisons: number
   scenes: number
   models: number
+  techniques: number
+  lenses: number
 }
 
 export function packStats(pack: FactoryContentPack = FACTORY_PACK): PackStats {
@@ -273,6 +293,8 @@ export function packStats(pack: FactoryContentPack = FACTORY_PACK): PackStats {
     comparisons: pack.comparisons.length,
     scenes: pack.scenes.length,
     models: pack.models.length,
+    techniques: pack.techniques.length,
+    lenses: pack.lenses.length,
   }
 }
 

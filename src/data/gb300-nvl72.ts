@@ -953,6 +953,23 @@ export const GB300_ASSEMBLIES: AssemblyNode[] = [
     note: '参考架构不指定存储厂商与规模。',
   },
   {
+    // v1.6 W-A：存储切面的 L3 层。参考架构零涉及对象存储——数量与形态均为建模示意，
+    // 规格纪律见 cmp.shared.object-storage 的组件 note。
+    id: 'asm.gb300.object-storage',
+    systemId: SYSTEM_ID,
+    parentId: 'asm.gb300.facility',
+    componentId: 'cmp.shared.object-storage',
+    roleKey: 'object-storage',
+    label: 'L3 对象存储（模型货仓 / 归档）',
+    count: 1,
+    countClaim: null,
+    lodLevel: 'cluster',
+    rackU: null,
+    note:
+      '⚠️ 行业通行架构的建模示意：GB300 参考架构不涉及对象存储选型（全文零出现），' +
+      '此处只表达「模型分发/归档还有更外一层」的架构位置，数量为示意。',
+  },
+  {
     id: 'asm.gb300.row',
     systemId: SYSTEM_ID,
     parentId: 'asm.gb300.facility',
@@ -1442,6 +1459,25 @@ export const GB300_CONNECTIONS: Connection[] = [
     label: '汇聚交换机 ↔ 外部存储',
     summary: '训练数据、模型权重与检查点经这条路径进出机架，是「喂饱 GPU」的关键链路。',
     sourceIds: [RA_SOURCE],
+  },
+  {
+    // v1.6 W-A：L3 对象存储接入业务/存储网。参考架构不涉及这一层，
+    // 连接存在性是建模描述（见 asm.gb300.object-storage 的 note），带宽官方无数 → null。
+    id: 'con.gb300.objstore-converged',
+    systemId: SYSTEM_ID,
+    fromAssemblyId: 'asm.gb300.converged-switch',
+    toAssemblyId: 'asm.gb300.object-storage',
+    plane: 'business',
+    topology: 'fat-tree',
+    medium: 'optical-fiber',
+    protocol: 'Ethernet（S3/对象存储）',
+    bandwidth: null,
+    direction: 'bidirectional',
+    label: '汇聚交换机 ↔ L3 对象存储',
+    summary:
+      '模型权重从货仓进集群、检查点与归档出集群的路径。⚠️ 行业通行架构的建模示意——' +
+      '参考架构不涉及对象存储，带宽无官方数字（对比：到 L2 共享存储有每节点 40 GB/s 的官方目标）。',
+    sourceIds: ['src.nvidia-dynamo-docs'],
   },
   {
     id: 'con.gb300.mgmt-node-converged',

@@ -1621,6 +1621,23 @@ export const HGX_B300_ASSEMBLIES: AssemblyNode[] = [
       '与「up to 40 GB/s per node」的节点侧吞吐；具体阵列选型由客户方案决定。',
   },
   {
+    // v1.6 W-A：存储切面的 L3 层，与 GB300 同构。HGX RA 同样零涉及对象存储——
+    // 数量与形态均为建模示意，规格纪律见 cmp.shared.object-storage 的组件 note。
+    id: 'asm.hgx.object-storage',
+    systemId: SYSTEM_ID,
+    parentId: 'asm.hgx.facility',
+    componentId: 'cmp.shared.object-storage',
+    roleKey: 'object-storage',
+    label: 'L3 对象存储（模型货仓 / 归档）',
+    count: 1,
+    countClaim: null,
+    lodLevel: 'cluster',
+    rackU: null,
+    note:
+      '⚠️ 行业通行架构的建模示意：HGX 参考架构不涉及对象存储选型（全文零出现），' +
+      '此处只表达「模型分发/归档还有更外一层」的架构位置，数量为示意。',
+  },
+  {
     id: 'asm.hgx.scaleout-spine',
     systemId: SYSTEM_ID,
     parentId: 'asm.hgx.facility',
@@ -2183,6 +2200,26 @@ export const HGX_B300_CONNECTIONS: Connection[] = [
       '会是未来负载，建议 DPU 选 400G 的 B3240 而不是 200G 的 B3220，为突发 I/O 留余量。' +
       '⚠️ 具体存储阵列的带宽目标由客户方案决定，RA 只给了每 GPU 的下限。',
     sourceIds: [HGX_RA],
+  },
+  {
+    // v1.6 W-A：L3 对象存储接入汇聚网，与 GB300 的 objstore-converged 同构。
+    // HGX RA 不涉及这一层，连接存在性是建模描述，带宽官方无数 → null。
+    id: 'con.hgx.objstore-converged',
+    systemId: SYSTEM_ID,
+    fromAssemblyId: 'asm.hgx.converged-switch',
+    toAssemblyId: 'asm.hgx.object-storage',
+    plane: 'business',
+    topology: 'fat-tree',
+    medium: 'optical-fiber',
+    protocol: 'Ethernet（S3/对象存储）',
+    bandwidth: null,
+    direction: 'bidirectional',
+    label: '汇聚交换层 ↔ L3 对象存储',
+    summary:
+      '模型权重从货仓进集群、检查点与归档出集群的路径。⚠️ 行业通行架构的建模示意——' +
+      'HGX 参考架构不涉及对象存储，带宽无官方数字；这一代官方点名的「KV cache 卸载到高速网络存储」' +
+      '指的是 L2 共享存储那一层，不是这里。',
+    sourceIds: ['src.nvidia-dynamo-docs'],
   },
   {
     id: 'con.hgx.converged-control-plane',

@@ -307,6 +307,8 @@ describe('rack 深度出界截断（v1.2 F1）', () => {
   const OUTSIDE = [
     'con.gb300.leaf-spine',
     'con.gb300.converged-storage',
+    // v1.6 W-A：汇聚交换机 ↔ L3 对象存储（存储切面新增，两端都是 cluster 级节点）
+    'con.gb300.objstore-converged',
     'con.gb300.mgmt-node-converged',
     'con.gb300.mgmt-node-oob',
     'con.gb300.leaf-oob',
@@ -340,13 +342,13 @@ describe('rack 深度出界截断（v1.2 F1）', () => {
     'con.gb300.nvswitch-cold-plate-manifold',
   ] as const
 
-  it('条数：不截断 25 条（30 条连接减 5 条退化边）→ 截断后 18 条', () => {
-    expect(plain).toHaveLength(25)
+  it('条数：不截断 26 条（31 条连接减 5 条退化边；v1.6 +objstore-converged）→ 截断后 18 条', () => {
+    expect(plain).toHaveLength(26)
     expect(clipped).toHaveLength(18)
-    expect(OUTSIDE.length + Object.keys(CROSSING).length + INSIDE.length).toBe(25)
+    expect(OUTSIDE.length + Object.keys(CROSSING).length + INSIDE.length).toBe(26)
   })
 
-  it('7 条两端都在机架外的线整条消失（逐条点名）', () => {
+  it('8 条两端都在机架外的线整条消失（逐条点名）', () => {
     for (const id of OUTSIDE) {
       expect(byId(plain, id), `${id} 在不截断时应当存在`).toBeDefined()
       expect(byId(clipped, id), `${id} 两端都在机架外，应当被整条丢弃`).toBeUndefined()

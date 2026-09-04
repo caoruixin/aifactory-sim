@@ -28,6 +28,47 @@ const componentIds = new Set(pack.components.map((c) => c.id))
 const assemblyById = new Map(pack.assemblies.map((a) => [a.id, a]))
 const systemIds = new Set(pack.systems.map((s) => s.id))
 
+// ── v1.6 切面/技术注册表的受控枚举与索引 ──
+const METRICS = new Set([
+  'ttft',
+  'tpot',
+  'throughput',
+  'cold-start',
+  'kv-hit',
+  'scalability',
+  'mttr',
+  'cost-per-token',
+])
+const TECHNIQUE_CATEGORIES = new Set([
+  'transport',
+  'collective',
+  'kv-management',
+  'model-loading',
+  'orchestration',
+  'routing',
+])
+const FLOW_PHASES = new Set([
+  'ingress',
+  'prefill',
+  'kv-write',
+  'decode',
+  'moe-dispatch',
+  'moe-combine',
+  'egress',
+])
+const CALCULATOR_IDS = new Set(['kv-transfer', 'model-load', 'kv-restore', null])
+const techniqueIds = new Set(pack.techniques.map((t) => t.id))
+const connectionById = new Map(pack.connections.map((c) => [c.id, c]))
+/** systemId → 该系统装配树的 roleKey 集合（ChainLink.hardwareRoleKeys 在本章系统内解析）。 */
+const roleKeysBySystem = new Map<string, Set<string>>()
+for (const a of pack.assemblies) {
+  const set = roleKeysBySystem.get(a.systemId) ?? new Set<string>()
+  set.add(a.roleKey)
+  roleKeysBySystem.set(a.systemId, set)
+}
+/** 全系统 roleKey 并集（RuntimeTechnique.requiresRoleKeys 只要求「至少存在于一个系统」）。 */
+const allRoleKeys = new Set(pack.assemblies.map((a) => a.roleKey))
+
 /** 遍历包里所有 Claim，附带一个可读的定位串便于失败时排查。 */
 function allClaims(): { where: string; claim: Claim }[] {
   const out: { where: string; claim: Claim }[] = []
@@ -42,6 +83,17 @@ function allClaims(): { where: string; claim: Claim }[] {
   }
   for (const c of pack.connections) {
     if (c.bandwidth) out.push({ where: `connection ${c.id}.bandwidth`, claim: c.bandwidth })
+  }
+  // v1.6：技术注册表与切面章节的关键数字行（官方源限制等规则自动覆盖）
+  for (const t of pack.techniques) {
+    for (const f of t.figures) out.push({ where: `technique ${t.id}.figures.${f.key}`, claim: f.claim })
+  }
+  for (const lens of pack.lenses) {
+    for (const ch of lens.chapters) {
+      for (const f of ch.keyFigures) {
+        out.push({ where: `lens chapter ${ch.id}.keyFigures.${f.key}`, claim: f.claim })
+      }
+    }
   }
   return out
 }
@@ -85,6 +137,19 @@ function claimsWithSystems(): { where: string; claim: Claim; systemIds: string[]
   for (const c of pack.connections) {
     if (c.bandwidth) out.push({ where: `connection ${c.id}.bandwidth`, claim: c.bandwidth, systemIds: [c.systemId] })
   }
+  // v1.6：章节 keyFigures 挂本章 pin 的代际；technique figures 是跨代实体，挂空集合
+  for (const t of pack.techniques) {
+    for (const f of t.figures) {
+      out.push({ where: `technique ${t.id}.figures.${f.key}`, claim: f.claim, systemIds: [] })
+    }
+  }
+  for (const lens of pack.lenses) {
+    for (const ch of lens.chapters) {
+      for (const f of ch.keyFigures) {
+        out.push({ where: `lens chapter ${ch.id}.keyFigures.${f.key}`, claim: f.claim, systemIds: [ch.systemId] })
+      }
+    }
+  }
   return out
 }
 
@@ -98,6 +163,8 @@ describe('ID 唯一性与命名规范', () => {
     ['flows', pack.flows],
     ['comparisons', pack.comparisons],
     ['scenes', pack.scenes],
+    ['techniques', pack.techniques],
+    ['lenses', pack.lenses],
   ]
 
   it('全集合 ID 全局唯一（跨集合也不重复）', () => {
@@ -802,6 +869,180 @@ describe('推理数据流剧本（FlowEpisode）通用不变量', () => {
     for (const f of pack.flows) {
       const total = f.steps.reduce((sum, s) => sum + s.durationHint, 0)
       expect(total, f.id).toBeLessThan(60)
+    }
+  })
+})
+
+// ═══════════════════════════ v1.6：技术注册表（RuntimeTechnique） ═══════════════════════════
+
+describe('技术注册表不变量（v1.6 W-A）', () => {
+  it('首批 9 条技术存在', () => {
+    expect(pack.techniques.length).toBe(9)
+  })
+
+  it('category / planes / affectsPhases / affectsMetrics 取值合法，metrics 非空', () => {
+    for (const t of pack.techniques) {
+      expect(TECHNIQUE_CATEGORIES.has(t.category), `${t.id}.category=${t.category}`).toBe(true)
+      for (const p of t.planes) expect(PLANES.has(p), `${t.id}.planes 含非法值 ${p}`).toBe(true)
+      // ⚠️ affectsPhases 允许空数组：模型加载类技术（cold-start 链路）发生在七阶段推理流之外
+      for (const ph of t.affectsPhases) {
+        expect(FLOW_PHASES.has(ph), `${t.id}.affectsPhases 含非法值 ${ph}`).toBe(true)
+      }
+      expect(t.affectsMetrics.length, `${t.id}.affectsMetrics 不能为空`).toBeGreaterThan(0)
+      for (const m of t.affectsMetrics) {
+        expect(METRICS.has(m), `${t.id}.affectsMetrics 含非法值 ${m}`).toBe(true)
+      }
+    }
+  })
+
+  it('★ requiresRoleKeys 非空，且每个键至少存在于一个系统的装配树', () => {
+    for (const t of pack.techniques) {
+      expect(t.requiresRoleKeys.length, `${t.id}.requiresRoleKeys 不能为空`).toBeGreaterThan(0)
+      for (const k of t.requiresRoleKeys) {
+        expect(allRoleKeys.has(k), `${t.id} 依赖了任何系统里都不存在的 roleKey「${k}」`).toBe(true)
+      }
+    }
+  })
+
+  it('sourceIds 与 figures 的 claim.sourceId 全部指向已登记的源', () => {
+    for (const t of pack.techniques) {
+      expect(t.sourceIds.length, `${t.id}.sourceIds 不能为空`).toBeGreaterThan(0)
+      for (const sid of t.sourceIds) expect(sourceById.has(sid), `${t.id} → ${sid}`).toBe(true)
+      for (const f of t.figures) {
+        expect(sourceById.has(f.claim.sourceId), `${t.id}.figures.${f.key} → ${f.claim.sourceId}`).toBe(true)
+      }
+    }
+  })
+
+  it('name / summary / presalesNote 非空；figures 的 key 在同一技术内唯一、label 非空', () => {
+    for (const t of pack.techniques) {
+      expect(t.name.trim().length, `${t.id}.name`).toBeGreaterThan(0)
+      expect(t.summary.trim().length, `${t.id}.summary`).toBeGreaterThan(0)
+      expect(t.presalesNote.trim().length, `${t.id}.presalesNote`).toBeGreaterThan(0)
+      const seen = new Set<string>()
+      for (const f of t.figures) {
+        expect(seen.has(f.key), `${t.id}.figures.${f.key} 重复`).toBe(false)
+        seen.add(f.key)
+        expect(f.label.trim().length, `${t.id}.figures.${f.key}.label`).toBeGreaterThan(0)
+      }
+    }
+  })
+})
+
+// ═══════════════════════════ v1.6：领域切面（DomainLens / LensChapter） ═══════════════════════════
+
+describe('切面与章节不变量（v1.6 W-A）', () => {
+  it('网络与存储两个切面存在，每个切面 ≥1 章、每章 chain ≥1 行', () => {
+    expect(pack.lenses.map((l) => l.domain).sort()).toEqual(['network', 'storage'])
+    for (const lens of pack.lenses) {
+      expect(lens.chapters.length, `${lens.id} 至少一章`).toBeGreaterThan(0)
+      for (const ch of lens.chapters) {
+        expect(ch.chain.length, `${ch.id} 的 chain 至少一行`).toBeGreaterThan(0)
+      }
+    }
+  })
+
+  it('★ 章节 id 以父 lens id + "." 开头，且全包内唯一（含跨 lens）', () => {
+    const seen = new Set<string>()
+    for (const lens of pack.lenses) {
+      for (const ch of lens.chapters) {
+        expect(ch.id.startsWith(`${lens.id}.`), `${ch.id} 应以 ${lens.id}. 开头`).toBe(true)
+        expect(ID_TAIL_RE.test(ch.id.slice('lens.'.length)), `${ch.id} 尾段不合规`).toBe(true)
+        expect(seen.has(ch.id), `章节 id ${ch.id} 重复`).toBe(false)
+        seen.add(ch.id)
+      }
+    }
+  })
+
+  it('★ 章节场景引用完整：systemId 存在，focus / highlight 装配与连接都存在且属本章系统', () => {
+    for (const lens of pack.lenses) {
+      for (const ch of lens.chapters) {
+        expect(systemIds.has(ch.systemId), `${ch.id} 的 systemId ${ch.systemId} 不存在`).toBe(true)
+        if (ch.focusAssemblyId !== null) {
+          const node = assemblyById.get(ch.focusAssemblyId)
+          expect(node, `${ch.id} 的 focus ${ch.focusAssemblyId} 不存在`).toBeDefined()
+          expect(node!.systemId, `${ch.id} 的 focus 跨系统`).toBe(ch.systemId)
+        }
+        for (const id of ch.highlightAssemblyIds) {
+          const node = assemblyById.get(id)
+          expect(node, `${ch.id} 高亮了不存在的装配节点 ${id}`).toBeDefined()
+          expect(node!.systemId, `${ch.id} 高亮的 ${id} 跨系统`).toBe(ch.systemId)
+        }
+        for (const id of ch.highlightConnectionIds) {
+          const conn = connectionById.get(id)
+          expect(conn, `${ch.id} 强调了不存在的连接 ${id}`).toBeDefined()
+          expect(conn!.systemId, `${ch.id} 强调的连接 ${id} 跨系统`).toBe(ch.systemId)
+        }
+        for (const p of ch.planes) expect(PLANES.has(p), `${ch.id} 的平面 ${p} 非法`).toBe(true)
+      }
+    }
+  })
+
+  it('★ 因果链引用完整：techniqueId 存在（或 null），hardwareRoleKeys 在本章系统内可解析', () => {
+    for (const lens of pack.lenses) {
+      for (const ch of lens.chapters) {
+        const localRoleKeys = roleKeysBySystem.get(ch.systemId) ?? new Set<string>()
+        const seen = new Set<string>()
+        for (const link of ch.chain) {
+          expect(seen.has(link.id), `${ch.id}.chain.${link.id} 重复`).toBe(false)
+          seen.add(link.id)
+          if (link.techniqueId !== null) {
+            expect(techniqueIds.has(link.techniqueId), `${ch.id}.chain.${link.id} 引用了不存在的技术 ${link.techniqueId}`).toBe(true)
+          }
+          // [] = 不经硬件的 L4 叙事行，合法；非空时每个 roleKey 必须在本章 systemId 内存在
+          for (const k of link.hardwareRoleKeys) {
+            expect(
+              localRoleKeys.has(k),
+              `${ch.id}.chain.${link.id} 的 roleKey「${k}」在 ${ch.systemId} 里不存在`,
+            ).toBe(true)
+          }
+          for (const ph of link.phases) expect(FLOW_PHASES.has(ph), `${ch.id}.chain.${link.id}.phases 含 ${ph}`).toBe(true)
+          expect(link.metrics.length, `${ch.id}.chain.${link.id}.metrics 不能为空`).toBeGreaterThan(0)
+          for (const m of link.metrics) expect(METRICS.has(m), `${ch.id}.chain.${link.id}.metrics 含 ${m}`).toBe(true)
+          expect(link.narrative.trim().length, `${ch.id}.chain.${link.id}.narrative`).toBeGreaterThan(0)
+        }
+      }
+    }
+  })
+
+  it('keyFigures 的 key 章内唯一、label 非空、sourceId 已登记；calculatorId 取值合法', () => {
+    for (const lens of pack.lenses) {
+      for (const ch of lens.chapters) {
+        const seen = new Set<string>()
+        for (const f of ch.keyFigures) {
+          expect(seen.has(f.key), `${ch.id}.keyFigures.${f.key} 重复`).toBe(false)
+          seen.add(f.key)
+          expect(f.label.trim().length, `${ch.id}.keyFigures.${f.key}.label`).toBeGreaterThan(0)
+          expect(sourceById.has(f.claim.sourceId), `${ch.id}.keyFigures.${f.key} → ${f.claim.sourceId}`).toBe(true)
+        }
+        expect(CALCULATOR_IDS.has(ch.calculatorId), `${ch.id}.calculatorId=${String(ch.calculatorId)}`).toBe(true)
+      }
+    }
+  })
+
+  it('crossRefs 指向同一 lens 内的真实章节且非自引；title / narration 非空', () => {
+    for (const lens of pack.lenses) {
+      const chapterIds = new Set(lens.chapters.map((c) => c.id))
+      for (const ch of lens.chapters) {
+        expect(ch.title.trim().length, `${ch.id}.title`).toBeGreaterThan(0)
+        expect(ch.narration.trim().length, `${ch.id}.narration`).toBeGreaterThan(0)
+        for (const ref of ch.crossRefs) {
+          expect(chapterIds.has(ref.chapterId), `${ch.id}.crossRefs → ${ref.chapterId} 不在 ${lens.id} 内`).toBe(true)
+          expect(ref.chapterId, `${ch.id} 的 crossRef 自引`).not.toBe(ch.id)
+          expect(ref.label.trim().length, `${ch.id}.crossRefs.label`).toBeGreaterThan(0)
+        }
+      }
+    }
+  })
+
+  it('lens 与章节的 sourceIds 全部指向已登记的源', () => {
+    for (const lens of pack.lenses) {
+      expect(lens.sourceIds.length, `${lens.id}.sourceIds 不能为空`).toBeGreaterThan(0)
+      for (const sid of lens.sourceIds) expect(sourceById.has(sid), `${lens.id} → ${sid}`).toBe(true)
+      for (const ch of lens.chapters) {
+        expect(ch.sourceIds.length, `${ch.id}.sourceIds 不能为空`).toBeGreaterThan(0)
+        for (const sid of ch.sourceIds) expect(sourceById.has(sid), `${ch.id} → ${sid}`).toBe(true)
+      }
     }
   })
 })

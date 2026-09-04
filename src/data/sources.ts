@@ -463,6 +463,170 @@ export const SOURCES: SourceRef[] = [
     asOf: '2026-06',
     note: '⚠️ 券商报告。仅背景路线图，禁止进入 countClaim 或组件 specs。',
   },
+
+  // ═══════════════ v1.6 W-A：切面/技术注册表新源（9 条，2026-09 逐一实访核实） ═══════════════
+  {
+    id: 'src.nvidia-dynamo-docs',
+    title: 'NVIDIA Dynamo 官方文档（含 KVBM / 分离式 serving）',
+    publisher: 'NVIDIA',
+    kind: 'official_doc',
+    url: 'https://docs.nvidia.com/dynamo/latest/',
+    localFile: null,
+    asOf: '2026-09',
+    note:
+      '实访于 2026-09。⚠️ docs 站已改版：latest/architecture/ 下的 kvbm_intro.html / ' +
+      'kvbm_architecture.html 均已 404，KVBM 实质内容页在版本化路径 ' +
+      'docs.nvidia.com/dynamo/v-0-8-1/components/kvbm/overview（引用时 locator 用该路径）。' +
+      'KVBM 定义原句：「The Dynamo KV Block Manager (KVBM) is a scalable runtime component designed to ' +
+      'handle memory allocation, management, and remote sharing of Key-Value (KV) blocks for inference ' +
+      'tasks across heterogeneous and distributed environments.」统一内存 API 覆盖的层级原句：' +
+      '「GPU memory (in future), pinned host memory, remote RDMA-accessible memory, local or distributed ' +
+      'pool of SSDs and remote file/object/cloud storage systems」；「Integration with NIXL, a dynamic ' +
+      'memory exchange layer used for remote registration, sharing, and access of memory blocks over ' +
+      'RDMA/NVLink.」GitHub ai-dynamo/dynamo README 另有分离式 serving 描述「Separates prefill and ' +
+      'decode into independently scalable GPU pools」与 KV 卸载「Offloads KV cache across GPU → CPU → ' +
+      'SSD → remote storage」。★ 纪律：架构描述可 verified_spec；README/营销页上的性能倍数只能 ' +
+      'vendor_claim 且逐字核到原文才可引用——本项目未逐字核到的倍数一律不建 Claim。',
+  },
+  {
+    id: 'src.nvidia-nixl-repo',
+    title: 'NIXL（NVIDIA Inference Xfer Library）GitHub 仓库 README',
+    publisher: 'NVIDIA',
+    kind: 'official_doc',
+    url: 'https://github.com/ai-dynamo/nixl',
+    localFile: null,
+    asOf: '2026-09',
+    note:
+      '实访于 2026-09。定位原句：「NVIDIA Inference Xfer Library (NIXL) is targeted for accelerating ' +
+      'point to point communications in AI inference frameworks such as NVIDIA Dynamo, while providing ' +
+      'an abstraction over various types of memory (e.g., CPU and GPU) and storage (e.g., file, block ' +
+      'and object store) through a modular plug-in architecture.」插件清单（2026-09 时点）：UCX / GDS / ' +
+      'POSIX / OBJ / AZURE_BLOB / HF3FS / MOONCAKE / GUSLI / UCCL / GPUNETIO / LIBFABRIC / NVSHMEM。' +
+      '★ README **没有任何硬性能数字**——本源只能承载能力清单类 verified_spec（字符串值），' +
+      '任何数值型 Claim 从本源引出都是编造。',
+  },
+  {
+    id: 'src.nvidia-sharp-docs',
+    title: 'NVIDIA SHARP（Scalable Hierarchical Aggregation and Reduction Protocol）文档 Rev 3.0.0',
+    publisher: 'NVIDIA',
+    kind: 'official_doc',
+    url: 'https://networking-docs.nvidia.com/sharpum/300',
+    localFile: null,
+    asOf: '2026-09',
+    note:
+      '实访于 2026-09。⚠️ 旧入口 docs.nvidia.com/networking/display/sharpv300 现为 302 重定向，' +
+      '本条登记重定向终点。SHARP 作用原句：「improves the performance of MPI and Machine Learning ' +
+      'collective operation, by offloading collective operations from CPUs and GPUs to the network and ' +
+      'eliminating the need to send data multiple times between endpoints」「This innovative approach ' +
+      'decreases the amount of data traversing the network as aggregation nodes are reached, and ' +
+      'dramatically reduces collective operations time.」★ 该文档**无硬数字**——NVLink 6 SHARP 的 ' +
+      '14.4 TFLOPS FP8 数字出处是 src.nvidia-rubin-chips-blog（已登记），不从本源引。',
+  },
+  {
+    id: 'src.nvidia-gds-docs',
+    title: 'NVIDIA GPUDirect Storage Overview Guide（v1.18）',
+    publisher: 'NVIDIA',
+    kind: 'official_doc',
+    url: 'https://docs.nvidia.com/gpudirect-storage/overview-guide/index.html',
+    localFile: null,
+    asOf: '2026-09',
+    note:
+      '实访于 2026-09。定义原句：「GPUDirect® Storage (GDS) enables a direct data path for direct ' +
+      'memory access (DMA) transfers between GPU memory and storage, which avoids a bounce buffer ' +
+      'through the CPU.」带宽收益句**自带限定语**：「a direct path between local or remote storage ' +
+      'that goes through a PCIe switch or a NIC acting as a PCIe switch offers at least twice the peak ' +
+      'bandwidth as compared to taking a data path through the CPU」（限定「on some systems」）；' +
+      '「The latency improvements from GDS are most apparent with small transfers.」' +
+      '★ 引用「2 倍」时必须把限定语一起带上（v1.5 教训：官方原句被截半）。',
+  },
+  {
+    id: 'src.nvidia-spectrumx-docs',
+    title: 'NVIDIA Spectrum-X Ethernet 官方产品页',
+    publisher: 'NVIDIA',
+    kind: 'official_doc',
+    url: 'https://www.nvidia.com/en-us/networking/spectrumx/',
+    localFile: null,
+    asOf: '2026-09',
+    note:
+      '实访于 2026-09。adaptive routing 定义原句：「Adaptive routing is a feature where the Spectrum-X ' +
+      'Ethernet switch and SuperNIC work in tight coordination to dynamically route traffic, enabling ' +
+      'the highest effective bandwidth and network resiliency for AI fabrics.」性能倍数（营销口径，' +
+      '仅 vendor_claim）：「Accelerate AI network performance by 1.6x over off-the-shelf (OTS) ' +
+      'Ethernet」。⚠️ 页面**没有** rail-optimized 字样，也没有「95% 有效带宽」——rail-optimized ' +
+      '双平面的官方出处是 src.nvidia-nvl72-ra（GB300 参考架构），不要从本页硬凑。',
+  },
+  {
+    id: 'src.runai-model-streamer',
+    title: 'Run:ai Model Streamer 官方基准测试文档（GitHub docs/src/benchmarks.md）',
+    publisher: 'NVIDIA（Run:ai）',
+    kind: 'official_doc',
+    url: 'https://github.com/run-ai/runai-model-streamer/blob/master/docs/src/benchmarks.md',
+    localFile: null,
+    asOf: '2026-09',
+    note:
+      '实访于 2026-09，数字逐字核对。测试配置：Meta-Llama-3-8B（15 GB，单 Safetensors 文件）、' +
+      'AWS g5.12xlarge（4×A10G，仅用 1 卡）、CUDA 12.4 / vLLM 0.5.5 / Model Streamer 0.6.0 / ' +
+      'Tensorizer 2.9.0；存储三档：GP3 SSD（16K IOPS / 1,000 MiB/s）、IO2 SSD（100K IOPS / ' +
+      '4,000 MiB/s）、同区 Amazon S3。结果：S3 上 Model Streamer 最优 4.88 秒（concurrency 32）vs ' +
+      'Tensorizer 最优 37.36 秒（16 workers）；GP3 上 Streamer 14.34s（16）vs Safetensors Loader ' +
+      '47.99s vs Tensorizer 16.11s；IO2 上 7.53s / 47s / 10.36s。方法论：「Each experiment was ' +
+      'conducted under cold-start conditions」，S3 每次测试间隔 ≥2 分钟避免 AWS 侧缓存。' +
+      '★★ 两条纪律：① **4.88s 的对照对象是 Tensorizer，不是 Safetensors Loader**（HF loader 不支持 ' +
+      'S3 直读，S3 实验里根本没有它）——引用时不得写成「vs safetensors」；② 这是厂商自测 benchmark，' +
+      'evidence 恒 benchmark，locator 必带盘型/实例/模型配置。',
+  },
+  {
+    id: 'src.mooncake-fast25',
+    title: 'Mooncake: Trading More Storage for Less Computation — A KVCache-centric Architecture for Serving LLM Chatbot（FAST 2025）',
+    publisher: 'USENIX / Moonshot AI & 清华大学',
+    kind: 'official_doc',
+    url: 'https://www.usenix.org/conference/fast25/presentation/qin',
+    localFile: null,
+    asOf: '2026-09',
+    note:
+      '实访于 2026-09（⚠️ 该页对普通 fetch 返回 403，需用 firecrawl 抓取）。FAST 25 **Best Paper**。' +
+      '⚠️ 厂商自述系统论文（Kimi 的 serving 平台，作者为 Moonshot AI + 清华），非独立评测——' +
+      '数字一律 benchmark 档。摘要逐字数字：「Mooncake increases the effective request capacity by ' +
+      '59%~498% when compared to baseline methods, all while complying with SLOs」（real traces）、' +
+      '「enables Kimi to handle 115% and 107% more requests on NVIDIA A800 and H800 clusters, ' +
+      'respectively」、「processing over 100 billion tokens daily」。' +
+      '★★ 版本纪律：arXiv 版（2407.00079 v4）摘要写的是「up to a 525% increase in throughput」与' +
+      '「75% more requests」——**与 FAST25 正式版数字不同**。本项目登记的是 FAST25 页，' +
+      '只允许引用 FAST25 版数字；摘要没有 TTFT 专项数字，不得替它编一个。',
+  },
+  {
+    id: 'src.weka-materials',
+    title: 'WEKA 官方博客：Unlocking Scalable Inference with WEKA Augmented Memory Grid',
+    publisher: 'WEKA',
+    kind: 'official_doc',
+    url: 'https://www.weka.io/blog/ai-ml/unlocking-scalable-inference-with-weka-augmented-memory-grid/',
+    localFile: null,
+    asOf: '2026-09',
+    note:
+      '实访于 2026-09（发布于 2025-05-15）。⚠️ 存储厂商营销材料——数字**只能 vendor_claim**，' +
+      '且只进 technique/lens 的 figures，永不进组件 specs。核到的口径：TTFT「achieving a 41x ' +
+      'improvement based on a 128,000-token context window」（Llama-405B Int4，图示对比）；' +
+      '测试环境 DGX H100、WEKApod（72 NVMe）、「direct Warehouse-to-GPU data access at ~300GB/s」；' +
+      '「~68% cache hit rate」。技术路径：KV cache 经 RDMA/GPUDirect Storage 分层到共享 NVMe。',
+  },
+  {
+    id: 'src.vast-materials',
+    title: 'VAST Data 官方博客：NVIDIA Dynamo + VAST = Scalable, Optimized Inference',
+    publisher: 'VAST Data',
+    kind: 'official_doc',
+    url: 'https://www.vastdata.com/blog/nvidia-dynamo-vast-scalable-optimized-inference',
+    localFile: null,
+    asOf: '2026-09',
+    note:
+      '实访于 2026-09（发布于 2025-12-16）。⚠️ 存储厂商营销材料——数字**只能 vendor_claim**，' +
+      '且只进 technique/lens 的 figures，永不进组件 specs。核到的口径（HGX H100 8 卡、' +
+      'Llama 3.1-405B、127,188-token prompt，经 Dynamo NIXL + GDS/RoCE）：「TTFT with prefill ' +
+      'compute: 62 seconds」vs「TTFT with KV$ load from VAST: 3 seconds」（约 20 倍）；链路利用率' +
+      '「over 90% of line rate (181 Gbps)」峰值「~99% (198 Gbps)」（200 Gbps 链路）。' +
+      '★ 沿革留痕：VAST 原「Introducing: Undivided Attention」博客页已重定向失效（2026-09 实访），' +
+      'GitHub vast-data/VUA 仓库已于 2026-07 archived（README 注明 vLLM connector 功能并入 LMCache ' +
+      'GDS backend）——本条登记的是仍可达且有硬数字的 Dynamo+VAST 博客。',
+  },
 ]
 
 /** 官方源：只有这些 kind 能承载 verified_spec / vendor_claim。 */

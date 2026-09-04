@@ -71,6 +71,15 @@ export const COMPARISONS: ComparisonDefinition[] = [
         narrative: '⚠️ 同上，「未收录」不等于「没有」：官方未公布该层配置，本项目不猜。',
       },
       {
+        // v1.6 W-A：GB300 侧新增了 L3 对象存储（存储切面建模），VR 侧未建 ⇒ removed 行。
+        roleKey: 'object-storage',
+        label: 'L3 对象存储（模型货仓）',
+        narrative:
+          '⚠️ 「未收录」不等于「没有」：这一层本身就是**行业通行架构的建模示意**（两代参考架构都不涉及' +
+          '对象存储选型），本项目只在 GB300 与 HGX 两代挂了它用于存储切面教学，Vera Rubin 代未重复建模' +
+          '——这一行是建模范围差异，不是产品差异。',
+      },
+      {
         roleKey: 'control-plane-node',
         label: '控制面管理节点',
         narrative:
@@ -319,6 +328,15 @@ export const COMPARISONS: ComparisonDefinition[] = [
         roleKey: 'scaleout-nic',
         label: 'Scale-out 网卡',
         narrative: '⚠️ 「未收录」不等于「取消」：来源文章只谈 scale-up，未涉及 scale-out 网络。',
+      },
+      {
+        // v1.6 W-A：GB300 侧新增的 L3 对象存储（存储切面建模），NVL576 侧未建 ⇒ removed 行。
+        roleKey: 'object-storage',
+        label: 'L3 对象存储（模型货仓）',
+        narrative:
+          '⚠️ 「未收录」不等于「没有」：这一层是**行业通行架构的建模示意**（存储切面教学用，' +
+          '只在 GB300 与 HGX 两代建模），NVL576 的来源文章只谈 scale-up 网络，更不涉及存储选型' +
+          '——这一行是建模范围差异，不是产品差异。',
       },
     ],
     sourceIds: [

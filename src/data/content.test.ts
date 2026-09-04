@@ -1480,3 +1480,239 @@ describe('HGX B300：NVLink 服务器域（v1.4 W-C）', () => {
     }
   })
 })
+
+// ═══════════════════════════ v1.6 W-A：切面与技术注册表事实锁 ═══════════════════════════
+
+/**
+ * 这一组锁住的是切面/技术注册表里「说错了客户就不信你」的数字与纪律：
+ * - Model Streamer 4.88s 的对照对象是 **Tensorizer**（不是 Safetensors loader）；
+ * - Mooncake 只用 FAST 25 正式版数字（与 arXiv 版不同）；
+ * - WEKA/VAST/Mooncake/Model Streamer 的数字只能待在 figures 里，绝不流入组件规格；
+ * - 对象存储是建模描述（specs 全 null），六平面不扩。
+ */
+describe('v1.6 切面与技术注册表：事实锁', () => {
+  const techById = new Map(FACTORY_PACK.techniques.map((t) => [t.id, t]))
+  const lensByIdMap = new Map(FACTORY_PACK.lenses.map((l) => [l.id, l]))
+
+  it('★ 9 条技术 id 清单锁（顺序与 PLAN-v1.6 第二节一致）', () => {
+    expect(FACTORY_PACK.techniques.map((t) => t.id)).toEqual([
+      'tech.nixl',
+      'tech.kvbm',
+      'tech.model-streamer',
+      'tech.gds',
+      'tech.sharp',
+      'tech.pd-disagg',
+      'tech.ep-alltoall',
+      'tech.rail-routing',
+      'tech.adaptive-routing',
+    ])
+  })
+
+  it('★ Model Streamer 事实锁：S3 直读 4.88s，对照对象是 Tensorizer 37.36s（不是 Safetensors loader）', () => {
+    const t = techById.get('tech.model-streamer')!
+    const s3 = t.figures.find((f) => f.key === 's3LoadSeconds')!
+    expect(s3.claim.value).toBe(4.88)
+    expect(s3.claim.evidence).toBe('benchmark')
+    // locator 必带盘型/实例/模型配置（计划硬要求）
+    expect(s3.claim.locator).toContain('S3')
+    expect(s3.claim.locator).toContain('g5.12xlarge')
+    expect(s3.claim.locator).toContain('Llama-3-8B')
+    const tensorizer = t.figures.find((f) => f.key === 's3TensorizerSeconds')!
+    expect(tensorizer.claim.value).toBe(37.36)
+    expect(tensorizer.claim.note).toContain('Tensorizer')
+    expect(tensorizer.claim.note).toContain('不是 Safetensors Loader')
+  })
+
+  it('★ SHARP 14.4 TFLOPS 一致锁：切面章节 keyFigure 与 NVLink 6 交换托盘的组件 spec 同源同值', () => {
+    const spec = componentById('cmp.rubin.nvlink6-switch-tray')!.specs.sharpFp8Tflops!
+    const ch = lensByIdMap
+      .get('lens.network')!
+      .chapters.find((c) => c.id === 'lens.network.sharp-innetwork')!
+    const fig = ch.keyFigures.find((f) => f.key === 'sharpFp8Tflops')!
+    expect(spec.value).toBe(14.4)
+    expect(fig.claim.value).toBe(spec.value)
+    expect(fig.claim.sourceId).toBe(spec.sourceId)
+    // GB300 代的 SHARP 算力官方未公布 → value:null（不从 14.4 倒推）
+    const gb300Fig = ch.keyFigures.find((f) => f.key === 'gb300SharpTflops')!
+    expect(gb300Fig.claim.value).toBeNull()
+  })
+
+  it('★ 40 GB/s 一致锁：存储切面冷启动章 keyFigure = con.gb300.converged-storage.bandwidth', () => {
+    const conn = FACTORY_PACK.connections.find((c) => c.id === 'con.gb300.converged-storage')!
+    const ch = lensByIdMap
+      .get('lens.storage')!
+      .chapters.find((c) => c.id === 'lens.storage.cold-start')!
+    const fig = ch.keyFigures.find((f) => f.key === 'perNodeStorage')!
+    expect(conn.bandwidth!.value).toBe(40)
+    expect(fig.claim.value).toBe(conn.bandwidth!.value)
+    expect(fig.claim.sourceId).toBe(conn.bandwidth!.sourceId)
+  })
+
+  it('★ KV offload 官方原句一致锁：存储切面 KV 章与 cmp.hgx.local-nvme 同源同句', () => {
+    const spec = componentById('cmp.hgx.local-nvme')!.specs.kvCacheOffloadNote!
+    const ch = lensByIdMap
+      .get('lens.storage')!
+      .chapters.find((c) => c.id === 'lens.storage.kv-runtime')!
+    const fig = ch.keyFigures.find((f) => f.key === 'kvOffloadNote')!
+    expect(fig.claim.value).toBe(spec.value)
+    expect(fig.claim.sourceId).toBe(spec.sourceId)
+    expect(fig.claim.locator).toContain('KV cache offloads to highspeed, network attached storage')
+  })
+
+  it('★ Mooncake 只用 FAST 25 正式版数字（59%~498% 与 115%/107%），并留痕 arXiv 版不同', () => {
+    const ch = lensByIdMap
+      .get('lens.storage')!
+      .chapters.find((c) => c.id === 'lens.storage.kv-runtime')!
+    const capacity = ch.keyFigures.find((f) => f.key === 'mooncakeCapacityGain')!
+    expect(capacity.claim.value).toBe('+59% ~ +498%')
+    expect(capacity.claim.locator).toContain('59%~498%')
+    expect(capacity.claim.note).toContain('arXiv')
+    const prod = ch.keyFigures.find((f) => f.key === 'mooncakeProdGain')!
+    expect(prod.claim.value).toContain('115%')
+    expect(prod.claim.value).toContain('107%')
+    // 命中率没有通用数字 → value:null
+    expect(ch.keyFigures.find((f) => f.key === 'kvHitRate')!.claim.value).toBeNull()
+  })
+
+  it('★ lens.storage 章节顺序 = 业务动线（分发 → 加载 → 运行时 KV → 归档 → RAG）', () => {
+    expect(lensByIdMap.get('lens.storage')!.chapters.map((c) => c.id)).toEqual([
+      'lens.storage.model-distribution',
+      'lens.storage.cold-start',
+      'lens.storage.kv-runtime',
+      'lens.storage.archive-mirror',
+      'lens.storage.rag-l4',
+    ])
+  })
+
+  it('★ 网络切面 6 章齐全，计算器分发按计划落位（网络 ch6 kv-transfer、存储 ch2/ch3）', () => {
+    const network = lensByIdMap.get('lens.network')!
+    expect(network.chapters.map((c) => c.id)).toEqual([
+      'lens.network.nvlink-domain',
+      'lens.network.rail-planes',
+      'lens.network.sharp-innetwork',
+      'lens.network.storage-fabric',
+      'lens.network.mgmt-mttr',
+      'lens.network.domain-size-hgx',
+    ])
+    expect(network.chapters.map((c) => c.calculatorId)).toEqual([
+      null,
+      null,
+      null,
+      null,
+      null,
+      'kv-transfer',
+    ])
+    expect(lensByIdMap.get('lens.storage')!.chapters.map((c) => c.calculatorId)).toEqual([
+      null,
+      'model-load',
+      'kv-restore',
+      null,
+      null,
+    ])
+  })
+
+  it('★ 六平面不扩：对象存储走 business 平面，全包 plane 集合仍是既有六个', () => {
+    const planes = new Set(FACTORY_PACK.connections.map((c) => c.plane))
+    expect([...planes].sort()).toEqual(['business', 'cooling', 'mgmt', 'nvlink', 'power', 'scaleout'])
+    for (const id of ['con.gb300.objstore-converged', 'con.hgx.objstore-converged']) {
+      const conn = FACTORY_PACK.connections.find((c) => c.id === id)!
+      expect(conn, `${id} 不存在`).toBeDefined()
+      expect(conn.plane, id).toBe('business')
+      expect(conn.bandwidth, `${id} 的带宽官方无数，必须为 null`).toBeNull()
+    }
+  })
+
+  it('★ 对象存储是建模描述：specs 全 null 带说明，两代各有装配节点（示意数量、无 countClaim）', () => {
+    const comp = componentById('cmp.shared.object-storage')!
+    expect(comp.kind).toBe('storage')
+    expect(Object.keys(comp.specs).length).toBeGreaterThan(0)
+    for (const [k, c] of Object.entries(comp.specs)) {
+      expect(c.value, `${k} 不应有数值（官方未公布不编数）`).toBeNull()
+      expect(c.note, `${k} 缺「为什么没数」的说明`).not.toBeNull()
+    }
+    expect(comp.summary).toContain('建模')
+    for (const id of ['asm.gb300.object-storage', 'asm.hgx.object-storage']) {
+      const node = assemblyById(id)!
+      expect(node, `${id} 不存在`).toBeDefined()
+      expect(node.roleKey).toBe('object-storage')
+      expect(node.lodLevel).toBe('cluster')
+      expect(node.countClaim, `${id} 是建模示意，不该有 countClaim`).toBeNull()
+      expect(node.note, `${id} 缺「为什么是示意」的说明`).not.toBeNull()
+    }
+  })
+
+  it('★ 厂商数字纪律：WEKA/VAST 恒 vendor_claim、Mooncake/Model Streamer 恒 benchmark（figures 内）', () => {
+    const vendorOnly = new Set(['src.weka-materials', 'src.vast-materials'])
+    const benchOnly = new Set(['src.mooncake-fast25', 'src.runai-model-streamer'])
+    const figures = [
+      ...FACTORY_PACK.techniques.flatMap((t) => t.figures.map((f) => ({ where: `${t.id}.${f.key}`, claim: f.claim }))),
+      ...FACTORY_PACK.lenses.flatMap((l) =>
+        l.chapters.flatMap((ch) => ch.keyFigures.map((f) => ({ where: `${ch.id}.${f.key}`, claim: f.claim }))),
+      ),
+    ]
+    let checked = 0
+    for (const { where, claim } of figures) {
+      if (vendorOnly.has(claim.sourceId)) {
+        checked += 1
+        expect(claim.evidence, `${where} 引 WEKA/VAST 却不是 vendor_claim`).toBe('vendor_claim')
+      }
+      if (benchOnly.has(claim.sourceId)) {
+        checked += 1
+        expect(claim.evidence, `${where} 引 Mooncake/Model Streamer 却不是 benchmark`).toBe('benchmark')
+      }
+    }
+    // 防止规则被静默架空：这四个源必须真的有 figure 被检查到
+    expect(checked).toBeGreaterThanOrEqual(6)
+  })
+
+  it('★★ WEKA/VAST/Mooncake/Model Streamer 的 sourceId 绝不出现在任何组件规格/系统规格/数量/带宽 Claim 上', () => {
+    const banned = new Set([
+      'src.weka-materials',
+      'src.vast-materials',
+      'src.mooncake-fast25',
+      'src.runai-model-streamer',
+    ])
+    const offenders: string[] = []
+    for (const s of FACTORY_PACK.systems) {
+      for (const [k, c] of Object.entries(s.keySpecs)) {
+        if (banned.has(c.sourceId)) offenders.push(`${s.id}.keySpecs.${k}`)
+      }
+    }
+    for (const c of FACTORY_PACK.components) {
+      for (const [k, cl] of Object.entries(c.specs)) {
+        if (banned.has(cl.sourceId)) offenders.push(`${c.id}.specs.${k}`)
+      }
+    }
+    for (const a of FACTORY_PACK.assemblies) {
+      if (a.countClaim && banned.has(a.countClaim.sourceId)) offenders.push(`${a.id}.countClaim`)
+    }
+    for (const conn of FACTORY_PACK.connections) {
+      if (conn.bandwidth && banned.has(conn.bandwidth.sourceId)) offenders.push(`${conn.id}.bandwidth`)
+    }
+    expect(offenders, `厂商/论文数字流入了硬件证据层：${offenders.join('、')}`).toEqual([])
+  })
+
+  it('★ L4 纯叙事锁：RAG 章不动 3D（focus/highlight 全空），叙事行不经硬件', () => {
+    const ch = lensByIdMap.get('lens.storage')!.chapters.find((c) => c.id === 'lens.storage.rag-l4')!
+    expect(ch.focusAssemblyId).toBeNull()
+    expect(ch.highlightAssemblyIds).toEqual([])
+    expect(ch.highlightConnectionIds).toEqual([])
+    expect(ch.chain[0]!.hardwareRoleKeys).toEqual([])
+    expect(ch.chain[0]!.techniqueId).toBeNull()
+    // WEKA/VAST 数字在这一章必须全是 vendor_claim（营销口径徽章）
+    for (const f of ch.keyFigures) {
+      expect(f.claim.evidence, `${ch.id}.${f.key}`).toBe('vendor_claim')
+    }
+  })
+
+  it('★ 双向/单向口径纪律：并排对比的 keyFigures 在 note/label 里写明口径', () => {
+    const network = lensByIdMap.get('lens.network')!
+    const ch1 = network.chapters.find((c) => c.id === 'lens.network.nvlink-domain')!
+    expect(ch1.keyFigures.find((f) => f.key === 'nvlinkPerGpu')!.claim.note).toContain('双向')
+    const ch6 = network.chapters.find((c) => c.id === 'lens.network.domain-size-hgx')!
+    expect(ch6.keyFigures.find((f) => f.key === 'baseboardNvlink')!.claim.note).toContain('双向')
+    const crossNode = ch6.keyFigures.find((f) => f.key === 'crossNodeScaleout')!
+    expect(crossNode.claim.note).toContain('单向')
+    expect(crossNode.claim.note).toContain('不可直接相除')
+  })
+})

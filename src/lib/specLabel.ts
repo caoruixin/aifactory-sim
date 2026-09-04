@@ -23,7 +23,8 @@
  */
 
 /**
- * 323 个键 = 内容包 `components[].specs` 的 279 个 + 只出现在 `systems[].keySpecs` 的 44 个。
+ * 325 个键 = 内容包 `components[].specs` 的 281 个 + 只出现在 `systems[].keySpecs` 的 44 个
+ * （v1.6 W-A：+2 个对象存储键 capacityPB / aggregateThroughputGBs）。
  * 按字母序排列，方便和 `specLabel.test.ts` 的覆盖断言逐条对照。
  */
 export const SPEC_LABELS: Record<string, string> = {
@@ -33,6 +34,7 @@ export const SPEC_LABELS: Record<string, string> = {
   aggregateBandwidthPerNodeTBs: 'NVLink 聚合带宽（每台服务器）',
   aggregateBandwidthPerRackTBs: 'NVLink 聚合带宽（每机架）',
   aggregateBandwidthTBs: 'scale-up 聚合带宽（每机架）',
+  aggregateThroughputGBs: '聚合吞吐（对象存储集群合计）',
   aiFactoryOutputVsHopper: 'AI 工厂产出倍数（对比 Hopper，厂商宣称）',
   airflowDesign: '机房气流组织建议',
   analystStructuralDetail: '分析师推测的结构细节（非官方）',
@@ -65,6 +67,7 @@ export const SPEC_LABELS: Record<string, string> = {
   cableCartridgeCount: '脊柱线缆匣数量（每机架）',
   cableCount: '脊柱/背板内铜缆根数',
   cableFree: '无线缆盲插设计（托盘级）',
+  capacityPB: '容量（对象存储集群合计）',
   capacityPerDriveTB: '单盘容量',
   capacityPerGpuGB: '显存容量（每 GPU）',
   capacityTB: '容量',
