@@ -39,6 +39,7 @@ import Drawer from '../ui/Drawer'
 import RichText from '../ui/RichText'
 import Section from '../ui/Section'
 import DetailPanel from './DetailPanel'
+import LensCalculator from './LensCalculator'
 
 export default function LensChapterPanel() {
   const mode = useFactoryStore((s) => s.mode)
@@ -147,14 +148,7 @@ function ChapterBody({
 
         {chapter.calculatorId ? (
           <Section title="动手算一算">
-            {/* W-C 会用真正的计算器替换这个容器；锚点与 id 现在就固定下来，
-                这样移动端与 E2E 不必等计算器落地才能定位。 */}
-            <div
-              data-lens-calc={chapter.calculatorId}
-              className="rounded-lg border border-dashed border-line bg-panel-2 px-2.5 py-2 text-[11px] text-dim"
-            >
-              计算器（W-C 接入）
-            </div>
+            <LensCalculator chapter={chapter} />
           </Section>
         ) : null}
 
