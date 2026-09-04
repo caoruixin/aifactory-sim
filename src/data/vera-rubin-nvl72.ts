@@ -17,11 +17,27 @@ import type {
  * **不用作者记忆、不用第三方媒体、不用分析师估算补齐**。
  *
  * ⚠️ 两条必须随数字一起说出口的官方限定：
- * 1. 产品页与 DGX 页规格表都带脚注「Preliminary information. All values are up to and
- *    subject to change.」——这是**预发布口径**，不是量产验收值。
+ * 1. 产品页、DGX 页与数据手册的规格表**表头都挂着上标 ¹**，脚注 1 为「Preliminary information.
+ *    All values are up to and subject to change.」——整张表都是**预发布口径**，不是量产验收值。
+ *    v1.5 起这句由 `vr()` / `vrVendor()` **按源自动注入** Claim.note（见 `withPreliminary`），
+ *    因为 `DetailPanel` 的 `SourceLine` 只渲染 source 的 title/publisher/asOf，
+ *    `SourceRef.note` 从不上屏——写在 sources.ts 里等于没对用户说。
  * 2. 算力只有带脚注 2「Dense specification」的行才是稠密口径（NVFP4 Training 35 PFLOPS/卡、
  *    FP8/FP6 Training 17.5 PFLOPS/卡）。表头那行更醒目的「NVFP4 Inference 50 PFLOPS」
- *    **没有**稠密标注，因此本项目不让它进 `mathSpecs`，产能数学只吃稠密值。
+ *    不进 `mathSpecs`，且理由是**硬证据**：数据手册 PDF 的脚注 1 比产品页多一句
+ *    「NVFP4 Inference specification is sparse.」——官方明说了那一列是稀疏口径。
+ *
+ * ⚠️ 三条 v1.5 事实核验订正（改之前先读这里，别改回去）：
+ * - **机架级 NVLink 走后部铜缆脊柱，不是 PCB 中板**。官方原话：「This high-speed data transfer
+ *   happens in the NVLink spine at the back of the rack, which features four modular preintegrated
+ *   cable cartridges housing 5,000 copper cables over two miles in length.」；而「cable-free」修饰的
+ *   是**托盘**（「cable-free, hose-free, and fanless compute and NVLink switch trays」），
+ *   PCB 中板官方点名连接的是**超级芯片 ↔ 前部网卡仓**。官方没说明两者电气分工，两说并存不互相否定。
+ *   代际差异因此在**托盘内部**，不在机架脊柱——GB300 与 Vera Rubin 的机架 NVLink 同为铜缆形态。
+ * - **1.8 TB/s NVLink-C2C 是「每超级芯片」口径，不是单卡**。产品页规格表 NVLink-C2C 行的
+ *   Rubin GPU 列是「-」，36 × 1.8 = 64.8 ≈ 官方整机架 65 TB/s。按单卡乘 72 会差一倍。
+ * - **ConnectX-9 的板级拆分不是确证事实**（官方英文「quad ConnectX-9 SuperNIC boards」有歧义），
+ *   确证的只有「每托盘 8 张、每机架 144 张」。见 `CX9_BOARD_AMBIGUITY`。
  *
  * ⚠️ 官方未公布、因而全项目下游一律 null 的关键项：
  * - **整机架功率（kW）**：任何官方规格表都没有这一行（唯一提到 Vera Rubin 机架功率的
@@ -43,6 +59,10 @@ const VR_CHIPS = 'src.nvidia-rubin-chips-blog'
 const VR_GPU_BLOG = 'src.nvidia-rubin-gpu-blog'
 const VR_DGX = 'src.nvidia-dgx-rubin-page'
 const VR_DATASHEET = 'src.nvidia-vera-rubin-datasheet'
+/** 2026-05-31 GTC Taipei「进入量产」发布稿——上市时间的最新官方口径（v1.5 新增）。 */
+const VR_FULLPROD_PRESS = 'src.nvidia-vera-rubin-fullprod-press'
+/** 2025-10 OCP 博客——NVL144 → NVL72 改名的唯一官方留痕（v1.5 新增，此前只登记未引用）。 */
+const VR_OCP = 'src.nvidia-ocp-vera-rubin-blog'
 
 /** 各源的抓取/发布时间（与 sources.ts 保持一致）。 */
 const AS_OF: Record<string, string> = {
@@ -53,6 +73,33 @@ const AS_OF: Record<string, string> = {
   [VR_GPU_BLOG]: '2026-07',
   [VR_DGX]: '2026-08',
   [VR_DATASHEET]: '2026-08',
+  [VR_FULLPROD_PRESS]: '2026-05',
+  [VR_OCP]: '2025-10',
+}
+
+const PRELIMINARY =
+  '⚠️ 官方规格表脚注 1：「Preliminary information. All values are up to and subject to change.」（预发布口径，不是量产验收值）'
+
+/**
+ * 带「Preliminary information」脚注的三个源：Vera Rubin 产品页、DGX Vera Rubin 产品页、
+ * Vera Rubin 数据手册 PDF。三者的规格表表头都直接挂着上标 ¹，即**整张表**都在这条脚注之下。
+ *
+ * ★ v1.5 缺陷修复：此前 PRELIMINARY 只被手写在 2 条 Claim 上，其余十几条同样落在这条脚注下的
+ *   规格（20.7 TB / 1,580 TB/s / 2,520 PFLOPS / 3,168 核 / 1,296 颗 …）都是裸数字。
+ *   而 `DetailPanel` 的 `SourceLine` 只渲染 source 的 title/publisher/asOf，**`SourceRef.note`
+ *   从不上屏**——写在 sources.ts 里的那句声明对最终用户不可见，用户看到的是一枚证据徽章加一个
+ *   不带任何预发布提示的数字。
+ *   因此改成在工厂函数里**按源自动注入**：以后任何人往这三个源上新建 Claim 都会自动带上，
+ *   不再依赖「记得手写」。手写的 note 与它用换行拼接，两句都保留。
+ */
+const PRELIMINARY_SOURCES = new Set([VR_PAGE, VR_DGX, VR_DATASHEET])
+
+function withPreliminary(sourceId: string, note: string | null): string | null {
+  if (!PRELIMINARY_SOURCES.has(sourceId)) return note
+  if (note === null) return PRELIMINARY
+  // 已经手写过就不重复贴（防止历史 note 与自动注入叠出两遍）
+  if (note.includes('Preliminary information')) return note
+  return `${note}\n${PRELIMINARY}`
 }
 
 /** 官方已公布的规格：evidence=verified_spec，status=announced（产品尚未量产交付）。 */
@@ -71,7 +118,36 @@ function vr<T extends ClaimValue>(
     evidence: 'verified_spec',
     status: 'announced',
     asOf: AS_OF[sourceId] ?? '2026-08',
-    note,
+    note: withPreliminary(sourceId, note),
+  })
+}
+
+/**
+ * 官方说了、但**不是规格表里的确切数字**的那一档：厂商宣称口径。
+ *
+ * 用于两类内容（`types.ts` 对 `verified_spec` 的定义是「官方规格表/参考架构中的确切数字」，
+ * 这两类都不满足，硬标成 verified_spec 是给读者错误的确定性）：
+ * 1. 发布稿里的**前瞻性上市承诺**（带 Safe Harbor 声明，随时可能变）；
+ * 2. 官方英文本身**存在歧义**、当前数值是本项目对该英文的一种解读。
+ */
+function vrVendor<T extends ClaimValue>(
+  value: T,
+  unit: string | null,
+  sourceId: string,
+  locator: string,
+  note: string,
+  confidence: 'medium' | 'low' = 'medium',
+): Claim<T> {
+  return claim<T>({
+    value,
+    unit,
+    sourceId,
+    locator,
+    evidence: 'vendor_claim',
+    status: 'announced',
+    asOf: AS_OF[sourceId] ?? '2026-08',
+    confidence,
+    note: withPreliminary(sourceId, note),
   })
 }
 
@@ -79,6 +155,31 @@ function vr<T extends ClaimValue>(
 function vrCount(value: number, sourceId: string, locator: string, note: string | null = null): Claim<number> {
   return vr<number>(value, '个', sourceId, locator, note)
 }
+
+/**
+ * ★ ConnectX-9 板级拆分的歧义留痕（v1.5）。
+ *
+ * 六芯片博客只有两句话涉及板级结构，逐字为：
+ *   「each compute tray contains quad ConnectX-9 SuperNIC boards, delivering 1.6Tb/s of network
+ *     bandwidth per Rubin GPU」
+ *   「Each quad ConnectX-9 SuperNIC board connects to each Vera CPU.」
+ * 第二句把「quad ConnectX-9 SuperNIC board」当成**一个复合名词**（一块载有 4 颗 CX-9 的板），
+ * 配合每托盘 2 颗 Vera CPU，更自然的读法是 **2 块板 × 每块 4 张 = 8 张**；
+ * 第一句单独看则可以读成 **4 块板 × 每块 2 张 = 8 张**（本项目当前建模取的读法）。
+ * 两种读法的总数都是 8，与 POD 博客「eight ConnectX-9 SuperNICs」一致。
+ *
+ * 因此本项目的证据边界是：**「每托盘 8 张、每机架 144 张」是确证事实，板级拆分不是**。
+ * 板数/每板张数一律降为 `vendor_claim` + `confidence: 'low'`，并在 note 里写明歧义。
+ */
+const CX9_BOARD_AMBIGUITY =
+  '⚠️ **官方英文有歧义，本条是其中一种读法，不是确证事实**。六芯片博客只有两句涉及板级结构：' +
+  '「each compute tray contains quad ConnectX-9 SuperNIC boards, delivering 1.6Tb/s of network bandwidth per ' +
+  'Rubin GPU」与「Each quad ConnectX-9 SuperNIC board connects to each Vera CPU.」——' +
+  '第二句把「quad ConnectX-9 SuperNIC board」当作一个复合名词（载 4 颗 CX-9 的板），' +
+  '配合每托盘 2 颗 Vera CPU，可读成 **2 块板 × 4 张**；第一句单独看又可读成 **4 块板 × 2 张**。' +
+  '两种读法总数都是 8 张/托盘（与 POD 博客「eight ConnectX-9 SuperNICs」一致）。' +
+  '★ 本项目只把「每托盘 8 张、每机架 144 张」当确证事实；板级拆分取 4×2 建模，' +
+  '仅为 3D 摆位需要一个确定形态，**不得当作官方规格引用**。'
 
 /** 「官方未公布，本项目不编数」。 */
 function vrNull(unit: string | null, sourceId: string, note: string, locator: string | null = null): Claim {
@@ -95,8 +196,6 @@ function vrNull(unit: string | null, sourceId: string, note: string, locator: st
   })
 }
 
-const PRELIMINARY = '⚠️ 官方规格表脚注：「Preliminary information. All values are up to and subject to change.」（预发布口径）'
-
 // ─────────────────────────── 系统 ───────────────────────────
 
 export const VERA_RUBIN_SYSTEM: FactorySystem = {
@@ -109,18 +208,13 @@ export const VERA_RUBIN_SYSTEM: FactorySystem = {
   generation: 'vera-rubin',
   referenceUrl: 'https://www.nvidia.com/en-us/data-center/vera-rubin-nvl72/',
   summary:
-    '下一代机架级系统：72 张 Rubin GPU + 36 颗 Vera CPU，用第六代 NVLink 连成一个域，配 ConnectX-9 SuperNIC 与 BlueField-4 DPU，第三代 MGX 无线缆机架。',
+    '下一代机架级系统：72 张 Rubin GPU + 36 颗 Vera CPU，经机架后部的第六代 NVLink 铜缆脊柱连成一个域，配 ConnectX-9 SuperNIC 与 BlueField-4 DPU，装在第三代 MGX 单宽机架的无线缆盲插托盘里。',
   presalesNote:
     '跟 GB300 讲差异只需要抓三件事：**显存带宽从 8 TB/s 跳到 22 TB/s（decode 直接受益）**、**NVLink 从每卡 1.8 TB/s 到 3.6 TB/s**、**scale-out 从每 GPU 1 张 800 Gb/s 网卡变成 2 张（1.6 Tb/s/GPU）**。注意口径纪律：官方规格表明确写着「Preliminary information」，报给客户时必须带上这句；整机架功率官方至今没公布，谁给你一个 kW 数字都要问出处。',
-  sourceIds: [VR_PAGE, VR_PRESS, VR_POD, VR_GPU_BLOG, VR_DGX, VR_DATASHEET],
+  sourceIds: [VR_PAGE, VR_PRESS, VR_POD, VR_GPU_BLOG, VR_DGX, VR_DATASHEET, VR_FULLPROD_PRESS, VR_OCP],
   keySpecs: {
-    gpuCount: vr<number>(
-      72,
-      '张',
-      VR_PAGE,
-      '规格表 Configuration 行，「72 Rubin GPUs | 36 Vera CPUs」',
-      PRELIMINARY,
-    ),
+    // note 里的「Preliminary information」脚注由 vr() 按源自动注入，见 withPreliminary()。
+    gpuCount: vr<number>(72, '张', VR_PAGE, '规格表 Configuration 行，「72 Rubin GPUs | 36 Vera CPUs」'),
     cpuCount: vr<number>(36, '颗', VR_PAGE, '规格表 Configuration 行，「72 Rubin GPUs | 36 Vera CPUs」'),
     computeTrayCount: vr<number>(
       18,
@@ -179,7 +273,10 @@ export const VERA_RUBIN_SYSTEM: FactorySystem = {
       'PFLOPS',
       VR_PAGE,
       '规格表 NVFP4 Inference 行，「3,600 PFLOPS」（发布稿口径：单卡 50 PFLOPS）',
-      '⚠️ 该行**没有**脚注 2 的稠密标注，口径不明（很可能含稀疏）。本项目不让它进 mathSpecs，产能估算只用上面的稠密值。',
+      '⚠️ **这一列是稀疏口径，官方已明说**：Vera Rubin 数据手册 PDF 的 Technical Specifications¹ 脚注 1 比产品页' +
+        '多出后半句，逐字为「Preliminary information. All values are up to and subject to change. NVFP4 Inference ' +
+        'specification is sparse.」（产品页脚注 1 只有前半句，且该行也没有脚注 2「Dense specification.」）。' +
+        '因此本项目不让它进 mathSpecs，产能估算只用上面带脚注 2 的稠密值——这不是保守处理，是有硬证据的排除。',
     ),
     fp8DensePflops: vr<number>(
       1260,
@@ -206,11 +303,21 @@ export const VERA_RUBIN_SYSTEM: FactorySystem = {
       VR_PAGE,
       '规格表 Total NVIDIA + HBM4 Chips 行，「1,296」',
     ),
-    availability: vr<string>(
-      '2026 年下半年由合作伙伴上市',
+    availability: vrVendor<string>(
+      '官方最新口径：量产出货「今年秋季开始」（2026-05-31 发布稿）；CES 2026-01 发布稿的原口径为「2026 下半年由合作伙伴上市」',
       null,
-      VR_PRESS,
-      'Rubin Readiness 节，「NVIDIA Rubin is in full production, and Rubin-based products will be available from partners the second half of 2026.」',
+      VR_FULLPROD_PRESS,
+      'Availability 节，「Production shipments of Vera Rubin are set to begin starting this fall.」（同稿正文：「NVIDIA today announced the NVIDIA Vera Rubin platform is ramping into full production to power agentic AI factories worldwide.」）',
+      '★ 三点口径纪律：' +
+        '① **evidence 是 vendor_claim 不是 verified_spec**——这是发布稿里的前瞻性上市承诺（两篇发布稿末尾都带 ' +
+        'Safe Harbor 声明），不是「官方规格表/参考架构中的确切数字」。' +
+        '② **两版官方口径并存**：2026-01 CES 发布稿「NVIDIA Rubin is in full production, and Rubin-based ' +
+        'products will be available from partners the second half of 2026.」；2026-05-31 GTC Taipei 发布稿把它' +
+        '细化为「set to begin starting this fall」。后者更新更具体，前者不作废——两句不矛盾，是同一承诺的收窄。' +
+        '③ **注意「full production」说的是制造不是出货**：官方原文是平台「ramping into full production」，' +
+        '而客户侧的 production shipments 是「set to begin」（将要开始）。截至本内容包生成时点，' +
+        'NVIDIA 没有发过「已开始出货」的官方声明，因此 sys.vera-rubin-nvl72 的 status 保持 announced，' +
+        '不改 shipping——把「即将出货」讲成「在售」正是本项目要防的那类偏差。',
     ),
   },
   // 与 GB300 一致的示意高度：官方同样未公布 Vera Rubin 机架的 U 高与逐 U 布局
@@ -243,7 +350,9 @@ export const VERA_RUBIN_COMPONENTS: HardwareComponent[] = [
         '显存 288 GB 与带宽 22 TB/s = 产品页规格表 Rubin GPU 列「288 GB HBM4 | 22 TB/s」（GPU 架构博客同值）；' +
         'FP8 稠密 17,500 TFLOPS = 规格表「FP8/FP6 Training 17.5 PFLOPS」+ 脚注 2「Dense specification」；' +
         'FP4 稠密 35,000 TFLOPS = 规格表「NVFP4 Training 35 PFLOPS」+ 同一脚注；' +
-        '⚠️ 更醒目的「NVFP4 Inference 50 PFLOPS」没有稠密标注，故意不采用；' +
+        '⚠️ 更醒目的「NVFP4 Inference 50 PFLOPS」不采用，且理由是硬证据而非保守推断——' +
+        '数据手册 PDF 的脚注 1 明写「NVFP4 Inference specification is sparse.」（产品页脚注 1 没有这后半句，' +
+        '该行也不带脚注 2「Dense specification.」）；' +
         'TDP 官方未公布，保持 null（官方唯一出现的 1800 W 属于另一款 NVL4 产品的 benchmark 假设）。',
     },
     specs: {
@@ -252,13 +361,16 @@ export const VERA_RUBIN_COMPONENTS: HardwareComponent[] = [
         'GB',
         VR_PAGE,
         '规格表 Rubin GPU 列 GPU Memory | Bandwidth，「288 GB HBM4 | 22 TB/s」',
-        `与 GB300 的 B300 同为 288 GB——容量没涨，涨的是带宽。${PRELIMINARY}`,
+        '与 GB300 的 B300 同为 288 GB——容量没涨，涨的是带宽。',
       ),
       memoryBandwidthTBs: vr<number>(
         22,
         'TB/s',
         VR_GPU_BLOG,
-        'The Rubin GPU 节，「up to 22 TB/s of peak bandwidth… a 2.8x increase over Blackwell and Blackwell Ultra」',
+        'The Rubin GPU 节，「Rubin integrates up to 288 GB of HBM4 memory, driven by dedicated HBM controllers and 12-Hi stacks, to deliver up to 22 TB/s of peak bandwidth.」',
+        '★ v1.5 订正 locator：此前用「…」把分属两段的两句拼成了一句。' +
+          '「2.8x increase」出自本文另一节（Memory 一节）的独立句子：「this subsystem provides up to 22 TB/s of ' +
+          'memory bandwidth: a 2.8x increase over Blackwell and Blackwell Ultra.」——两句都属实，但不是同一段。',
       ),
       nvlinkPerGpuGBs: vr<number>(
         3600,
@@ -272,25 +384,49 @@ export const VERA_RUBIN_COMPONENTS: HardwareComponent[] = [
         VR_GPU_BLOG,
         'NVIDIA 未公布 Rubin GPU 的 NVLink 链路条数（GB300 是每卡 18 条对应 18 颗 NVSwitch）。已知每托盘 4 颗 NVLink 6 交换芯片 × 9 托盘 = 36 颗，但官方没有给出「每 GPU 几条链路」的说法，不做推导。',
       ),
-      c2cBandwidthGBs: vr<number>(
+      // ⚠️ 键名沿用历史命名（compare.ts 按键名跨代配对，不能改），但**口径不是单卡**——见 note。
+      c2cBandwidthGBs: vrVendor<number>(
         1800,
         'GB/s',
         VR_GPU_BLOG,
-        'The Rubin GPU 节，「NVLink-C2C delivers 1,800 GB/s」',
+        'The Rubin GPU 节，「…NVLink-C2C delivers 1,800 GB/s for coherent CPU-GPU communication…」',
+        '★ **两说并存，别按单卡用**（v1.5 订正：此前本条挂在单张 GPU 上，会推出 72 × 1.8 = 129.6 TB/s，' +
+          '与官方整机架 65 TB/s 差一倍）：' +
+          '① **产品页规格表的 Rubin GPU 列在 NVLink-C2C Bandwidth 这一行是「-」**——官方刻意没给单卡 C2C 数字；' +
+          '同一行 Vera Rubin Superchip 列是「1.8 TB/s」、NVL72 列是「65 TB/s」，' +
+          '而 36 个超级芯片 × 1.8 = 64.8 ≈ 65，说明 **1.8 TB/s 是「每超级芯片（1 Vera + 2 Rubin）」口径**；' +
+          '六芯片博客也把 1.8 TB/s 印在 **Vera CPU** 卡片上。' +
+          '② 但 GPU 架构博客确实在 Rubin GPU 的语境里写了这句「NVLink-C2C delivers 1,800 GB/s for coherent ' +
+          'CPU-GPU communication」（同句还并列了 NVLink 6 的 3,600 GB/s 与 PCIe Gen 6 的 256 GB/s，' +
+          '那两项确为单卡口径），**官方没有说明这里是不是单卡**。' +
+          '★ 对外只报「每超级芯片 1.8 TB/s、整机架 65 TB/s」这两个有规格表行支撑的数字，不要乘 72。',
+        'low',
       ),
       transistorCountB: vr<number>(
         336,
         '十亿',
         VR_GPU_BLOG,
-        '摘要要点，「336 billion transistors, 224 SMs, 896 Tensor Cores…」',
+        '正文首段，「Its 336 billion transistors, 224 streaming multiprocessors (SMs), and 896 Tensor Cores provide the raw compute density」（摘要要点同口径：「using 336 billion transistors, 224 streaming multiprocessors, 896 Tensor Cores」）',
+        '★ v1.5 订正 locator：此前把原文的 streaming multiprocessors 缩写成了「SMs」再当引文，属改写原文。',
       ),
-      smCount: vr<number>(224, '个', VR_GPU_BLOG, '摘要要点，「336 billion transistors, 224 SMs」'),
+      smCount: vr<number>(
+        224,
+        '个',
+        VR_GPU_BLOG,
+        '正文首段，「Its 336 billion transistors, 224 streaming multiprocessors (SMs), and 896 Tensor Cores provide the raw compute density」',
+        '★ v1.5 订正 locator：原文写的是 streaming multiprocessors（首次出现处才带括注 SMs），不是「224 SMs」。',
+      ),
       diesPerPackage: vr<number>(
         2,
         '颗',
         VR_GPU_BLOG,
         'The Rubin GPU 节，「These two dies are unified on a single package through… NVIDIA High-Bandwidth Interface (NV-HBI)」',
-        '★ 口径要点：官方把「一个封装（两颗 die）」算作一张 GPU，所以 NVL72 = 72 张 = 144 颗 die。2025-09 的 Rubin CPX 发布稿曾按 die 数把同类机架叫 NVL144，2026 年起官方统一按封装计数。',
+        '★ 口径要点：官方把「一个封装（两颗 die）」算作一张 GPU，所以 NVL72 = 72 张 = 144 颗 die。' +
+          '⚠️ 关于 NVL144 → NVL72 改名（v1.5 订正）：官方唯一的留痕是 2025-10 OCP 博客的编者按，逐字为' +
+          '「Editor\'s note: This blog has been updated to reflect a branding change from Vera Rubin NVL144 to ' +
+          'Vera Rubin NVL72.」——官方**只说了这是一次 branding change，没有给出原因**。' +
+          '「因为从按 die 计数改成按封装计数」是本项目基于上面这条封装口径做的**推断**，不是官方说法；' +
+          '此前把它写成官方沿革（并挂在 GPU 架构博客名下）是错的——该博客全篇零出现「NVL144」与「CPX」。',
       ),
       fp4DenseTflopsPerGpu: vr<number>(
         35000,
@@ -361,7 +497,9 @@ export const VERA_RUBIN_COMPONENTS: HardwareComponent[] = [
         'NVLink C2C',
         null,
         VR_GPU_BLOG,
-        'The Rubin GPU 节，「NVLink-C2C delivers 1,800 GB/s」（Vera↔Rubin 之间仍是 NVLink-C2C）',
+        'The Rubin GPU 节，「…NVLink-C2C delivers 1,800 GB/s for coherent CPU-GPU communication…」（Vera↔Rubin 之间仍是 NVLink-C2C）',
+        '⚠️ 那个 1,800 GB/s 的数值口径见 cmp.rubin.rubin-gpu.specs.c2cBandwidthGBs：产品页规格表把 1.8 TB/s 放在' +
+          'Vera Rubin Superchip 列，Rubin GPU 列是「-」，因此应按**每超级芯片**理解，不要乘 72。',
       ),
       tdpW: vrNull('W', VR_PAGE, 'NVIDIA 未公布 Vera CPU 的单颗 TDP。'),
     },
@@ -408,7 +546,7 @@ export const VERA_RUBIN_COMPONENTS: HardwareComponent[] = [
     summary:
       '含 2 个 Vera Rubin 超级芯片（合计 2 颗 Vera CPU + 4 张 Rubin GPU）、8 张 ConnectX-9 SuperNIC 与 1 张 BlueField-4 DPU 的无线缆液冷托盘。',
     presalesNote:
-      '对比 GB300 的托盘要说清两点：**GPU/CPU 数量没变（4+2）**，但**网卡从 4 张变成 8 张**，因为每张 GPU 配 2 张 800 Gb/s 单口卡凑 1.6 Tb/s。另一点客户运维会很在意：官方说托盘装配从 Blackwell 的 1.5 小时以上降到约 5 分钟，无线缆盲插是这一代 MGX 的核心卖点。',
+      '对比 GB300 的托盘要说清两点：**GPU/CPU 数量没变（4+2）**，但**网卡从 4 张变成 8 张**，因为每张 GPU 配 2 张 800 Gb/s 单口卡凑 1.6 Tb/s。另一点客户运维会很在意：官方说托盘装配从近 2 小时降到约 5 分钟（2026-01 材料写 1.5 小时以上、18×，2026-03 POD 博客写 nearly two hours、最高 20×，两版并存），**无线缆盲插的主语是托盘**——机架后部的 NVLink 脊柱仍是 4 个预集成铜缆匣、约 5,000 根铜缆，别讲成「整机架没有线缆」。',
     visual: { shape: 'tray-slab', colorToken: null },
     imageUrl: null,
     sourceIds: [VR_POD, VR_CHIPS],
@@ -448,16 +586,28 @@ export const VERA_RUBIN_COMPONENTS: HardwareComponent[] = [
       nvlinkPerTrayTBs: vr<number>(14.4, 'TB/s', VR_CHIPS, '计算托盘图注，「14.4 TB/s of NVLink 6 bandwidth」'),
       fastMemoryPerTrayTB: vr<number>(2, 'TB', VR_CHIPS, '计算托盘图注，「2 TB of fast memory」'),
       nvlinkScaleUp: vr<string>(
-        '托盘经 PCB 中板（midplane）盲插，托盘内 GPU 与机架内全部 72 张 GPU 经 NVLink 6 直连',
+        '托盘盲插即接入 NVLink 6 域；机架级 NVLink 的高速传输发生在机架后部的铜缆脊柱里',
         null,
         VR_POD,
-        'Compute and NVLink Switch trays 节，「The superchips are connected to the front modular bays… through the PCB midplane」+ 发布稿「modular, cable-free tray design」',
+        'NVIDIA Vera Rubin NVL72 节，「This high-speed data transfer happens in the NVLink spine at the back of the rack, which features four modular preintegrated cable cartridges housing 5,000 copper cables over two miles in length.」',
+        '⚠️ v1.5 订正：此前这条把机架级 NVLink 记在 PCB 中板名下。官方对 PCB 中板点名的连接对象是' +
+          '「The superchips are connected to the front modular bays that house eight ConnectX-9 SuperNICs and ' +
+          'one BlueField-4 DPU through the PCB midplane.」——超级芯片 ↔ 前部网卡仓。' +
+          '两句都是官方原话，官方未说明脊柱铜缆与中板在 NVLink 上如何分工，本项目两说并存。',
       ),
       assemblyTime: vr<string>(
-        '约 5 分钟（Blackwell 需 1.5 小时以上）',
+        '约 5 分钟（官方两版口径：1.5 小时以上 → 18×，或 nearly two hours → 最高 20×）',
         null,
-        VR_CHIPS,
-        '计算托盘装配节，「Assembly that used to take more than 1.5 hours for Blackwell now takes only ~5 minutes with Vera Rubin」',
+        VR_POD,
+        'NVIDIA Vera Rubin NVL72 节，「This simplification drops compute tray assembly time from nearly two hours to just five minutes—up to 20x faster assembly and serviceability.」',
+        '★ 官方**两版口径并存，本项目都留痕**：' +
+          '① 2026-01 六芯片博客写「Assembly that used to take more than 1.5 hours for Blackwell now takes only ' +
+          '~5 minutes with Vera Rubin」+「reduces service time by up to 18x」；' +
+          '② 2026-03 POD 博客更新为「from nearly two hours to just five minutes—up to 20x faster assembly and ' +
+          'serviceability」；③ Vera Rubin 数据手册与 CES 发布稿仍写 18×（发布稿原文「enables up to 18x faster ' +
+          'assembly and servicing than Blackwell」）。' +
+          '「5 分钟」这一端三处一致；分子端（1.5 小时 / 近 2 小时）与倍数（18× / 20×）官方自己有两版，' +
+          '对外报数时说清取的是哪一版。',
       ),
       trayPowerW: vrNull('W', VR_PAGE, 'NVIDIA 未公布单个计算托盘的功耗（整机架功率也未公布）。'),
     },
@@ -545,28 +695,53 @@ export const VERA_RUBIN_COMPONENTS: HardwareComponent[] = [
     name: 'ConnectX-9 SuperNIC 板（前置模块化仓）',
     vendor: 'NVIDIA',
     status: 'announced',
-    summary: '计算托盘正面的模块化网卡板，每托盘四块，经 PCB 中板与超级芯片相连。',
+    summary:
+      '计算托盘正面的模块化网卡板，经 PCB 中板与超级芯片相连。' +
+      '⚠️ 板数与每板张数是对官方英文的一种读法（官方英文有歧义），确证的只有「每托盘 8 张 ConnectX-9」。',
     presalesNote:
-      '这一代把网卡挪到托盘正面的模块化仓里，可以不拆托盘就换网卡——对运维是实打实的好处。GB300 是 2 块夹层板（每块 2 颗 CX-8），Vera Rubin 变成 4 块板（每块 2 张 CX-9）。',
+      '这一代把网卡挪到托盘正面的模块化仓里，可以不拆托盘就换网卡——对运维是实打实的好处。' +
+      '★ 但**板级拆分不要报死数**：官方只确证「每托盘 8 张 ConnectX-9、每机架 144 张」；' +
+      '「quad ConnectX-9 SuperNIC boards」这句英文既可读成 4 块板×2 张，也可读成 2 块板×4 张' +
+      '（第二句「Each quad ConnectX-9 SuperNIC board connects to each Vera CPU」配合每托盘 2 颗 Vera CPU，' +
+      '反而更支持后者）。对客户就讲「每托盘 8 张、每 GPU 2 张、1.6 Tb/s/GPU」——这三个数字是稳的。' +
+      '对照 GB300 是 2 块夹层板（每块 2 颗 CX-8，合计 4 张）。',
     visual: { shape: 'nic-card', colorToken: 'plane-scaleout' },
     imageUrl: null,
     sourceIds: [VR_CHIPS, VR_POD],
     specs: {
-      boardsPerTray: vrCount(
+      nicsPerTray: vrCount(
+        8,
+        VR_POD,
+        'Compute and NVLink Switch trays 节，「The superchips are connected to the front modular bays that house eight ConnectX-9 SuperNICs and one BlueField-4 DPU through the PCB midplane.」',
+        '★ 这一条才是确证事实（DGX 规格表独立佐证：「144x OSFP single-port ConnectX-9」= 18 托盘 × 8）。' +
+          '下面的板数 / 每板张数都是对官方英文的解读，置信度低于本条。',
+      ),
+      boardsPerTray: vrVendor<number>(
         4,
+        '个',
         VR_CHIPS,
         'ConnectX-9 节，「each compute tray contains quad ConnectX-9 SuperNIC boards, delivering 1.6Tb/s of network bandwidth per Rubin GPU」',
+        CX9_BOARD_AMBIGUITY,
+        'low',
       ),
-      nicsPerBoard: vrCount(
+      nicsPerBoard: vrVendor<number>(
         2,
+        '个',
         VR_POD,
-        '每托盘 8 张 ConnectX-9（POD 博客）÷ 4 块 SuperNIC 板（Six New Chips 博客）',
-        '由两处官方数字相除得到，非官方直接给出的规格行。',
+        '每托盘 8 张 ConnectX-9（POD 博客「eight ConnectX-9 SuperNICs」）÷ 4 块 SuperNIC 板（六芯片博客「quad ConnectX-9 SuperNIC boards」的一种读法）',
+        `由两处官方数字相除得到，非官方直接给出的规格行。${CX9_BOARD_AMBIGUITY}`,
+        'low',
       ),
-      cpuPairing: vrNull(
+      cpuPairing: vrVendor<string>(
+        '官方原文「Each quad ConnectX-9 SuperNIC board connects to each Vera CPU.」——网卡板接的是 Vera CPU',
         null,
-        VR_POD,
-        'NVIDIA 未说明 ConnectX-9 板与 Vera CPU 的配对关系（GB300 一代明确「每颗 Grace 配一块夹层板」）。',
+        VR_CHIPS,
+        'ConnectX-9 节，「Each quad ConnectX-9 SuperNIC board connects to each Vera CPU.」',
+        '★ v1.5 订正：此前本项目记作「NVIDIA 未说明配对关系」，实为漏检——官方明确说了网卡板接 Vera CPU。' +
+          '⚠️ 但「each…to each」这个说法本身有歧义（一块板对应一颗 CPU？还是每块板都接到每颗 CPU？），' +
+          '官方也没给出板数，因此只记录「网卡板挂在 Vera CPU 上」这个方向性事实，' +
+          '不据此反推板数——见 boardsPerTray 的歧义留痕。' +
+          'GB300 一代的对应说法是「每颗 Grace 配一块夹层板」。',
       ),
       mounting: vr<string>(
         '托盘正面模块化仓，经 PCB 中板与超级芯片相连',
@@ -644,8 +819,12 @@ export const VERA_RUBIN_COMPONENTS: HardwareComponent[] = [
         800,
         'Gb/s',
         VR_CHIPS,
-        'BlueField-4 图注，「NVIDIA ConnectX-9 networking delivering up to 800 Gb/s using 200G SerDes over PCIe Gen6」',
-        'GB300 的 BlueField-3 同口径约为 480 Gb/s。',
+        'BlueField-4 图注（Figure 13），「NVIDIA ConnectX-9 networking delivering up to 800 Gb/s using 200G SerDes over PCIe Gen6」',
+        '★ v1.5 订正：**同代对照应取 400 Gb/s**——同一篇博客的 Table 5「NVIDIA BlueField DPU capability ' +
+          'comparison」写着「Bandwidth | BlueField-3 400 Gb/s | BlueField-4 800 Gb/s」，正好是官方点名的' +
+          '「2x networking performance」。此前本项目写的「BF-3 同口径约 480 Gb/s」是错的：那个 480 出自 ' +
+          'GB300 企业参考架构的「can handle an aggregate bandwidth of approximately 480 Gb/s」，' +
+          '说的是**节点南北向汇聚网带宽**，不是 BlueField-3 的芯片规格，两者不同口径、不能对比。',
       ),
       portType: vr<string>(
         '双口 VPI，每口 400 Gb/s（InfiniBand 或以太网）',
@@ -658,20 +837,29 @@ export const VERA_RUBIN_COMPONENTS: HardwareComponent[] = [
         '核',
         VR_CHIPS,
         'BlueField-4 图注，「integrates a 64-core NVIDIA Grace CPU based on Arm Neoverse V2 with 250 GB/s of LPDDR5 memory bandwidth」',
-        '⚠️ 官方口径冲突：2026-01 技术博客写「64 核 Grace CPU」，2026-03 发布稿则称 BlueField-4「结合 NVIDIA Vera CPU 与 ConnectX-9」。两条都是官方说法，本项目原样记录不做取舍。',
+        '⚠️ 官方口径冲突（v1.5 补齐第三处材料）：**2026-01** 六芯片技术博客写「integrates a 64-core NVIDIA Grace ' +
+          'CPU based on Arm Neoverse V2」（正文与图 13 图注两处一致）；而 **2026-03** 有两篇材料都说是 Vera——' +
+          'GTC 2026 发布稿「Powered by BlueField-4 — combining the NVIDIA Vera CPU and NVIDIA ConnectX-9 ' +
+          'SuperNIC」，POD 博客「the NVIDIA BlueField-4 processor, which combines the Vera CPU and ConnectX-9 ' +
+          'SuperNIC」。即 **2 篇 2026-03 材料 vs 1 篇 2026-01 材料**，较新的一侧更一致。' +
+          '但官方从未发过更正声明，本项目仍原样记录不做取舍——核数 64 这个数字只有 2026-01 那篇给过。',
       ),
       memoryBandwidthGBs: vr<number>(250, 'GB/s', VR_CHIPS, 'BlueField-4 图注，「250 GB/s of LPDDR5 memory bandwidth」'),
       vsPreviousGen: vr<string>(
         '相对 BlueField-3：2× 网络、6× 算力、3× 内存带宽',
         null,
         VR_CHIPS,
-        'BlueField-4 图注，「2x networking performance, 6x compute, and 3x memory bandwidth versus BlueField-3」',
+        '图 19（ConnectX-9 与 BlueField-4 模块）图注，「…generational gains of 2x networking performance, 6x compute, and 3x memory bandwidth versus BlueField-3」',
+        '★ v1.5 复核结论：这句**确为原文逐字**（曾被怀疑是合成句，经全文检索确认存在），' +
+          '只是位置写错了——它在图 19 的模块对照图注里，不是 BlueField-4 那张图（图 13）的图注，locator 已订正。' +
+          '同文 Table 5 给出可核对的分项：Bandwidth 400 → 800 Gb/s、Compute 16 Arm A78 → 64 Arm Neoverse V2（6x）。',
       ),
       inlineCryptoGbs: vr<number>(
         800,
         'Gb/s',
         VR_CHIPS,
-        'BlueField-4 节，「800 Gb/s inline cryptography using AES-XTS」',
+        '图 13（BlueField-4 DPU）图注，「…zero-trust security capabilities such as 800 Gb/s inline cryptography using AES-XTS, real-time data inspection, and threat detection for secure AI infrastructure」',
+        '★ v1.5 订正 locator：此前标为「BlueField-4 节」（正文），实际出现在图 13 的图注里，正文没有这句。',
       ),
       operatingMode: vrNull(
         null,
@@ -687,9 +875,15 @@ export const VERA_RUBIN_COMPONENTS: HardwareComponent[] = [
     name: '第三代 MGX 液冷机架',
     vendor: 'NVIDIA / OEM',
     status: 'announced',
-    summary: '单宽第三代 MGX 机架，无线缆盲插托盘设计，45°C 液冷，整机约 4,000 磅（约 1.8 吨）。',
+    summary:
+      '单宽第三代 MGX 机架：**托盘**无线缆盲插（cable-free / hose-free / fanless），' +
+      '机架**后部**是模块化铜缆脊柱（预集成线缆匣），45°C 液冷，整机约 4,000 磅（约 1.8 吨）。',
     presalesNote:
-      '两个对客户机房最重要的官方事实：**45°C 液冷**（进水温度越高越容易用自然冷却，PUE 直接受益）与**无线缆设计**（装配从 1.5 小时降到 5 分钟量级）。承重仍是 1.8 吨级，机房楼板与运输通道要提前确认。',
+      '两个对客户机房最重要的官方事实：**45°C 液冷**（进水温度越高越容易用自然冷却，PUE 直接受益）与' +
+      '**无线缆托盘**（装配从「nearly two hours」降到 5 分钟量级）。' +
+      '⚠️ 措辞要准确：官方的 cable-free 修饰的是 **compute and NVLink switch trays**，' +
+      '不是整台机架——机架后部的 NVLink 脊柱是 4 个预集成铜缆匣、约 5,000 根铜缆。' +
+      '把它讲成「整机架没有线缆」会在客户现场被当场推翻。承重仍是 1.8 吨级，机房楼板与运输通道要提前确认。',
     visual: { shape: 'rack-frame', colorToken: null },
     imageUrl: null,
     sourceIds: [VR_POD, VR_GPU_BLOG, VR_PRESS],
@@ -712,11 +906,26 @@ export const VERA_RUBIN_COMPONENTS: HardwareComponent[] = [
         VR_POD,
         'NVIDIA Vera Rubin NVL72 节，「all packed into a single-wide third-generation NVIDIA MGX rack」',
       ),
+      namingHistory: vr<string>(
+        '曾名 Vera Rubin NVL144，官方于 2025-10 改名为 Vera Rubin NVL72（官方只称之为 branding change，未给原因）',
+        null,
+        VR_OCP,
+        '文首编者按，「Editor\'s note: This blog has been updated to reflect a branding change from Vera Rubin NVL144 to Vera Rubin NVL72.」',
+        '★ 这是官方对这次改名的**唯一**留痕，且只说了「branding change」四个字。' +
+          '业界常见的解释「NVL144 按 die 数、NVL72 按封装数」与官方「一封装 = 一张 GPU」的口径自洽，' +
+          '但**官方从未这样说过**——引用时请标明这是推断。' +
+          '售前含义：客户手上 2025 年的材料如果写着「Vera Rubin NVL144」，指的就是同一台 NVL72，不是另一款产品；' +
+          '真正独立的 NVL144 是下一代 Kyber 机架（POD 博客：「Kyber will first be introduced with Vera Rubin ' +
+          'Ultra as a standalone NVL144 system」），两者别混。',
+      ),
       cableFree: vr<boolean>(
         true,
         null,
         VR_PRESS,
-        'Second-Generation RAS Engine 节，「The rack\'s modular, cable-free tray design enables up to 18x faster assembly and servicing than Blackwell.」',
+        'Second-Generation RAS Engine 节，「The rack\'s modular, cable-free tray design enables up to 18x faster assembly and servicing than Blackwell.」（POD 博客同口径：「It unlocks completely modular, cable-free, hose-free, and fanless compute and NVLink switch trays」）',
+        '★ 口径边界：官方 cable-free 的主语始终是 **tray**（发布稿写 cable-free *tray* design，' +
+          'POD 博客写 cable-free… compute and NVLink switch *trays*），不是整台机架。' +
+          '机架后部仍有 NVLink 铜缆脊柱（4 个线缆匣、约 5,000 根铜缆），见 cmp.rubin.nvlink-midplane。',
       ),
       componentCount: vr<number>(
         1_300_000,
@@ -746,24 +955,52 @@ export const VERA_RUBIN_COMPONENTS: HardwareComponent[] = [
   {
     id: 'cmp.rubin.nvlink-midplane',
     kind: 'rack',
-    name: 'NVLink PCB 中板（Midplane）',
+    name: 'NVLink 铜缆脊柱（Spine）+ 托盘 PCB 中板',
     vendor: 'NVIDIA',
     status: 'announced',
-    summary: '机架内的无源 PCB 中板，承载计算托盘与 NVLink 6 交换托盘之间的全部链路，托盘盲插即连通。',
+    summary:
+      '机架内 scale-up 互连底板的两个官方部件：机架**后部**的模块化铜缆脊柱（4 个预集成线缆匣、约 5,000 根铜缆），' +
+      '以及计算托盘**内部**的无源 PCB 中板（把超级芯片接到托盘正面的网卡仓）。',
     presalesNote:
-      'GB300 是铜背板，这一代官方措辞变成「无线缆托盘设计 + PCB 中板」。对客户的意义在可维护性：没有线缆意味着装配与更换托盘不需要重新走线，也就不会有插错口这类人为故障。',
+      '★ 这一格最容易讲反，v1.5 已按官方原文订正：**机架级 NVLink 走的是后部铜缆脊柱，不是 PCB 中板**——' +
+      'POD 博客原话「This high-speed data transfer happens in the NVLink spine at the back of the rack, which ' +
+      'features four modular preintegrated cable cartridges housing 5,000 copper cables over two miles in length.」；' +
+      '而「cable-free」修饰的对象是**托盘**（「compute trays… features a robust PCB midplane… that unlocks a ' +
+      'cable-free, hose-free, and fanless design」），PCB 中板官方点名的连接对象是**超级芯片 ↔ 前部网卡仓**。' +
+      '所以对客户的正确讲法是：**托盘内无线缆（装配/换件不用重新走线），机架脊柱仍然是铜缆——只是被做成了预集成、' +
+      '预验证的线缆匣，整匣更换而不是一根根插**。跟 GB300 的代际差异也在这里：' +
+      '差异在托盘内部（cable-free tray），**不在**机架脊柱——两代的机架级 NVLink 同为铜缆形态。',
     visual: { shape: 'backplane', colorToken: 'plane-nvlink' },
     imageUrl: null,
     sourceIds: [VR_POD, VR_PRESS],
     specs: {
       medium: vr<string>(
-        'PCB 中板（midplane），无线缆盲插',
+        '机架后部铜缆脊柱（4 个预集成线缆匣）+ 托盘内 PCB 中板',
         null,
         VR_POD,
-        'Compute and NVLink Switch trays 节，「The superchips are connected to the front modular bays… through the PCB midplane」',
-        'GB300 一代的同一位置是「copper backplane（铜背板）」。',
+        'NVIDIA Vera Rubin NVL72 节，「This high-speed data transfer happens in the NVLink spine at the back of the rack, which features four modular preintegrated cable cartridges housing 5,000 copper cables over two miles in length.」；Compute and NVLink Switch trays 节，「The superchips are connected to the front modular bays that house eight ConnectX-9 SuperNICs and one BlueField-4 DPU through the PCB midplane.」',
+        '⚠️ 两句官方话都要如实呈现，**不要用一句去否定另一句**：官方既没有说明这 5,000 根铜缆与 PCB 中板' +
+          '在电气上如何分工，也没有说中板完全不参与 NVLink。能确定的只有——机架级 NVLink 的高速传输发生在' +
+          '后部铜缆脊柱里，而中板官方点名的连接对象是超级芯片与前部网卡仓。' +
+          'GB300 一代的同一位置是 copper backplane（铜背板），**两代的机架脊柱同为铜缆形态**；' +
+          '代际差异在托盘内部（Vera Rubin 的 cable-free tray），不在机架脊柱。',
       ),
-      cableCount: vrNull('根', VR_POD, 'NVIDIA 未公布中板内部的链路根数。'),
+      cableCount: vr<number>(
+        5000,
+        '根',
+        VR_POD,
+        'NVIDIA Vera Rubin NVL72 节，「…four modular preintegrated cable cartridges housing 5,000 copper cables over two miles in length」',
+        '官方措辞是「5,000 copper cables over two miles in length」（约 3.2 km 总长度）。' +
+          '这是**机架后部 NVLink 脊柱**里的铜缆根数，不是「PCB 中板内部的链路根数」——中板走的是 PCB 走线，官方未给根数。',
+      ),
+      cableCartridgeCount: vrCount(
+        4,
+        VR_POD,
+        'NVIDIA Vera Rubin NVL72 节，「four modular preintegrated cable cartridges」（通用形态另见「The rack features a highly modular spine as its backplane, consisting of up to four preintegrated and prevalidated copper cable cartridges that connect each tray as one.」）',
+        '★ 售前含义：线缆匣是**预集成、预验证**的整体件，MGX NVL 与 MGX ETL 两种机架共用同一套机械形态' +
+          '（官方原话「shares the same mechanical form factor for both MGX NVL and MGX ETL racks」）——' +
+          '维护粒度是「换一个匣」，不是「插一根线」。',
+      ),
     },
   },
   {
@@ -1079,12 +1316,16 @@ export const VERA_RUBIN_ASSEMBLIES: AssemblyNode[] = [
     parentId: 'asm.rubin.rack',
     componentId: 'cmp.rubin.nvlink-midplane',
     roleKey: 'nvlink-backplane',
-    label: 'NVLink PCB 中板',
+    label: 'NVLink 铜缆脊柱 + 托盘 PCB 中板',
     count: 1,
     countClaim: null,
     lodLevel: 'rack',
     rackU: null,
-    note: '位于机架中部，不占用 U 位。GB300 一代对应的是铜背板。',
+    note:
+      '不占用 U 位。★ v1.5 订正：机架级 NVLink 走的是**机架后部的铜缆脊柱**（4 个预集成线缆匣、约 5,000 根铜缆），' +
+      'PCB 中板官方点名连接的是超级芯片与托盘前部网卡仓。GB300 一代对应的是铜背板——' +
+      '**两代的机架脊柱同为铜缆形态**，代际差异在托盘内部（cable-free tray），不在机架脊柱。' +
+      '3D 里这一格按单一底板形态示意，不区分脊柱与中板两个物理件。',
   },
 
   // ── tray / board 层 ──
@@ -1156,14 +1397,19 @@ export const VERA_RUBIN_ASSEMBLIES: AssemblyNode[] = [
     roleKey: 'nic-mezzanine',
     label: 'ConnectX-9 SuperNIC 板',
     count: 4,
-    countClaim: vrCount(
+    countClaim: vrVendor<number>(
       4,
+      '个',
       VR_CHIPS,
-      'ConnectX-9 节，「each compute tray contains quad ConnectX-9 SuperNIC boards」',
+      'ConnectX-9 节，「each compute tray contains quad ConnectX-9 SuperNIC boards, delivering 1.6Tb/s of network bandwidth per Rubin GPU」',
+      CX9_BOARD_AMBIGUITY,
+      'low',
     ),
     lodLevel: 'board',
     rackU: null,
-    note: 'GB300 一代是 2 块夹层板。',
+    note:
+      '⚠️ 板数 4 是对官方英文的一种读法（另一种读法是 2 块板 × 每块 4 张），3D 里必须选一种形态才建模，' +
+      '详见 countClaim 的 note。确证的只有「每托盘 8 张、每机架 144 张」。GB300 一代是 2 块夹层板。',
   },
   {
     id: 'asm.rubin.cx9-nic',
@@ -1173,14 +1419,20 @@ export const VERA_RUBIN_ASSEMBLIES: AssemblyNode[] = [
     roleKey: 'scaleout-nic',
     label: 'ConnectX-9 SuperNIC',
     count: 2,
-    countClaim: vrCount(
+    countClaim: vrVendor<number>(
       2,
+      '个',
       VR_POD,
-      '每托盘 8 张 ConnectX-9（POD 博客）÷ 4 块 SuperNIC 板（Six New Chips 博客）',
+      '每托盘 8 张 ConnectX-9（POD 博客「eight ConnectX-9 SuperNICs」）÷ 4 块 SuperNIC 板（六芯片博客「quad ConnectX-9 SuperNIC boards」的一种读法）',
+      CX9_BOARD_AMBIGUITY,
+      'low',
     ),
     lodLevel: 'board',
     rackU: null,
-    note: '4 块板 × 2 = 每托盘 8 张，全机架 144 张，对应官方 DGX 规格表的「144x single-port ConnectX-9」与每 GPU 1.6 Tb/s。',
+    note:
+      '★ 稳的是**乘积**不是因子：4 × 2 = 每托盘 8 张、全机架 144 张，对应官方 POD 博客的「eight ConnectX-9 ' +
+      'SuperNICs」、DGX 规格表的「144x OSFP single-port ConnectX-9」与每 GPU 1.6 Tb/s。' +
+      '两个因子本身（4 块板 / 每块 2 张）是对歧义英文的一种读法，见 countClaim 的 note。',
   },
   {
     id: 'asm.rubin.bf4-dpu',
@@ -1268,8 +1520,13 @@ export const VERA_RUBIN_CONNECTIONS: Connection[] = [
     protocol: 'NVLink 第六代',
     bandwidth: null,
     direction: 'bidirectional',
-    label: 'NVLink 6 交换芯片 → PCB 中板',
-    summary: '交换托盘的链路全部落在无源 PCB 中板上，无线缆、无光模块。',
+    label: 'NVLink 6 交换芯片 → 机架脊柱 / 中板',
+    summary:
+      '★ 官方口径（v1.5 订正）：机架级 NVLink 的高速传输发生在**机架后部的铜缆脊柱**里——' +
+      '「four modular preintegrated cable cartridges housing 5,000 copper cables over two miles in length」，' +
+      '不是「无线缆、无光模块」。交换托盘本身是 cable-free 的（官方「cable-free, hose-free, and fanless ' +
+      'compute and NVLink switch trays」），但托盘之间靠的是铜缆脊柱把它们「connect each tray as one」。' +
+      '官方未说明脊柱铜缆与托盘 PCB 中板在电气上如何分工，此处两说并存不互相否定。',
     sourceIds: [VR_POD],
   },
   {
@@ -1283,8 +1540,11 @@ export const VERA_RUBIN_CONNECTIONS: Connection[] = [
     protocol: 'NVLink 第六代',
     bandwidth: vr<number>(14.4, 'TB/s', VR_CHIPS, '计算托盘图注，「14.4 TB/s of NVLink 6 bandwidth」'),
     direction: 'bidirectional',
-    label: '计算托盘 → PCB 中板',
-    summary: '计算托盘盲插到中板即完成 NVLink 连接——官方称这一改动让装配时间从 1.5 小时降到约 5 分钟。',
+    label: '计算托盘 → 机架脊柱 / 中板',
+    summary:
+      '计算托盘盲插即接入 scale-up 域，托盘本身无线缆——官方称这让装配时间从「nearly two hours」降到约 5 分钟' +
+      '（2026-03 POD 博客口径 20×；2026-01 六芯片博客与数据手册写的是 1.5 小时 / 18×，两版并存）。' +
+      '⚠️ 「无线缆」说的是托盘，机架后部的 NVLink 脊柱仍是 4 个铜缆匣、约 5,000 根铜缆。',
     sourceIds: [VR_POD, VR_CHIPS],
   },
   {
@@ -1296,12 +1556,25 @@ export const VERA_RUBIN_CONNECTIONS: Connection[] = [
     topology: 'point-to-point',
     medium: 'pcb-trace',
     protocol: 'NVLink-C2C',
-    bandwidth: vr<number>(1800, 'GB/s', VR_GPU_BLOG, 'The Rubin GPU 节，「NVLink-C2C delivers 1,800 GB/s」'),
+    bandwidth: vrVendor<number>(
+      1800,
+      'GB/s',
+      VR_PAGE,
+      '规格表 NVLink-C2C Bandwidth 行，Vera Rubin Superchip 列「1.8 TB/s」（同行 NVL72 列「65 TB/s」、Rubin GPU 列「-」）',
+      '★ 这条边的带宽是**每超级芯片**（1 Vera + 2 Rubin）口径，不是每张 GPU：36 × 1.8 = 64.8 ≈ 官方整机架 65 TB/s。' +
+        '产品页规格表的 Rubin GPU 列在这一行是「-」——官方刻意不给单卡 C2C 数字。' +
+        '⚠️ GPU 架构博客另有一句出现在 Rubin GPU 语境里的「NVLink-C2C delivers 1,800 GB/s for coherent ' +
+        'CPU-GPU communication」，官方没说明是否为单卡口径，两说并存见 cmp.rubin.rubin-gpu.specs.c2cBandwidthGBs。',
+      'low',
+    ),
     direction: 'bidirectional',
-    label: 'Vera ↔ Rubin（C2C）',
+    label: 'Vera ↔ Rubin（C2C，每超级芯片口径）',
     summary:
-      '1 颗 Vera + 2 张 Rubin 合封为一个超级芯片，CPU 与 GPU 之间是 1.8 TB/s 的 NVLink-C2C——整机架 54 TB LPDDR5X 因此成为 GPU 可寻址的扩展内存。',
-    sourceIds: [VR_GPU_BLOG, VR_PAGE],
+      '1 颗 Vera + 2 张 Rubin 合封为一个超级芯片，超级芯片内的 CPU↔GPU 是 1.8 TB/s 的 NVLink-C2C' +
+      '——整机架 54 TB LPDDR5X 因此成为 GPU 可寻址的扩展内存。' +
+      '⚠️ 1.8 TB/s 是**每超级芯片**口径（36 × 1.8 ≈ 官方 65 TB/s），官方规格表的 Rubin GPU 列在这一行写的是「-」，' +
+      '不要按单卡乘 72。',
+    sourceIds: [VR_PAGE, VR_GPU_BLOG],
   },
 
   // ── scaleout 平面 ──
@@ -1321,10 +1594,17 @@ export const VERA_RUBIN_CONNECTIONS: Connection[] = [
       'ConnectX-9 卡片，「ConnectX-9 SuperNICs deliver 1.6 terabits per second (Tb/s) of per-GPU bandwidth」',
     ),
     direction: 'bidirectional',
-    label: 'GPU ↔ ConnectX-9（1:2）',
+    label: 'GPU ↔ ConnectX-9（1:2，分摊口径）',
     summary:
-      '每张 Rubin GPU 配两张 800 Gb/s 单口 SuperNIC，出机架带宽 1.6 Tb/s——相对 GB300 的 1:1 / 800 Gb/s 翻倍。',
-    sourceIds: [VR_PAGE, VR_DGX],
+      '每张 Rubin GPU 配两张 800 Gb/s 单口 SuperNIC，出机架带宽 1.6 Tb/s——相对 GB300 的 1:1 / 800 Gb/s 翻倍。' +
+      '⚠️ **这是分摊口径的比值，不是一条官方点名的直连链路**：官方描述的物理路径是' +
+      '「Each quad ConnectX-9 SuperNIC board connects to each Vera CPU.」（网卡板接 Vera CPU）与' +
+      '「The superchips are connected to the front modular bays that house eight ConnectX-9 SuperNICs… ' +
+      'through the PCB midplane.」（超级芯片经 PCB 中板接前部网卡仓）。' +
+      '产品页的「1.6 Tb/s per-GPU bandwidth」= 每托盘 8 张 × 800 Gb/s ÷ 4 张 GPU 的**每 GPU 分摊值**。' +
+      '本项目把这条边画成 GPU↔网卡，是为了表达 GPUDirect RDMA 的**数据面语义**（GPU 显存直通网卡，不经主机内存），' +
+      '不代表存在一条绕过中板与 CPU 的专用物理链路。',
+    sourceIds: [VR_PAGE, VR_DGX, VR_CHIPS, VR_POD],
   },
   {
     id: 'con.rubin.cx9-board',
@@ -1338,7 +1618,10 @@ export const VERA_RUBIN_CONNECTIONS: Connection[] = [
     bandwidth: null,
     direction: 'bidirectional',
     label: 'ConnectX-9 → SuperNIC 板',
-    summary: '每托盘 4 块 SuperNIC 板，每块 2 张 ConnectX-9，装在托盘正面的模块化仓里。',
+    summary:
+      '网卡装在托盘正面的模块化仓里，官方说网卡板接的是 Vera CPU（「Each quad ConnectX-9 SuperNIC board ' +
+      'connects to each Vera CPU.」）。⚠️ 本项目按「4 块板 × 每块 2 张」建模，但官方英文也可读成' +
+      '「2 块板 × 每块 4 张」——确证的只有每托盘 8 张。',
     sourceIds: [VR_CHIPS, VR_POD],
   },
   {
@@ -1397,7 +1680,10 @@ export const VERA_RUBIN_CONNECTIONS: Connection[] = [
     ),
     direction: 'bidirectional',
     label: 'BlueField-4 → 汇聚交换机',
-    summary: '每托盘 1 张双口 BlueField-4 承载存储与业务流量，单口 400 Gb/s（BF-3 一代为约 480 Gb/s 合计）。',
+    summary:
+      '每托盘 1 张双口 BlueField-4 承载存储与业务流量，单口 400 Gb/s、整卡最高 800 Gb/s。' +
+      '代际对照按官方 Table 5：BlueField-3 400 Gb/s → BlueField-4 800 Gb/s（正好是官方说的 2× 网络）。' +
+      '⚠️ 不要拿 GB300 参考架构里的「约 480 Gb/s」当 BF-3 规格——那是节点南北向汇聚网带宽，不是芯片口径。',
     sourceIds: [VR_DGX, VR_CHIPS],
   },
   {
@@ -1641,7 +1927,7 @@ export const VERA_RUBIN_SCENES: ScenePreset[] = [
     systemId: SYSTEM_ID,
     title: 'Vera Rubin 机架：结构没变，密度变了',
     narration:
-      '机架级结构与 GB300 高度一致：18 个计算托盘 + 9 个 NVLink 交换托盘。变的是内部密度——每个交换托盘从 2 颗交换芯片变成 4 颗（机架内 18 → 36 颗），scale-up 总带宽从 130 TB/s 翻到 260 TB/s。机架本体是第三代 MGX：单宽、无线缆、45°C 液冷、约 1.8 吨。',
+      '机架级结构与 GB300 高度一致：18 个计算托盘 + 9 个 NVLink 交换托盘。变的是内部密度——每个交换托盘从 2 颗交换芯片变成 4 颗（机架内 18 → 36 颗），scale-up 总带宽从 130 TB/s 翻到 260 TB/s。机架本体是第三代 MGX：单宽、45°C 液冷、约 1.8 吨，托盘一律无线缆盲插；机架后部则是 4 个预集成铜缆匣、约 5,000 根铜缆组成的 NVLink 脊柱——「无线缆」说的是托盘，不是整台机架。',
     lodLevel: 'rack',
     focusAssemblyId: 'asm.rubin.rack',
     planes: ['nvlink', 'power'],

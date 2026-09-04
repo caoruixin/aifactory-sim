@@ -6,10 +6,12 @@
  */
 
 import { FACTORY_PACK, systemById } from '../../data'
-import { DIFF_LABEL, DIFF_ORDER, changedRows, compareSystems } from '../../lib/compare'
+import { AUTO_DIFF_NOTICE, DIFF_LABEL, DIFF_ORDER, changedRows, compareSystems } from '../../lib/compare'
 import type { DiffKind, DiffRow, SpecDelta } from '../../lib/compare'
+import { specLabel } from '../../lib/specLabel'
 import { useFactoryStore } from '../../store'
 import { EvidenceChip, MetaChip, StatusChip } from '../ui/Chips'
+import RichText from '../ui/RichText'
 
 /** diff 类别 → Tailwind 类。与 3D 描边色语义一致（新增绿 / 未收录红 / 数量紫 / 规格青）。 */
 const KIND_CLASS: Record<DiffKind, string> = {
@@ -117,21 +119,22 @@ export default function ComparePanel() {
                 <span aria-hidden className="text-accent">
                   ·
                 </span>
-                <span>{s}</span>
+                <span>
+                  <RichText text={s} />
+                </span>
               </li>
             ))}
           </ul>
         </section>
       ) : (
-        <p className="border-b border-line px-4 py-3 text-xs leading-relaxed text-dim">
-          这一对组合没有写过人工比较定义（或方向与定义相反），下面是纯自动 diff——
-          只有配对结果，没有叙述。把左右调回定义方向即可看到汇报要点。
+        <p data-auto-diff-notice className="border-b border-line px-4 py-3 text-xs leading-relaxed text-dim">
+          {AUTO_DIFF_NOTICE}
         </p>
       )}
 
+      {/* 组件里硬编码的文案同样按 `**` 写（与内容包同一套记法），一并走 RichText。 */}
       <p className="border-b border-line bg-panel-2 px-4 py-2 text-[11px] leading-relaxed text-warn">
-        ⚠️ 「新增 / 未收录」只描述**本内容包收录了什么**，不代表产品上有没有这个部件；
-        一侧官方未公布的规格计为「无法比较」而不是「变化」。
+        <RichText text="⚠️ 「新增 / 未收录」只描述**本内容包收录了什么**，不代表产品上有没有这个部件；一侧官方未公布的规格计为「无法比较」而不是「变化」。" />
       </p>
 
       <ol className="divide-y divide-line">
@@ -178,10 +181,12 @@ function DiffRowItem({ row }: { row: DiffRow }) {
 
       {row.narrative ? (
         <p className="mt-1.5 rounded-md border border-warn/25 bg-warn/5 px-2 py-1.5 text-[11px] leading-relaxed">
-          {row.narrative}
+          <RichText text={row.narrative} />
         </p>
       ) : (
-        <p className="mt-1 text-[11px] leading-relaxed text-dim">{row.summary}</p>
+        <p className="mt-1 text-[11px] leading-relaxed text-dim">
+          <RichText text={row.summary} />
+        </p>
       )}
 
       {changed.length > 0 ? (
@@ -199,8 +204,8 @@ function DiffRowItem({ row }: { row: DiffRow }) {
           </summary>
           <ul className="mt-1 space-y-0.5 text-[11px] text-dim">
             {unknown.map((d) => (
-              <li key={d.key} className="font-mono">
-                {d.key}：{d.left?.value === null ? '左未公布' : String(d.left?.value)} /{' '}
+              <li key={d.key} title={d.key}>
+                {specLabel(d.key)}：{d.left?.value === null ? '左未公布' : String(d.left?.value)} /{' '}
                 {d.right?.value === null ? '右未公布' : String(d.right?.value)}
               </li>
             ))}
@@ -241,7 +246,10 @@ function SpecDeltaRow({ delta }: { delta: SpecDelta }) {
   return (
     <div className="rounded-md border border-line px-2 py-1">
       <div className="flex items-baseline justify-between gap-2">
-        <dt className="font-mono text-[11px] break-all text-dim">{delta.key}</dt>
+        {/* 与详情面板同一张表（lib/specLabel.ts）：显示中文、title 留原始键。 */}
+        <dt className="text-[11px] break-all text-dim" title={delta.key}>
+          {specLabel(delta.key)}
+        </dt>
         <dd className="text-right text-xs">
           <span className="text-dim">{fmt(delta.left?.value, delta.left?.unit)}</span>
           <span aria-hidden className="mx-1 text-dim">

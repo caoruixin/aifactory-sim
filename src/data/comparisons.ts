@@ -51,7 +51,7 @@ export const COMPARISONS: ComparisonDefinition[] = [
         roleKey: 'north-south-dpu',
         label: 'North/South DPU',
         narrative:
-          'BlueField-3 → BlueField-4：官方给的对比是「2× 网络、6× 算力、3× 内存带宽」，聚合带宽约 480 Gb/s → 800 Gb/s。⚠️ 两条官方说法互相冲突：技术博客说 BF-4 内含 64 核 Grace，发布稿说它整合 Vera CPU——本项目原样记录不做取舍。',
+          'BlueField-3 → BlueField-4：官方给的对比是「2× 网络、6× 算力、3× 内存带宽」，带宽按同一篇技术博客的 Table 5 是 **400 Gb/s → 800 Gb/s**（正好对上那个 2×），算力是 16 核 Arm A78 → 64 核 Arm Neoverse V2。⚠️ v1.5 订正：此前这里写「约 480 Gb/s → 800 Gb/s」，那个 480 出自 GB300 参考架构的「aggregate bandwidth of approximately 480 Gb/s」——说的是**节点南北向汇聚网带宽**，不是 BlueField-3 的芯片规格，两者不同口径不能对比。⚠️ 另有两条官方说法互相冲突：2026-01 技术博客说 BF-4 内含 64 核 Grace，2026-03 发布稿与 POD 博客说它整合 Vera CPU（2 篇 2026-03 材料 vs 1 篇 2026-01）——本项目原样记录不做取舍。',
       },
       {
         roleKey: 'power-shelf',
@@ -80,7 +80,14 @@ export const COMPARISONS: ComparisonDefinition[] = [
         roleKey: 'nvlink-backplane',
         label: '机架内互连底板',
         narrative:
-          '铜背板 → PCB 中板（midplane）+ 无线缆托盘设计。官方称这让装配/维护最快提速 18×，单托盘装配从 1.5 小时降到约 5 分钟。',
+          '★ 这一行最容易讲反（v1.5 已按官方原文订正）：**两代的机架级 NVLink 同为铜缆形态，代际差异在托盘内部**。' +
+          'GB300 是无源铜背板；Vera Rubin 是机架**后部**的模块化铜缆脊柱——官方原话「four modular preintegrated ' +
+          'cable cartridges housing 5,000 copper cables over two miles in length」，' +
+          '外加托盘**内部**新增的 PCB 中板（官方点名连接的是超级芯片 ↔ 前部网卡仓）。' +
+          '真正变了的是**托盘侧免走线**：官方的 cable-free 修饰的是 compute and NVLink switch **trays**，' +
+          '不是整台机架——「机架没有线缆了」是错的说法。' +
+          '⚠️ 装配提速官方有两版口径：2026-01 材料与 CES 发布稿写「1.5 小时以上 → 约 5 分钟、最高 18×」，' +
+          '2026-03 POD 博客写「from nearly two hours to just five minutes—up to 20x」。报数时说明取的是哪一版。',
       },
     ],
     sourceIds: [
@@ -97,8 +104,8 @@ export const COMPARISONS: ComparisonDefinition[] = [
     rightSystemId: 'sys.rubin-ultra-nvl576',
     title: 'Vera Rubin NVL72 → Vera Rubin Ultra NVL576',
     summary: [
-      '★ 分水岭在于 **NVLink 域跨出了机架**，且这一点 NVIDIA 官方已经证实（2026-03 POD 博客）：8 个 MGX NVL 机架经「direct optical connections」组成单一 576-GPU NVLink 域。机架内仍然是铜背板——铜没有被取代，只是被限制在机架内。这是本代唯一同时有官方与分析师两个独立来源互相佐证的结构事实。',
-      '★ 规模阶梯与命名口径：NVIDIA 官方给出三档 Vera Rubin Ultra scale-up 域——NVL72、NVL144（新机型 Kyber，单机架）、旗舰 NVL576（本代，8 机架）。Kyber 与 NVL576 是**并列的两条产品线**，不是同一机架的两种叫法；2025-10 OCP 博客还留有编者按「本文已更新，将品牌从 Vera Rubin NVL144 改为 Vera Rubin NVL72」，记录了上一代命名口径的调整。同一篇 OCP 博客提到 Kyber「到 2027 年将容纳 576 张 Rubin Ultra GPU」——这是 2025 年时点的早期措辞，本项目**推断**它是 2026-03 拆分出 Kyber(NVL144)/NVL576 两条线之前的统称，具体对应关系官方未澄清。',
+      '★ 分水岭在于 **NVLink 域跨出了机架**，且这一点 NVIDIA 官方已经证实（2026-03 POD 博客）：8 个 MGX NVL 机架「all in a single 576-GPU NVLink domain with copper and direct optical connections」。⚠️ 官方还**点名了拓扑类别**——「a new two-layer all-to-all NVLink topology」（两层全互连），这一点此前本项目误记为「官方没有点名任何拓扑」。SemiAnalysis 用的「Dragonfly」是分析师自己的归类，与官方措辞**不等价**，讲的时候先说官方词再说分析师词。机架内仍然是铜——铜没有被取代，只是被限制在机架内。',
+      '★ 规模阶梯与命名口径：NVIDIA 官方给出三档 Vera Rubin Ultra scale-up 域——NVL72、NVL144（Kyber，单机架）、旗舰 NVL576（本代，8 机架）。Kyber 的定位按官方原话是「the next-generation MGX NVL rack design」（OCP 博客：「the successor to NVIDIA Oberon」）——它是本代机架的**下一代/继任者**，不是与 MGX NVL 并列的另一条产品线（v1.5 订正）。但防混淆的结论不变：Kyber 首发形态是「standalone NVL144 system」单机架，与 8 机架的 NVL576 是同一份三档菜单里的**两档不同产品**，「Kyber」不是 NVL576 机架的代号。另：2025-10 OCP 博客留有编者按「This blog has been updated to reflect a branding change from Vera Rubin NVL144 to Vera Rubin NVL72.」，记录了上一代命名口径的调整（官方只说是 branding change，没给原因）。同一篇 OCP 博客提到 Kyber「到 2027 年将容纳 576 张 Rubin Ultra GPU」——这是 2025 年时点的早期措辞，本项目**推断**它是 2026-03 拆分出 Kyber(NVL144)/NVL576 两条线之前的统称，具体对应关系官方未澄清。',
       '机架内部具体怎么重排（9+18+9 分层、交换托架 9→18 个且高度压到 0.75U）、功率密度跳档（电源架 8×33kW→4×110kW、单卡 TDP 到 1.8–2.6 kW）——这些都只有 SemiAnalysis 一家分析师文章描述，NVIDIA 官方规格表还没出来，**不能当规格数字讲**，只能讲方向。',
       '⚠️ capacityPolicy = analyst-modeled：即便拓扑骨架已官宣，机架内部规格仍主要来自第三方分析师，本工具对这一代**拒绝出任何产能数字**。',
       '⚠️ 反常识留痕：分析师表格里 Rubin Ultra 的单封装显存是 192 GB HBM4，**比 Rubin 的 288 GB 还少**（且不是 HBM4e）。原样记录，不做「修正」。',
@@ -160,7 +167,7 @@ export const COMPARISONS: ComparisonDefinition[] = [
       '分工的边界很清楚（官方技术博客原话）：**Rubin GPU 负责 prefill 与 decode 的 attention**（吃长上下文与 KV cache，靠 HBM 容量与带宽），**LPU 负责 decode 的 FFN/MoE**（吃小 batch 下的确定性低时延，靠片上 SRAM）。这个拆法官方叫 attention–FFN 分离（AFD），由 NVIDIA Dynamo 做 KV-aware 路由与编排：每生成一个 token，中间激活在两台机器之间来回一趟。',
       '两种加速器的哲学正好相反：Rubin GPU 单卡 **288 GB HBM4 / 22 TB/s**；LP30 单颗 **500 MB SRAM / 150 TB/s**——容量差约 576 倍，带宽高约 6.8 倍。机架级同样如此：VR 20.7 TB HBM4 @ 1,580 TB/s vs LPX 128 GB SRAM @ 40 PB/s（约 25 倍带宽）。**容量换带宽**就是这笔交易的全部内容，所以 LPX 里的大模型必须按层切到许多颗 LPU 上（官方原话 layer-wise partitioning），不能按「单卡装得下多少」来算。',
       '机架内互连也是两条路线：**Vera Rubin 是交换式**（9 个交换托盘 × 4 颗 NVLink 6 芯片 = 36 颗，260 TB/s）；**LPX 干脆没有交换层**——256 颗 LPU 之间是直连 C2C（每颗 96 条 112 Gb/s 链路），机架级 640 TB/s。少一跳换来的是更可控的时延与抖动，代价是拓扑固定、由编译器静态切分。',
-      '⚠️ 口径纪律三条：① 官方对 LPX **没有发过规格表**，所有数字都是产品页/技术博客的**厂商宣称**（证据徽章是 vendor_claim，不是 verified_spec）；② 机架 315 PFLOPS 与每托盘 9.6 PFLOPS 两条官方口径不完全闭合（32 × 9.6 = 307.2 ≠ 315），本项目两条并存、不互推；③ 「35× TPS/MW」是**配对系统**在 **400 TPS/用户** 交互度上对比 GB200 NVL72 的数字——前提拿掉就不成立，低交互度场景用同构 GPU 方案本来就够。',
+      '⚠️ 口径纪律四条：① 官方对 LPX **没有发过规格表**，所有数字都是产品页/技术博客/发布稿的**厂商宣称**（证据徽章是 vendor_claim，不是 verified_spec）；② 算力两条官方口径不完全闭合（机架 315 PFLOPS vs 每托盘 9.6 PFLOPS，32 × 9.6 = 307.2 ≠ 315），本项目两条并存、不互推；③ **带宽同样不闭合**（v1.5 补上的对称留痕）：机架 40 PB/s vs 单颗 150 TB/s vs 每托盘 1.2 PB/s，而 256 × 150 TB/s = 32 × 1.2 PB/s = 38.4 PB/s ≠ 40，同样并存不互推（对照：128 GB = 256 × 500 MB、640 TB/s = 256 × 2.5 TB/s 这两对确实闭合）；④ 「35× TPS/MW」有**三个前提**——**万亿参数模型**（官方原文 for trillion-parameter models，技术博客给的具体口径是 2-trillion-parameter MoE + 400K 上下文）、**400 TPS/用户** 交互度、对比 **GB200 NVL72**，且是**配对系统**的数字。三个里少说一个就是超范围引用：模型只有几十 B、或交互度不高时，同构 GPU 方案本来就够。',
       '⚠️ 还有一条容易讲错的：NVIDIA 与 Groq 是**非排他技术许可 + 团队加入**（2025-12 Groq 官方新闻室），Groq 仍作为独立公司运营 GroqCloud。不要说成「NVIDIA 收购了 Groq」。',
     ],
     rows: [
@@ -174,7 +181,7 @@ export const COMPARISONS: ComparisonDefinition[] = [
         roleKey: 'nvlink-backplane',
         label: '机架内 scale-up 互连底板',
         narrative:
-          '★ 三代演进在这一行看得最清楚：GB300 铜背板 → Vera Rubin PCB 中板（无线缆盲插，仍是交换式 NVLink）→ LPX 的 **LPU C2C Spine（无交换芯片，LPU 之间直连）**。左侧 260 TB/s 要经过 36 颗 NVLink 6 交换芯片；右侧 640 TB/s 一颗交换芯片都不经过。⚠️ 官方只说了 LPX「无线缆」「经背板/spine 连接」，**没有公布 spine 的物理介质**（铜还是光），3D 里的形态是示意。',
+          '★ 三代演进在这一行看得最清楚，但**变的不是介质**（v1.5 订正：三代的机架脊柱其实都是铜）：GB300 无源铜背板 → Vera Rubin 机架后部铜缆脊柱（4 个线缆匣、约 5,000 根铜缆，仍是交换式 NVLink）→ LPX 的 **LPU C2C Spine（2 个铜缆匣、数千对铜缆，无交换芯片、LPU 之间直连）**。真正变的是两件事：**有没有交换层**（左侧 260 TB/s 要经过 36 颗 NVLink 6 交换芯片，右侧 640 TB/s 一颗都不经过），以及**托盘侧要不要手工走线**（两代新机架的托盘都是 cable-free / cableless）。⚠️ 「无线缆」在两边说的都是**托盘**，不是机架——官方对 LPX 的原话是「connected by a direct chip-to-chip spine, which consists of two copper cable cartridges…over thousands of paired copper cable connections」，此前本项目记作「介质未公布」是漏检。官方没给 LPX 的铜缆根数，本项目不编数。',
       },
       {
         roleKey: 'host-cpu',
@@ -228,7 +235,7 @@ export const COMPARISONS: ComparisonDefinition[] = [
         roleKey: 'fabric-expansion',
         label: 'Fabric Expansion Logic',
         narrative:
-          '★ 右侧独有：托盘上的扩展逻辑，一边把 8 颗 LP30 的 C2C 链路引到背板与前面板（跨托盘、跨机架），一边挂最高 256 GB DRAM。它是 LPX「无线缆机架」能成立的关键件，作用位置约等于 Vera Rubin 那边的 PCB 中板接口层。⚠️ 官方只给了功能描述，没有公布它是 ASIC、FPGA 还是交换芯片。',
+          '★ 右侧独有：托盘上的扩展逻辑，一边把 8 颗 LP30 的 C2C 链路引到背板与前面板（跨托盘、跨机架），一边挂最高 256 GB DRAM。它是 LPX**托盘**无线缆（cableless）设计能成立的关键件，作用位置约等于 Vera Rubin 那边的 PCB 中板接口层（⚠️ 机架后部的 C2C spine 本身是 2 个铜缆匣、数千对铜缆，不是「无线缆机架」）。⚠️ 官方只给了功能描述，没有公布它是 ASIC、FPGA 还是交换芯片。',
       },
       {
         roleKey: 'afd-peer-rack',

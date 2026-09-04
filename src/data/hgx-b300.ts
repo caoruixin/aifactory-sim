@@ -61,7 +61,24 @@ import type {
  *   4. RA components.html Table 2 的「CPU」「CPU sockets」两行被误填成 NVLink 的值。
  *   5. CPU 核数下限：Table 2 写 48/插槽，appendix Table 8 写 32/插槽。
  *   6. 交换机型号：Table 5 / appendix Table 9 写 SN5600（128 端口 400 GbE，Spectrum-4），
- *      networking-hardware 一节写 SN5610（64 × 800 Gbps）。
+ *      networking-hardware 一节写 SN5610（64 × 800 Gbps）。⚠️ 只有 SN5600 被标过 Spectrum-4，
+ *      SN5610 从未标过代际；全篇也没有「51.2 Tb/s」这个说法。
+ *   7. 汇聚网交换机台数：network-logical-architecture Table 7（Nodes=32）写「Leaf 2 / Spine N/A」
+ *      + 正文「Cost-efficient converged two-switch fabric」，appendix Table 9 的
+ *      「converged core fabric」一行写 12 / 24 / 48。本项目取 2，Table 9 的 12 留痕。
+ *   8. 128 节点的 SN2201 台数：正文写「NVIDIA SN2201 switch per SU (32 switches total)」，
+ *      appendix Table 9 写 16（32 / 64 节点两档两处一致）。
+ *   9. 管理节点汇聚网口速率：network-logical-architecture 写「each management node is connected
+ *      with two 200 GbE ports」，networking-physical-topologies 写「Each compute and management
+ *      node is connected with two 400 GbE ports」。本项目取 200（Table 3 的控制面节点配 B3220，
+ *      「two 200G ports」），两说并存留痕。
+ *  10. 双平面的负载均衡由谁做：networking-physical-topologies 同一页，Multi Plane Topology
+ *      Approach 说「handled by the NCCL on the host」，Dual Plane Topology 说「handled by the
+ *      ConnectX-8 SuperNIC on the hardware level」。两说并存，不做取舍。
+ *
+ * ⚠️ 还有一处**不是矛盾但极易引错**：「Rack layout must provide power supply redundancy」在
+ *    32/64/128 三个设计点都出现，但只有 32 节点那一处带后半句
+ *    「; otherwise, consider an alternative rack layout」。
  */
 
 const SYSTEM_ID = 'sys.hgx-b300'
@@ -167,7 +184,9 @@ const RACK_AS_SU_NOTE =
   '本项目 3D 按「1 机架 = 1 个 SU = 4 台服务器」示意，8 个机架 = 32 台 = 官方 32 节点设计点' +
   '（256 GPU）。这样映射的三个理由：① SU = 4 compute nodes 是官方定义的最小复制单元；' +
   '② 官方 32 节点设计点恰好是「8 SU × 4 节点」；③ 用 DGX B300 的官方 ~14 kW/台做数量级参照，' +
-  '4 台约 56 kW，是当下风冷高密机架的常见档位。' +
+  '4 台约 56 kW——**这只是把官方的 ~14 kW 乘了 4，不代表「常见档位」**：' +
+  '每机架真正放几台是客户机房配电的函数（客户要算的是「每机架 40–60 kW 的风冷散热，' +
+  '你的机房气流组织撑不撑得住」，这个问题要交给机电顾问，不是 NVIDIA 文档能回答的）。' +
   `⚠️ 但这只是示意，不是官方规格。${SERVERS_PER_RACK_NOTE}`
 
 /**
@@ -186,6 +205,31 @@ const FP4_DENSE_MISMATCH_NOTE =
   '⚠️ 另有第三个官方数字：芯片技术博客写单芯片「15 PetaFLOPS dense NVFP4」——那是芯片级满配口径，' +
   '与数据手册 HGX B300 列的 14（本 SKU 实配）、GB300 NVL72 列的 15 并存，' +
   '解释同显存三值：「Available SM count and HBM capacity varies by SKU」。'
+
+/**
+ * ★★ 跨文件统一口径（gb300-nvl72.ts 里的 NVLINK_VS_ETHERNET_NOTE 说的是同一件事）：
+ * **NVLink 与以太网的带宽比是 9 倍，不是 18 倍。**
+ *
+ * 这一代有一个比 NVL72 更干净的官方依据——HGX 平台页「NVIDIA Blackwell」规格表 HGX B300 列
+ * **相邻两行**：「Total NVLink Bandwidth | 14.4 TB/s」与「Networking Bandwidth | 1.6 TB/s」。
+ * 同一张表、同一套口径，14.4 ÷ 1.6 = 9，最不容易被挑战。旁证：同表 HGX B200 列的
+ * Total NVLink Bandwidth 同样是 14.4 TB/s，但 Networking Bandwidth 写的是 0.8 TB/s
+ * ——说明这一行是随各代网络配置变的实数，而不是跟着 NVLink 走的派生值。
+ *
+ * ⚠️ 出错的路径永远是同一个：拿每卡 1.8 TB/s（**双向**——芯片技术博客写明
+ * 「Per-GPU Bandwidth: 1.8 TB/s bidirectional (18 links x 100 GB/s)」）去比
+ * 800 Gb/s = 100 GB/s（**单向**折算），得到 18。那是双向/单向混用。
+ * 对齐方向后两种算法都得 9：单向 900 ÷ 100 = 9；双向 1800 ÷ 200（= 2 × 800 Gb/s）= 9。
+ *
+ * ⚠️ NVIDIA 从未发布过 NVLink vs 以太网的「18×」对比，别把每卡的 18 条 NVLink 链路
+ * 和这个倍数联想到一起——那两个 18 毫无关系。
+ */
+const NVLINK_VS_ETHERNET_NOTE =
+  '★ 同口径对照是 **9 倍**，不是 18 倍。官方依据：HGX 平台页规格表 HGX B300 列相邻两行' +
+  '「Total NVLink Bandwidth | 14.4 TB/s」与「Networking Bandwidth | 1.6 TB/s」，14.4 ÷ 1.6 = 9。' +
+  '⚠️ 拿每卡 1.8 TB/s（双向，芯片博客「1.8 TB/s bidirectional (18 links x 100 GB/s)」）' +
+  '去比 800 Gb/s = 100 GB/s（单向）会算出 18 倍——那是双向/单向口径混用；' +
+  '对齐方向后：单向 900 ÷ 100 = 9、双向 1800 ÷ 200 = 9。'
 
 const SKU_MEMORY_NOTE =
   '★ Blackwell Ultra 的显存有三个并存的官方数字，不是互相矛盾：芯片技术博客写 288 GB HBM3e，' +
@@ -270,8 +314,10 @@ export const HGX_B300_SYSTEM: FactorySystem = {
       HGX_RA,
       'Components 节，「externally connected by a network interface of 800 Gb/s (2 x 400Gb/s Ethernet) per GPU. ' +
         'This connectivity is provided by 8x ConnectX-8 SuperNICs on the HGX baseboard」',
-      '★ 与机架内 NVLink 的 1.8 TB/s（= 14,400 Gb/s）对照：跨服务器带宽是域内的 1/18。' +
-        '「域内 18 倍带宽」这个比值就是「为什么并行策略要尽量塞进 8 卡」的全部答案。',
+      '★ 与**服务器内（基板上）NVLink** 的 1.8 TB/s 对照：跨服务器带宽是域内的 1/9。' +
+        `「域内 9 倍带宽」这个比值就是「为什么并行策略要尽量塞进 8 卡」的全部答案。${NVLINK_VS_ETHERNET_NOTE}` +
+        '⚠️ 措辞也要准：这一代的 NVLink 域在**服务器/基板**里，不在机架里——说「机架内 NVLink」' +
+        '会和本代最核心的教学主张（「机架里没有 NVLink」）自相矛盾。',
     ),
     /** 产能的 tokens/W 输入。官方拒绝出数 ⇒ 恒为 null。 */
     rackPowerKW: hgxNull(
@@ -408,7 +454,8 @@ export const HGX_B300_COMPONENTS: HardwareComponent[] = [
     vendor: 'NVIDIA',
     status: 'shipping',
     summary:
-      '与 GB300 NVL72 里同一颗 Blackwell Ultra 芯片（双 die 经 NV-HBI 合封、208B 晶体管、160 SM），' +
+      '与 GB300 NVL72 里同一颗 Blackwell Ultra 芯片（双 die 经 NV-HBI 合封、208B 晶体管、' +
+      '完整实现最多 160 SM——官方图注「Available SM count and HBM capacity varies by SKU」），' +
       '但按 HGX 风冷平台的 SKU 口径供货：270 GB HBM3E / 7.7 TB/s / 最高 1,100 W，' +
       '稠密 FP4 14 PFLOPS、稠密 FP8 4.5 PFLOPS。',
     presalesNote:
@@ -1007,8 +1054,10 @@ export const HGX_B300_COMPONENTS: HardwareComponent[] = [
       '（官方原话「The NVIDIA ConnectX-8 SuperNIC is integrated onto the NVIDIA HGX B300 baseboard, ' +
       'maintaining a 1:1 GPU-to-NIC ratio」）。1:1 配比两代都一样。' +
       '★ 双平面 vs 单平面是本代最实在的一个成本旋钮：' +
-      '双平面把每张卡的 800 Gb/s 拆成 2×400 Gb/s 接到两张独立 fabric，好处是没有单点故障、' +
-      '由 ConnectX-8 在硬件层做负载均衡与故障切换；单平面只用 1×400 Gb/s，' +
+      '双平面把每张卡的 800 Gb/s 拆成 2×400 Gb/s 接到两张独立 fabric，好处是没有单点故障；' +
+      '⚠️ 负载均衡与故障切换由谁做，RA 同一页两说并存——Dual Plane Topology 节说是 ConnectX-8 ' +
+      '在硬件层做，Multi Plane Topology Approach 节说是主机上的 NCCL 做；' +
+      '被追问时如实讲「官方两种说法都写了」，别咬定一边。单平面只用 1×400 Gb/s，' +
       '「reduces the total GPU bandwidth by 50%」但省一半交换与光模块。' +
       '官方明说用 OSFP 光模块可以在两者之间平滑迁移——先上单平面、后扩双平面是可行路径。' +
       '★ 还有一条更狠的省钱建议来自官方本身：**纯推理部署可以完全不建计算网**' +
@@ -1049,7 +1098,11 @@ export const HGX_B300_COMPONENTS: HardwareComponent[] = [
         HGX_RA,
         'Networking Physical Topologies 节 Dual Plane Topology，「With each GPU generating 800 Gb/s bandwidth through the NVIDIA ConnectX-8 SuperNICs, dual plane topology involves breaking the interface to 2x400 Gb/s interfaces. Every such interface is then connected to a different leaf switch, and every such leaf switch is part of an independent fabric that scales to 1024 interfaces of 400 Gb/s」',
         '「Tracking of each plane, load balancing, and failure handling is handled by the ConnectX-8 SuperNIC ' +
-          'on the hardware level.」——平面故障时带宽线性下降，不掉线。',
+          'on the hardware level.」——平面故障时带宽线性下降，不掉线。' +
+          '⚠️ **同一页的上一节说法不同**：Multi Plane Topology Approach 写「Each compute networking plane ' +
+          'forms a separate fabric, where the resiliency and the load balancing between the two planes is ' +
+          'handled by the NCCL on the host.」（主机 NCCL）。网卡硬件 vs 主机软件两说并存，本项目不做取舍，' +
+          '两条原文都在这里留痕。',
       ),
       singlePlaneOption: hgx<string>(
         '单平面：每 GPU 1×400 Gb/s，总 GPU 带宽减半但网络成本更低，可经 OSFP 光模块平滑迁移到双平面',
@@ -1098,10 +1151,13 @@ export const HGX_B300_COMPONENTS: HardwareComponent[] = [
       '官方给的形态是「full non-blocking fat tree」+「rail-optimized」：' +
       '同编号的 rail 接同一台 leaf（32 节点设计点是「4 leaf switches per plane, each supporting ' +
       '2 rails (1+5, 2+6, 3+7, 4+8)」），让同 rail 的 GPU 之间只有一跳。' +
-      '⚠️ 官方文档在型号上自相矛盾：Table 5 与 appendix Table 9 写 SN5600（128 端口 400 GbE / Spectrum-4），' +
-      'networking-hardware 一节写 SN5610（64 端口 800 Gbps）。' +
-      '两者是同一代 Spectrum-4 芯片的不同端口配置（128×400G ≡ 64×800G，总容量一致），' +
-      '对客户就说「Spectrum-4，51.2 Tb/s 那一档」最安全，具体型号以订单 BOM 为准。',
+      '⚠️ 官方文档在型号上自相矛盾：Table 5 与 appendix Table 9 写 SN5600' +
+      '（Table 5「NVIDIA SN5600 128-port 400 GbE switches」，Table 9 标注为「NVIDIA Spectrum-4 SN5600」），' +
+      'networking-hardware 一节写 SN5610（「offers 64 total ports of 800 Gbps」）。' +
+      '两种写法的端口总容量相同（128 × 400 = 64 × 800），但**参考架构从没说它们是同一款、也从没给 ' +
+      'SN5610 标过芯片代际**（全篇只有 SN5600 被标为 Spectrum-4），更没出现过「51.2 Tb/s」这个说法。' +
+      '⚠️ 所以对客户只说端口档位——「128 × 400G 或等效的 64 × 800G 那一档」——具体型号以订单 BOM 为准；' +
+      '别替官方补「同一代芯片」这句话，那是被追问时最容易翻车的地方。',
     visual: { shape: 'switch-box', colorToken: 'plane-scaleout' },
     imageUrl: null,
     sourceIds: [HGX_RA],
@@ -1121,10 +1177,12 @@ export const HGX_B300_COMPONENTS: HardwareComponent[] = [
         'Networking Logical Architecture 节 Table 5「NVIDIA SN5600 128-port 400 GbE switches」',
       ),
       siliconGeneration: hgx<string>(
-        'NVIDIA Spectrum-4',
+        'NVIDIA Spectrum-4（仅 SN5600 被这样标注）',
         null,
         HGX_RA,
         'Appendix: Node Configurations 节 Table 9「NVIDIA Spectrum-4 SN5600 Ethernet switch, compute core fabric」',
+        '⚠️ 这个代际标注**只挂在 SN5600 上**。同一份 RA 里的 SN5610 从未被标过芯片代际，' +
+          '也没有任何一处出现「51.2 Tb/s」。不要把 Spectrum-4 这个标签顺手扣到 SN5610 头上。',
       ),
       roles: hgx<string>(
         '计算网（East/West）leaf 与 spine；汇聚网（North/South）leaf',
@@ -1142,8 +1200,14 @@ export const HGX_B300_COMPONENTS: HardwareComponent[] = [
         12,
         '台',
         HGX_RA,
-        'Appendix: Node Configurations 节 Table 9，32 Server Nodes 列「NVIDIA Spectrum-4 SN5600 Ethernet switch, compute core fabric | 12」（汇聚核心网另有 12 台）',
-        '⚠️ 与 Table 6 的「Leaf 8 + Spine 4 = 12」闭合（双平面合计口径）。64 节点为 24 台、128 节点为 48 台。',
+        'Appendix: Node Configurations 节 Table 9，32 Server Nodes 列「NVIDIA Spectrum-4 SN5600 Ethernet switch, compute core fabric | 12」',
+        '✓ 计算网这一行与 Table 6 的「Leaf 8 + Spine 4 = 12」闭合（双平面合计口径）。64 节点 24 台、128 节点 48 台。' +
+          '⚠️ **但汇聚网那一行官方两说，别当既成事实**：同一张 Table 9 的「NVIDIA Spectrum-4 SN5600 ' +
+          'Ethernet switch, converged core fabric」写 12 / 24 / 48（与计算网同值），' +
+          '而 Network Logical Architecture 节 Table 7 的 Nodes=32 行写「Leaf | 2」「Spine | N/A」、' +
+          '同节正文写「Cost-efficient converged two-switch fabric for CPU (North/South) Network」。' +
+          '本项目的 asm.hgx.converged-switch 取 **2**（Table 7 有逐项拆解、与正文自洽），' +
+          'Table 9 的 12 一并留痕、不采用也不否定。',
       ),
       leafSpineSplit32Node: hgx<string>(
         '32 节点设计点：计算网 8 台 leaf + 4 台 spine（双平面合计），每台 leaf 32 条 400G 上联',
@@ -1196,11 +1260,14 @@ export const HGX_B300_COMPONENTS: HardwareComponent[] = [
           '⚠️ 量级参照：DGX B300「~14 kW」/台（10U 整机）。',
       ),
       powerRedundancy: hgx<string>(
-        '机架布局必须提供供电冗余，否则需改用其它机架布局',
+        '机架布局必须提供供电冗余（32 节点设计点另加一句：否则需改用其它机架布局）',
         null,
         HGX_RA,
-        'Networking Logical Architecture 节 32/64/128 三个设计点的 Additional Considerations，' +
+        'Networking Logical Architecture 节 **32 节点**设计点 Additional Considerations，' +
           '「Rack layout must provide power supply redundancy; otherwise, consider an alternative rack layout」',
+        '⚠️ locator 精确到 32 节点那一处：64 / 128 两个设计点只写了前半句' +
+          '「Rack layout must provide power supply redundancy」，**没有**「; otherwise, consider an ' +
+          'alternative rack layout」。三处都引这半句会引错。',
       ),
       heightU: hgxNull(
         'U',
@@ -1241,7 +1308,9 @@ export const HGX_B300_COMPONENTS: HardwareComponent[] = [
         '机架布局必须提供供电冗余（官方唯一的硬性配电要求）',
         null,
         HGX_RA,
-        'Networking Logical Architecture 节 32/64/128 三个设计点的 Additional Considerations，「Rack layout must provide power supply redundancy; otherwise, consider an alternative rack layout」',
+        'Networking Logical Architecture 节 **32 节点**设计点 Additional Considerations，「Rack layout must provide power supply redundancy; otherwise, consider an alternative rack layout」',
+        '⚠️ 完整句只出现在 32 节点那一处；64 / 128 两个设计点写的是不带后半句的' +
+          '「Rack layout must provide power supply redundancy」。',
       ),
       distributionForm: hgx<string>(
         '交流配电到服务器自带电源（无直流母排、无机架级电源架）',
@@ -1383,8 +1452,16 @@ export const HGX_B300_COMPONENTS: HardwareComponent[] = [
         200,
         'GbE',
         HGX_RA,
-        'Networking Logical Architecture 节 Spine-Leaf Networking，「each management node is connected with two 200 GbE ports to two separate switches to provide redundancy and high storage throughput」',
-        '对照：计算节点是双 400 GbE。',
+        'Networking Logical Architecture 节 Spine-Leaf Networking，「Each compute node is connected with two 400 GbE ports and each management node is connected with two 200 GbE ports to two separate switches to provide redundancy and high storage throughput.」',
+        '对照：计算节点是双 400 GbE。' +
+          '⚠️ **官方两说**：Networking Physical Topologies 节 CPU Converged (Node North/South) Network ' +
+          '写的是「Each compute and management node is connected with two 400 GbE ports to two separate ' +
+          'switches to provide redundancy and high storage throughput that can reach up to 40 GB/s per ' +
+          'node.」——那里把管理节点也算成 400 GbE。本项目取 200 GbE，理由是它有第二条证据链：' +
+          'Components 节 Table 3「Control plane node components」的 North/South (DPU) 一行写' +
+          '「NVIDIA BlueField-3 B3220 DPU with two 200G ports and 1Gb RJ45 management port」，' +
+          '而计算节点侧 Table 5 写的是「One NVIDIA BlueField-3 B3240 dual port 400 GbE DPU」' +
+          '——控制面与计算节点用的确实是两种卡。两说并存，报数时说明取的是哪一条。',
       ),
     },
   },
@@ -1579,7 +1656,8 @@ export const HGX_B300_ASSEMBLIES: AssemblyNode[] = [
     rackU: null,
     note:
       'rail-optimized：同编号的 SuperNIC 接到同一台 leaf，同 rail 的 GPU 之间只有一跳。' +
-      '这是 HGX 集群里能做的最强的「拓扑亲和」——但仍然比机架内 NVLink 慢一个数量级。',
+      '这是 HGX 集群里能做的最强的「拓扑亲和」——但同口径下仍然只有**服务器内 NVLink** 的 1/9 带宽。' +
+      NVLINK_VS_ETHERNET_NOTE,
   },
   {
     id: 'asm.hgx.converged-switch',
@@ -1613,7 +1691,10 @@ export const HGX_B300_ASSEMBLIES: AssemblyNode[] = [
       4,
       HGX_RA,
       'Networking Logical Architecture 节 32 Nodes 设计点 Management，「SN2201 switch for every 2 SUs (4 switches total)」（appendix Table 9 同值：「SN2201 leaf switches for OOB management fabric | 4」）',
-      '64 节点起改为每 SU 一台（8 台 / 32 台）。每台经 2 × 100G 上联核心。',
+      '64 节点起改为每 SU 一台。每台经 2 × 100G 上联核心。' +
+        '⚠️ **128 节点这一档官方两说**：正文写「NVIDIA SN2201 switch per SU (32 switches total)」（32 台，' +
+        '即每 SU 一台 × 32 个 SU），appendix Table 9 的同一行写 **16**。32 与 64 节点两档则两处一致' +
+        '（分别是 4 与 8）。本项目按正文的「每 SU 一台」推导规模，Table 9 的 16 一并留痕。',
     ),
     lodLevel: 'cluster',
     rackU: null,
@@ -2005,8 +2086,9 @@ export const HGX_B300_CONNECTIONS: Connection[] = [
       '★★ 这条线是 HGX 代际的另一半主题：**出了服务器，GPU 之间就只能走它**。' +
       '每 GPU 800 Gb/s，同编号 rail 接同一台 leaf（32 节点设计点：每平面 4 台 leaf、' +
       '每台承载 2 条 rail「1+5, 2+6, 3+7, 4+8」）。' +
-      '与机架内 NVLink 的 1.8 TB/s 相比是 1/18 的带宽——' +
-      '「并行策略能不能塞进 8 卡」因此成了这一代方案设计的第一问题。',
+      '与**服务器内（基板上）NVLink** 的 1.8 TB/s 相比是 1/9 的带宽——' +
+      '「并行策略能不能塞进 8 卡」因此成了这一代方案设计的第一问题。' +
+      NVLINK_VS_ETHERNET_NOTE,
     sourceIds: [HGX_RA],
   },
   {
@@ -2029,8 +2111,14 @@ export const HGX_B300_CONNECTIONS: Connection[] = [
     label: '计算网 Leaf ↔ Spine（无阻塞 fat-tree）',
     summary:
       '两级 leaf-spine 构成无阻塞 fat-tree。官方推荐双平面：两张完全独立的 fabric 各承担 50% 流量，' +
-      '由 ConnectX-8 在硬件层做负载均衡与故障切换，「A failing or degraded plane will carry an impact ' +
-      'linearly associated with the dropped bandwidth」——坏一张网只掉带宽，不掉线。',
+      '「A failing or degraded plane will carry an impact linearly associated with the dropped ' +
+      'bandwidth」——坏一张网只掉带宽，不掉线。' +
+      '⚠️ 但**负载均衡与故障切换由谁做，官方同一页里有两说**：Dual Plane Topology 节写' +
+      '「Tracking of each plane, load balancing, and failure handling is handled by the ConnectX-8 ' +
+      'SuperNIC on the hardware level」（网卡硬件），Multi Plane Topology Approach 节写' +
+      '「Each compute networking plane forms a separate fabric, where the resiliency and the load ' +
+      'balancing between the two planes is handled by the NCCL on the host」（主机上的 NCCL）。' +
+      '两说并存，别只讲一半（GB300 NVL72 的参考架构同一页有完全相同的两说）。',
     sourceIds: [HGX_RA],
   },
 
@@ -2109,8 +2197,12 @@ export const HGX_B300_CONNECTIONS: Connection[] = [
       200,
       'GbE',
       HGX_RA,
-      'Networking Logical Architecture 节 Spine-Leaf Networking，「each management node is connected with two 200 GbE ports to two separate switches to provide redundancy and high storage throughput」',
-      '⚠️ 与计算节点的双 400 GbE 不同，管理节点是双 200 GbE。',
+      'Networking Logical Architecture 节 Spine-Leaf Networking，「Each compute node is connected with two 400 GbE ports and each management node is connected with two 200 GbE ports to two separate switches to provide redundancy and high storage throughput.」',
+      '⚠️ 与计算节点的双 400 GbE 不同，管理节点是双 200 GbE——但这一条官方两说：' +
+        'Networking Physical Topologies 节写「Each compute and management node is connected with two ' +
+        '400 GbE ports to two separate switches」，把管理节点也算成 400 GbE。' +
+        '本项目取 200 GbE，因为 Components 节 Table 3 的控制面节点配的是' +
+        '「NVIDIA BlueField-3 B3220 DPU with two 200G ports」，证据链更完整。两说并存、不做单向断言。',
     ),
     direction: 'bidirectional',
     label: '汇聚交换层 ↔ 控制面节点',
@@ -2348,7 +2440,7 @@ export const HGX_B300_SCENES: ScenePreset[] = [
       '再切回 scale-out：线全回来了，每台服务器的 8 张 ConnectX-8 各出 800 Gb/s 上 leaf，' +
       'rail-optimized（同编号网卡接同一台 leaf）。' +
       '这就是这一代的全部结构真相：**8 卡以内走 NVLink（1.8 TB/s/卡），第 9 张卡开始走以太网（800 Gb/s/卡）**，' +
-      '中间差 18 倍带宽，没有过渡档。' +
+      '同口径下中间差 9 倍带宽（HGX 平台页规格表相邻两行：整机 NVLink 14.4 TB/s vs 网络 1.6 TB/s），没有过渡档。' +
       '③ 断了会怎样 / 每机架放几台：官方**刻意不给**每机架台数——' +
       '32 / 64 / 128 三个设计点的注意事项里都写着「The number of GPU servers per rack depends on ' +
       'available rack power」，外加一条「Rack layout must provide power supply redundancy」。' +
@@ -2385,7 +2477,7 @@ export const HGX_B300_SCENES: ScenePreset[] = [
       '**第一问「模型多大」**：官方说单张 B300 SXM 能装约 120B 参数、超出也基本在单机 8 卡内解决' +
       '（「This parallelism will still reside within the same node」）⇒ 走 HGX；' +
       '**第二问「要不要跨机并行」**：万亿参数 MoE 的专家并行、长上下文推理的张量并行一旦跨出 8 卡，' +
-      '每一步 all-to-all 都要走 1/18 带宽的以太网 ⇒ 该上 NVL72；' +
+      '每一步 all-to-all 都要走 1/9 带宽的以太网 ⇒ 该上 NVL72；' +
       '**第三问「机房什么条件」**：能否液冷改造、单机架给得起多少 kW——' +
       'HGX 进现有风冷机房按周排期，液冷改造按季度排期。',
     lodLevel: 'cluster',

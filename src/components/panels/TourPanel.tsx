@@ -14,6 +14,7 @@ import { useCallback } from 'react'
 import { scenesOfSystem } from '../../data'
 import { LEVEL_LABEL } from '../../lib/drill'
 import { useFactoryStore } from '../../store'
+import RichText from '../ui/RichText'
 import PlaneToggles from './PlaneToggles'
 
 export default function TourPanel() {
@@ -72,11 +73,13 @@ export default function TourPanel() {
                     data-tour-narration={scene.id}
                     className="mt-1.5 rounded-lg border border-line bg-panel p-2.5"
                   >
-                    <p className="text-xs leading-relaxed">{scene.narration}</p>
+                    <p className="text-xs leading-relaxed">
+                      <RichText text={scene.narration} />
+                    </p>
                     {scene.presalesNote ? (
                       <p className="mt-2 border-t border-line pt-2 text-[11px] leading-relaxed text-warn">
                         <span className="font-semibold">售前提示：</span>
-                        {scene.presalesNote}
+                        <RichText text={scene.presalesNote} />
                       </p>
                     ) : null}
                   </div>

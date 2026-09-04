@@ -22,8 +22,20 @@ import type {
  * 代号 Polyphe、以及 NVL72/NVL144(Kyber)/NVL576 三档 scale-up 域选项——这些是**官方事实**，
  * `evidence: 'vendor_claim'`、`status: 'announced'`。
  *
+ * ★ v1.5 追加的两条官方事实（此前被误记为「官方没说」，改之前请先读原文）：
+ * - **拓扑类别官方已点名**：「NVIDIA Vera Rubin Ultra introduces a new two-layer all-to-all
+ *   NVLink topology that will enable developers to scale-up to 576 GPUs.」——本项目此前两处 note
+ *   写「官方只说 direct optical connections、没有点名任何拓扑」是事实错误；那句话是同一段的**后半句**。
+ *   分析师的「Dragonfly」与官方的 two-layer all-to-all **不等价**，不得互相替换或用后者去解释前者。
+ * - **Kyber 是 MGX NVL 机架的下一代**：「NVIDIA Kyber is the next-generation MGX NVL rack design
+ *   that will double the NVLink domain per rack to fit 144 GPUs.」（OCP 博客：「the successor to
+ *   NVIDIA Oberon」）——不是「独立于 MGX NVL 的并列产品线」。防混淆的结论不变：Kyber 首发是
+ *   standalone NVL144 单机架，与 8 机架的 NVL576 是两档不同产品。
+ * - 另注：**「Oberon」是 NVIDIA 官方的机架世代名**（OCP 博客原文），不是分析师用语；
+ *   属于分析师的是这一代 Oberon 壳体**内部**怎么重排。
+ *
  * 但机架内部具体怎么排布（9+18+9 托架分层、0.75U 交换托架、PHD2→PHD3 连接器、
- * NPO/CPO 光模块细节、「Dragonfly」这个拓扑名字本身）通通只出现在本地 PDF
+ * NPO/CPO 光模块细节、「Dragonfly」这个归类本身）通通只出现在本地 PDF
  * 《Rubin Ultra NVL576 架构：快速概览》——**SemiAnalysis 2026-08-10 的第三方分析师
  * 文章，不是 NVIDIA 官方材料**。这一层内容仍然一刀切按分析师口径对待：
  *
@@ -158,9 +170,11 @@ export const RUBIN_ULTRA_SYSTEM: FactorySystem = {
   referenceUrl:
     'https://developer.nvidia.com/blog/nvidia-vera-rubin-pod-seven-chips-five-rack-scale-systems-one-ai-supercomputer/',
   summary:
-    'NVIDIA 官方确认的下一档 scale-up 形态：8 个独立 MGX NVL 机架、每机架 72 张 Rubin Ultra GPU，机架内铜背板 + 机架间直接光连接组成**单一 576-GPU NVLink 域**（内部原型代号 Polyphe），是 Vera Rubin Ultra 三档 NVLink 域（NVL72 / NVL144「Kyber」/ 旗舰 NVL576）里最大的一档。',
+    'NVIDIA 官方确认的下一档 scale-up 形态：8 个独立 MGX NVL 机架、每机架 72 张 Rubin Ultra GPU，经官方点名的**两层全互连 NVLink 拓扑**（two-layer all-to-all）、机架内铜 + 机架间直接光连接组成**单一 576-GPU NVLink 域**（内部原型代号 Polyphe），是 Vera Rubin Ultra 三档 NVLink 域（NVL72 / NVL144「Kyber」/ 旗舰 NVL576）里最大的一档。',
   presalesNote:
-    '这一代要把「官方说了什么」和「分析师推测了什么」分开讲：**官方**（POD 博客）证实的只有拓扑骨架——8 个机架、576 张 GPU、机架内铜/机架间光、一个 NVLink 域、三档 scale-up 域可选（NVL72/NVL144/NVL576）；机架内部具体怎么排布（9+18+9 托架分层、0.75U 交换托架、PHD3 连接器、NPO/CPO 光模块细节、「Dragonfly」这个拓扑名字）通通来自 SemiAnalysis 一篇分析师文章，官方从未证实这些具体数字。因此本工具对这一代**只能讲结构、不能讲产能**——凡是有人报给你 NVL576 的 PFLOPS 或 token 产能数字，先问一句出处，目前没有官方规格表能支撑那些数字。出货节奏也要小心：2025-03 GTC 现场说过「2027 下半年」，但 2026 年的官方材料已经不再给日期；2026-07 有媒体报道说 NVL576「可能延期或仅限小批量」（没给年份，报道里的「2028」说的是另一个产品 Kyber NVL144），NVIDIA 对该报道的回应是「我们的路线图没有问题」——这句话是媒体转述的官方回应，讲给客户听时务必带上这层来源，不要当成独立声明。',
+    '这一代要把「官方说了什么」和「分析师推测了什么」分开讲：**官方**（POD 博客）证实的是拓扑骨架——8 个机架、576 张 GPU、一个 NVLink 域、机架内铜/机架间直接光连接、拓扑类别官方点名为 **two-layer all-to-all（两层全互连）**、三档 scale-up 域可选（NVL72/NVL144/NVL576）；机架内部具体怎么排布（9+18+9 托架分层、0.75U 交换托架、PHD3 连接器、NPO/CPO 光模块细节）以及「Dragonfly」这个归类，通通来自 SemiAnalysis 一篇分析师文章，官方从未证实——而且「Dragonfly」与官方的 two-layer all-to-all **不是同一句话的两种说法**，讲拓扑时先说官方词再说分析师词。因此本工具对这一代**只能讲结构、不能讲产能**——凡是有人报给你 NVL576 的 PFLOPS 或 token 产能数字，先问一句出处，目前没有官方规格表能支撑那些数字。' +
+    '关于 Kyber 的定位也别讲反：官方说的是「NVIDIA Kyber is the next-generation MGX NVL rack design」（OCP 博客更直白：「the successor to NVIDIA Oberon」）——它是本代机架的**下一代**，不是并列的另一条产品线；但它首发形态是 standalone NVL144 单机架，与 8 机架的 NVL576 是**两档不同产品**，不要把「Kyber」当成 NVL576 机架的代号。' +
+    '出货节奏也要小心：2025-03 GTC 现场那句「2027 下半年」自身就矛盾（同一句里「Rubin Ultra」既指 2026 下半年到货的 NVL144、又指 2027 下半年的 Rubin Ultra 系统），只能当历史留痕；2026 年的官方材料已经不再给日期；2026-07 有媒体报道说 NVL576「可能延期或仅限小批量」（没给年份，报道里的「2028」说的是另一个产品 Kyber NVL144，原因是 PCB 中板的**可制造性**），NVIDIA 在同篇报道里**驳斥**了该研究并称「我们的路线图没有问题」——这句话是媒体转述的官方表态，讲给客户听时务必带上这层来源，不要当成独立声明。',
   sourceIds: [POD, OCP, GTC25, CNBC, SA],
   keySpecs: {
     gpuCount: official<number>(
@@ -210,19 +224,42 @@ export const RUBIN_ULTRA_SYSTEM: FactorySystem = {
       'p.3 表②，Bandwidth per Logical GPU (GB/s uni-directional) = 1,800',
       '单向口径，与同表 Vera Rubin NVL72 相同（表中两列合并）。',
     ),
+    topologyNameOfficial: official<string>(
+      '两层全互连 NVLink 拓扑（two-layer all-to-all）',
+      null,
+      POD,
+      '2026-03',
+      'NVIDIA Vera Rubin Ultra NVL576 节，「NVIDIA Vera Rubin Ultra introduces a new two-layer all-to-all NVLink topology that will enable developers to scale-up to 576 GPUs.」（导语同口径：「Future scaling includes NVIDIA Vera Rubin Ultra NVL576 with a two-layer all-to-all NVLink topology across eight racks」）',
+      '★ v1.5 订正：**官方已经点名了拓扑类别**，此前本项目两处 note 写「官方没有点名任何拓扑」是事实错误。' +
+        '应用引的「with copper and direct optical connections」是同一段的**后半句**，前半句就给了拓扑名。' +
+        '⚠️ 与分析师说法的关系：SemiAnalysis 表①的「Dragonfly」是它自己的归类，**与官方措辞不等价**' +
+        '——two-layer all-to-all 描述的是「两层、层内全互连」的连接关系，Dragonfly 是一类具体的组网算法族。' +
+        '对外讲拓扑时先说官方词（two-layer all-to-all），再说分析师词并标明出处，不要只说 Dragonfly。',
+    ),
     scaleUpTopology: sa<string>(
       'Direct Connect NPO（机架内铜背板 + 机架间 NPO/CPO Dragonfly）',
       null,
       'p.3 表②，Scale-Up Topology =「Direct Connect NPO」；Within Rack =「Copper Backplane」；Between Racks =「NPO/CPO」（表中黄色高亮）',
-      '官方口径只到「机架内铜、机架间直接光连接」这一层（POD 博客原话「with copper and direct optical connections」）；「NPO/CPO」「Dragonfly」是 SemiAnalysis 自己的说法，NVIDIA 官方材料没有用过这两个词。',
+      '⚠️ 这是**分析师**口径。官方口径见同层的 topologyNameOfficial：POD 博客已点名「a new two-layer ' +
+        'all-to-all NVLink topology」，并说明介质是「copper and direct optical connections」。' +
+        '「NPO/CPO」「Dragonfly」这两个词 NVIDIA 官方材料没有用过，且「Dragonfly」与官方的 ' +
+        'two-layer all-to-all **不等价**，是分析师自己的归类，不能互相替换着讲。',
     ),
     nvlinkDomainOptions: official<string>(
       'NVL72 / NVL144（Kyber，单机架）/ NVL576（旗舰，本代）',
       null,
       POD,
       '2026-03',
-      'NVIDIA Kyber NVL1152 节，「providing customers with three options for Vera Rubin Ultra NVLink scale-up domains: NVL72, NVL144, and the flagship NVL576.」',
-      'Kyber 是独立于本代机架壳（MGX NVL/Oberon）的另一款更高密度单机架设计（144 GPU/机架），NVL576 由 8 个标准 MGX NVL 机架组成——两者是并列的产品线，不是同一硬件的两种叫法（也不要把「Kyber」当成 NVL576 机架的代号）。',
+      'NVIDIA Kyber NVL1152: The next generation 节，「Kyber will first be introduced with Vera Rubin Ultra as a standalone NVL144 system, providing customers with three options for Vera Rubin Ultra NVLink scale-up domains: NVL72, NVL144, and the flagship NVL576.」',
+      '★ v1.5 订正 Kyber 的定位（此前写「Kyber 是**独立于** MGX NVL 的另一款产品线、两者**并列**」，' +
+        '与官方措辞相反）。官方原话是**继承关系**：' +
+        '「To scale beyond NVL576, a new MGX rack, NVIDIA Kyber, will be introduced.」' +
+        '「NVIDIA Kyber is the next-generation MGX NVL rack design that will double the NVLink domain per rack ' +
+        'to fit 144 GPUs.」（2025-10 OCP 博客更直白：「NVIDIA Kyber — the successor to NVIDIA Oberon」）' +
+        '——Kyber 是 MGX NVL 机架的**下一代 / Oberon 的继任者**，不是与 MGX NVL 并列的另一条产品线。' +
+        '⚠️ 但**防混淆的结论不变，而且官方原话支持得更硬**：Kyber NVL144 是「standalone NVL144 system」' +
+        '（单机架 144 GPU），NVL576 是 8 个本代 MGX NVL 机架合成的一个域——' +
+        '两者是同一份三档菜单里的**两档不同产品**，「Kyber」不是 NVL576 机架的代号，别当同一硬件的两种叫法。',
     ),
     prototypeCodename: official<string>(
       'Polyphe',
@@ -231,25 +268,45 @@ export const RUBIN_ULTRA_SYSTEM: FactorySystem = {
       '2026-03',
       'NVIDIA Vera Rubin Ultra NVL576 节，「Polyphe is the NVIDIA internal fully functional GB200-based prototype of the multirack NVL576 scale-up architecture.」',
     ),
-    announceTimeline: official<string>(
-      '2027 下半年（2025-03 GTC 现场原话）',
-      null,
-      GTC25,
-      '2025-03',
-      'Vera Rubin 一节，「Systems built on Rubin Ultra, including the Vera Rubin NVL 144, will arrive in the second half of next year. And due for the second half of 2027: systems built on Rubin Ultra.」',
-      '⚠️ 这是 2025-03 GTC 现场原话，原话没有点名 NVL576（只泛指「systems built on Rubin Ultra」）；2026 年的官方材料（POD/OCP 博客）都不再给出具体交付日期。',
-    ),
+    announceTimeline: {
+      ...official<string>(
+        '2027 下半年（2025-03 GTC 现场原话，且该句自身矛盾）',
+        null,
+        GTC25,
+        '2025-03',
+        'Vera Rubin 一节，「Systems built on Rubin Ultra, including the Vera Rubin NVL 144, will arrive in the second half of next year. And due for the second half of 2027:  systems built on Rubin Ultra.」',
+        '⚠️ 这条读数很弱，三层限定缺一不可：' +
+          '① 原话**没有点名 NVL576**（只泛指「systems built on Rubin Ultra」；该篇全文「576」出现 0 次）；' +
+          '② **原句自身矛盾**（v1.5 新增留痕）——前半句把 NVL144 归入「Rubin **Ultra**」并说 2026 下半年到货，' +
+          '后半句又说「Rubin Ultra 系统」2027 下半年，同一句里「Rubin Ultra」指了两个不同的东西。' +
+          '因此「2027 下半年」到底覆盖哪一档产品，从这句话里读不出来，confidence 已降到 low；' +
+          '③ 2026 年的官方材料（POD/OCP 博客）都不再给出具体交付日期，本条只作历史留痕，不作交付承诺引用。',
+      ),
+      confidence: 'low' as const,
+    },
     delayOutlook: mediaForecast<string>(
       '可能延期或仅限小批量（媒体报道，无具体年份）',
       null,
       '「NVL576 — a larger system linking eight racks via optical connections — is also likely delayed or limited to small volumes, the research firm said.」',
-      '⚠️ 同一篇报道里明确写的「延至 2028」说的是另一个产品 **Kyber NVL144**（PCB 中板良率问题），不是 NVL576；对 NVL576 原文没有给出具体年份。文中记录 NVIDIA 对整篇报道的回应「Our roadmap is intact」——这是媒体转述的官方回应，不是独立声明，讲给客户听时要说明这层转述关系。',
+      '⚠️ 同一篇报道里明确写的「延至 2028」说的是另一个产品 **Kyber NVL144**，' +
+        '原因逐字为「Kyber NVL144 rack architecture has been delayed to 2028 as the PCB midplane remains ' +
+        'challenging from a manufacturability standpoint」——是 **PCB 中板的可制造性**' +
+        '（v1.5 订正：此前写作「良率问题」，原文没有出现 yield/良率，属转述失真）。' +
+        '对 NVL576 原文没有给出具体年份。文中 NVIDIA 的表态逐字为「Nvidia rejected the SemiAnalysis report ' +
+        'and said, "Our roadmap is intact."」——是**驳斥**（rejected）而不是中性「回应」；' +
+        '这仍是媒体转述的官方表态，不是独立声明，讲给客户听时要说明这层转述关系。',
     ),
     analystStructuralDetail: sa<string>(
-      'Oberon 机架重排为 9+18+9（计算/交换/计算）、0.75U NVLink 交换托架、PHD3 背板连接器、NPO/CPO 光互连模块、「Dragonfly」跨机架拓扑命名——均为 SemiAnalysis 的结构细节推测，NVIDIA 官方材料未证实这些具体实现。',
+      '机架内重排为 9+18+9（计算/交换/计算）、0.75U NVLink 交换托架、PHD3 背板连接器、NPO/CPO 光互连模块形态、「Dragonfly」跨机架拓扑命名——均为 SemiAnalysis 的结构细节推测，NVIDIA 官方材料未证实这些具体实现。',
       null,
       'p.4–p.5（机架立面图与机架高度节），p.10（NPO/CPO 与 Dragonfly 拓扑描述）',
-      '这条 Claim 的作用是把「分析师推测的具体实现」与上面几条官方事实（gpuCount/rackCount/nvlinkDomainOptions/prototypeCodename）显式分开，避免两者被当成同一置信等级引用——3D 组件层的官方壳体（机架、机架内背板、跨机架光互连）与分析师规格件（GPU/HBM/托盘细节/交换芯片）也按这条线分层，见组件定义里的 status 字段。',
+      '这条 Claim 的作用是把「分析师推测的具体实现」与上面几条官方事实（gpuCount / rackCount / ' +
+        'nvlinkDomainOptions / topologyNameOfficial / prototypeCodename）显式分开，避免两者被当成同一置信等级引用' +
+        '——3D 组件层的官方壳体（机架、机架内背板、跨机架光互连）与分析师规格件（GPU/HBM/托盘细节/交换芯片）' +
+        '也按这条线分层，见组件定义里的 status 字段。' +
+        '⚠️ v1.5 措辞拆分：**「Oberon」本身是 NVIDIA 官方的机架世代名**（2025-10 OCP 博客原文' +
+        '「NVIDIA Kyber — the successor to NVIDIA Oberon」），此前把「Oberon 机架」整体归为分析师推测是错的；' +
+        '真正属于分析师的是**这一代 Oberon 壳体内部怎么重排**（9+18+9 等上面列的那几项）。',
     ),
     year: sa<string>(
       '2027（表①）',
@@ -395,7 +452,7 @@ export const RUBIN_ULTRA_COMPONENTS: HardwareComponent[] = [
     summary:
       '代号 Portia 的 0.75U 交换托架，可扩展版每托架 4 颗 NVLink 7 交换芯片，每机架 18 个；分 NPO 与 CPO 两个在研版本。',
     presalesNote:
-      '★ 这是整代最值得讲的一层。三件事：**托架高度从 1U 压到 0.75U**、**每机架从 9 个变 18 个**、**可扩展版每托架 4 颗交换芯片（每机架 72 颗，是 NVL72 版 36 颗的两倍）**。为什么要压高度？文中解释得很清楚：把最远的计算托架与最远的交换托架之间的距离控制在 22.5U（原来 19U），铜背板上的 NVLink 信号才驱动得动。多出来的交换容量就是拿去做跨机架光互连的。',
+      '★ 这是整代最值得讲的一层。三件事：**托架高度从 1U 压到 0.75U**、**每机架从 9 个变 18 个**、**可扩展版每托架 4 颗交换芯片（每机架 72 颗，是 NVL72 版 36 颗的两倍）**。为什么要压高度？文中解释得很清楚：交换托架数量翻倍本来会把最远的计算托架与最远的交换托架拉得更开，压高度之后这个最大距离**只从 19U 略微增加到 22.5U**，铜背板上的 NVLink 信号才驱动得动。多出来的交换容量就是拿去做跨机架光互连的。',
     visual: { shape: 'tray-slab', colorToken: 'plane-nvlink', wireframe: true },
     imageUrl: null,
     sourceIds: [SA],
@@ -473,9 +530,9 @@ export const RUBIN_ULTRA_COMPONENTS: HardwareComponent[] = [
     vendor: 'NVIDIA',
     status: 'announced',
     summary:
-      '★ 组件层证据分层示例：NVIDIA 官方证实 8 个机架之间靠「direct optical connections」组成单一 576-GPU NVLink 域（POD 博客）；这条光互连具体走什么协议/模块形态（NPO 插槽式或 CPO 共封装、「Dragonfly」拓扑名字）是 SemiAnalysis 的分析师推测，见 `cmp.rubin-ultra.optics-module` 与 specs 里的低置信项。',
+      '★ 组件层证据分层示例：NVIDIA 官方证实 8 个机架之间靠「copper and direct optical connections」组成单一 576-GPU NVLink 域，且把拓扑类别点名为「a new two-layer all-to-all NVLink topology」（POD 博客）；这条光互连具体走什么**模块形态**（NPO 插槽式或 CPO 共封装）以及「Dragonfly」这个归类，是 SemiAnalysis 的分析师推测，见 `cmp.rubin-ultra.optics-module` 与 specs 里的低置信项。',
     presalesNote:
-      '对客户讲这一层要分两句话：**「NVLink 域要跨出机架了」是官方证实的**——8 个机架经光连接合并成一个 576 卡的 scale-up 域，这决定了「一台机器」的边界从 72 卡扩到 576 卡；**「怎么跨」还是分析师推测**——NPO 还是 CPO、走不走 Dragonfly 拓扑、每机架多少个光模块，这些都等官方规格表出来再报给客户。',
+      '对客户讲这一层要分两句话：**「NVLink 域要跨出机架了、而且是两层全互连」是官方证实的**——8 个机架经铜与直接光连接合并成一个 576 卡的 scale-up 域，官方措辞是 two-layer all-to-all，这决定了「一台机器」的边界从 72 卡扩到 576 卡；**「用什么器件跨」还是分析师推测**——NPO 还是 CPO、每机架多少个光模块，这些都等官方规格表出来再报给客户。⚠️ 别把分析师的「Dragonfly」当官方拓扑名讲，官方从未用过这个词，它与 two-layer all-to-all 也不等价。',
     visual: { shape: 'switch-box', colorToken: 'plane-nvlink' },
     imageUrl: null,
     sourceIds: [POD, SA],
@@ -487,11 +544,25 @@ export const RUBIN_ULTRA_COMPONENTS: HardwareComponent[] = [
         '2026-03',
         'NVIDIA Vera Rubin Ultra NVL576 节，「…all in a single 576-GPU NVLink domain with copper and direct optical connections.」',
       ),
+      topologyNameOfficial: official<string>(
+        '两层全互连 NVLink 拓扑（two-layer all-to-all）',
+        null,
+        POD,
+        '2026-03',
+        'NVIDIA Vera Rubin Ultra NVL576 节，「NVIDIA Vera Rubin Ultra introduces a new two-layer all-to-all NVLink topology that will enable developers to scale-up to 576 GPUs.」',
+        '★ 官方点名的拓扑类别。同段后半句给的是介质：「Vera Rubin Ultra NVL576 will combine eight separate ' +
+          'MGX NVL racks, each with 72 Rubin Ultra GPUs, all in a single 576-GPU NVLink domain with copper and ' +
+          'direct optical connections.」两句要一起读。',
+      ),
       topologyName: sa<string>(
-        'Dragonfly（SemiAnalysis 命名，官方材料未使用此术语）',
+        'Dragonfly（SemiAnalysis 命名，与官方的 two-layer all-to-all 不等价）',
         null,
         'p.3 表①，Scale up links =「Between Racks: Dragonfly NPO/CPO」',
-        '⚠️ 官方只说「direct optical connections」，没有点名任何拓扑算法或标准名字；「Dragonfly」是分析师文章自己的归类。',
+        '⚠️ v1.5 订正：此前这条 note 写「官方只说 direct optical connections，没有点名任何拓扑算法或标准名字」' +
+          '——**是错的**。官方在同一段的前半句已经点名为「a new two-layer all-to-all NVLink topology」' +
+          '（见同组件的 topologyNameOfficial）。' +
+          '「Dragonfly」仍然只是 SemiAnalysis 自己的归类：它描述的是一类具体组网算法族，' +
+          '与官方「两层、层内全互连」的描述**不等价**，两者不能互相替换着讲，也不能用它去「解释」官方措辞。',
       ),
       moduleFormFactor: sa<string>(
         'NPO（插槽式）与 CPO（共封装，芯片内嵌光引擎）两种在研形态，文中判断 NPO 更可能率先量产',
@@ -539,9 +610,11 @@ export const RUBIN_ULTRA_COMPONENTS: HardwareComponent[] = [
         '售前含义：故障域从「换一个模块」变成「换一颗芯片」，维保口径不同，谈保修条款前要先问清楚客户拿到的是哪个版本。',
       ),
       interRackTopology: sa<string>(
-        'Dragonfly（机架之间）',
+        'Dragonfly（机架之间，SemiAnalysis 归类）',
         null,
         'p.3 表①，Scale up links =「Between Racks: Dragonfly NPO/CPO」',
+        '⚠️ 官方对同一件事的措辞是「a new two-layer all-to-all NVLink topology」（POD 博客），' +
+          '两者**不等价**；同文表②对同一格写的又是「Direct Connect NPO」，分析师自己的两张表也不一致。',
       ),
       bandwidthTbs: saNull(
         'Tb/s',
@@ -604,8 +677,10 @@ export const RUBIN_ULTRA_COMPONENTS: HardwareComponent[] = [
       maxTrayDistanceU: sa<number>(
         22.5,
         'U',
-        'p.5：此前最大距离 19U；现在虽然交换托架翻倍，最大距离仅略增至 22.5U',
-        '这是整代机架重排的直接原因——铜背板上 NVLink 信号的链路驱动能力有距离上限。',
+        'p.5：此前最大距离 19U；现在尽管 NVLink Switch 托架数量翻倍，该最大距离仅略微增加至 22.5U',
+        '★ 措辞要准（v1.5 订正）：22.5U 是**增加**后的值（19U → 22.5U），不是「压缩到 22.5U」。' +
+          '被压缩的是**单托架高度**（1U → 0.75U）；正因为压了托架高度，托架数量翻倍才只让最大距离多了 3.5U。' +
+          '这是整代机架重排的直接原因——铜背板上 NVLink 信号的链路驱动能力有距离上限。',
       ),
       elevationScaleU: sa<number>(
         48.5,
@@ -774,7 +849,11 @@ export const RUBIN_ULTRA_ASSEMBLIES: AssemblyNode[] = [
     countClaim: null,
     lodLevel: 'cluster',
     rackU: null,
-    note: '★ 本代新增的层：8 个机架之间靠官方证实的直接光连接组成单一 576-GPU NVLink 域；具体走 NPO/CPO 哪种模块、是否叫「Dragonfly」拓扑，是 SemiAnalysis 的分析师推测（见 cmp.rubin-ultra.optics-module）。',
+    note:
+      '★ 本代新增的层：8 个机架之间靠官方证实的直接光连接组成单一 576-GPU NVLink 域，' +
+      '拓扑类别官方点名为「two-layer all-to-all」（两层全互连）；具体走 NPO/CPO 哪种模块形态、' +
+      '以及分析师把它归类为「Dragonfly」，是 SemiAnalysis 的推测（见 cmp.rubin-ultra.optics-module）。' +
+      '⚠️ Dragonfly ≠ two-layer all-to-all，别互相替换。',
   },
 
   // ── rack 层 ──
@@ -1036,15 +1115,22 @@ export const RUBIN_ULTRA_CONNECTIONS: Connection[] = [
     fromAssemblyId: 'asm.ru.optics',
     toAssemblyId: 'asm.ru.interrack-fabric',
     plane: 'nvlink',
-    topology: 'fat-tree',
+    // ★ v1.5 订正：此前写 'fat-tree'——**没有任何来源支持**（官方说 two-layer all-to-all，
+    //   SemiAnalysis 表①说 Dragonfly、表②说 Direct Connect NPO，三处都不是 fat-tree），
+    //   而且与同对象的 protocol/summary 互相打架。改成与官方措辞一致的 'all-to-all'。
+    topology: 'all-to-all',
     medium: 'optical-fiber',
-    protocol: 'NVLink 7 over NPO/CPO（Dragonfly）',
+    protocol: 'NVLink 7，两层全互连（官方：two-layer all-to-all）；模块形态 NPO/CPO 为分析师推测',
     bandwidth: null,
     direction: 'bidirectional',
     label: 'NPO 光模块 ↔ 跨机架 scale-up 光互连',
     summary:
-      '★ 本代的分水岭：NVLink 域第一次跨出机架。8 个 Oberon 机架经 NPO/CPO 光互连组成 Dragonfly 拓扑，576 张 GPU 成为一个 scale-up 域。',
-    sourceIds: [SA],
+      '★ 本代的分水岭：NVLink 域第一次跨出机架。**官方口径**：8 个 MGX NVL 机架经「copper and direct optical ' +
+      'connections」组成单一 576-GPU NVLink 域，拓扑官方点名为「a new two-layer all-to-all NVLink topology」。' +
+      '**分析师口径**：SemiAnalysis 表①把机架之间标为「Dragonfly NPO/CPO」、表②标为「Direct Connect NPO」' +
+      '——「Dragonfly」是它自己的归类，与官方的 two-layer all-to-all 不等价，讲的时候要分开说、标明出处。' +
+      '（此前本条把拓扑标成 fat-tree，任何来源都没这么说过，已订正。）',
+    sourceIds: [POD, SA],
   },
 
   // ── power 平面 ──
@@ -1214,7 +1300,9 @@ export const RUBIN_ULTRA_SCENES: ScenePreset[] = [
     systemId: SYSTEM_ID,
     title: '8 个机架 = 一台机器',
     narration:
-      '这一屏要建立的唯一认知：NVL576 的 8 个 Oberon 机架**不是 8 套独立系统**，而是通过 NPO/CPO 光互连组成 Dragonfly 拓扑的**单一 NVLink 域**——576 张 GPU 对软件来说是一台机器。机架内仍然是铜背板，只有机架之间才走光。⚠️ 全屏内容来自 SemiAnalysis 分析师文章，不是 NVIDIA 官方规格。',
+      '这一屏要建立的唯一认知：NVL576 的 8 个 MGX NVL（Oberon）机架**不是 8 套独立系统**，而是**单一 NVLink 域**——576 张 GPU 对软件来说是一台机器。机架内仍然是铜，只有机架之间才走光。' +
+      '**官方怎么说**（2026-03 POD 博客）：「a new two-layer all-to-all NVLink topology」，八个机架「all in a single 576-GPU NVLink domain with copper and direct optical connections」——官方点名的拓扑是**两层全互连（two-layer all-to-all）**。' +
+      '**分析师怎么说**（SemiAnalysis）：把机架之间归类为「Dragonfly」、模块形态推测为 NPO/CPO。⚠️ 「Dragonfly」是分析师自己的归类，与官方措辞不等价，别当成官方说法讲。屏上的机架内部结构（9+18+9、0.75U 交换托架）同样来自该分析师文章，不是 NVIDIA 官方规格。',
     lodLevel: 'cluster',
     focusAssemblyId: 'asm.ru.facility',
     planes: ['nvlink', 'power'],
@@ -1227,7 +1315,7 @@ export const RUBIN_ULTRA_SCENES: ScenePreset[] = [
     systemId: SYSTEM_ID,
     title: '机架为什么要重排成 9+18+9',
     narration:
-      '交换托架从 9 个翻倍到 18 个、高度从 1U 压到 0.75U，计算托架则拆成上下两组各 9 个。原因是物理的：铜背板上的 NVLink 信号有驱动距离上限，重排后最远的计算托架到最远的交换托架只有 22.5U。多出来的交换容量（每机架 72 颗 NVLink 7 芯片，是 NVL72 版的两倍）就是用来支撑跨机架光互连的。',
+      '交换托架从 9 个翻倍到 18 个、高度从 1U 压到 0.75U，计算托架则拆成上下两组各 9 个。原因是物理的：铜背板上的 NVLink 信号有驱动距离上限——按 SemiAnalysis p.5，此前最远的计算托架到最远的交换托架是 19U，**尽管交换托架数量翻倍，重排后这个最大距离也只是略微增加到 22.5U**（是「增加得很少」，不是「压缩到」）。多出来的交换容量（每机架 72 颗 NVLink 7 芯片，是 NVL72 版的两倍）就是用来支撑跨机架光互连的。⚠️ 本站全部数字来自 SemiAnalysis 分析师文章，不是 NVIDIA 官方规格。',
     lodLevel: 'rack',
     focusAssemblyId: 'asm.ru.rack',
     planes: ['nvlink', 'power', 'cooling'],

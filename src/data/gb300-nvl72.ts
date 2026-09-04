@@ -14,16 +14,49 @@ import type {
  * 或 GB300 NVL72 官方产品页（src.nvidia-gb300-page），locator 精确到表号/段落原文。
  * 官方未公布的一律 `notPublished(...)`（value: null），不用记忆或第三方数字补齐。
  *
- * ⚠️ 已发现的官方文档内部冲突（两处，均已在对应 Claim 的 note 中标注）：
+ * ⚠️ 已发现的官方文档内部冲突（四处，均已在对应 Claim 的 note 中标注）：
  *   1. 每托盘 HBM 容量：components.html Table 1 写 “1,152 GB aggregated HBM3”，
  *      appendix-node-configurations.html Table 10 写 “720 GB of aggregated HBM3”。
- *      本项目取 1,152 GB（÷4 = 288 GB/GPU，与产品页 20 TB ÷ 72 一致；720 GB 对应的
- *      180 GB/GPU 是上一代 B200 口径，疑为 GB200 参考架构的残留）。
+ *      本项目取 1,152 GB（÷4 = 288 GB/GPU）；另有第三个官方数字——Blackwell Ultra 数据手册
+ *      GB300 NVL72 列写 “279 GB HBM3E”。详见 cmp.gb300.b300-gpu.specs.hbmPerGpuGB 的 note。
  *   2. 每托盘 E1.S 缓存盘数量：components.html 正文写 “4 E1.S NVMe storage devices”，
  *      Table 10 写 “8 x 4 TB E1.S”。本项目取正文的 4，并在 note 中记录冲突。
+ *   3. 交换机型号：network-logical-architecture.html Table 5 与 appendix Table 11 写 SN5600
+ *      （“NVIDIA SN5600 128-port 400 Gb/s switches”），networking-hardware.html 写 SN5610
+ *      （“The NVIDIA SN5610 switch both offer 64 total ports of 800 Gbps”）。见 cmp.gb300.sn5610。
+ *   4. 双平面负载均衡由谁做：networking-physical-topologies.html 同一页，Multi-Plane Topology
+ *      Approach 说 “handled by the NCCL on the host”，Dual Plane Topology 说 “handled by the
+ *      ConnectX-8 SuperNIC on the hardware level”。见 con.gb300.cx8-leaf。
+ *
+ * ⚠️ 本参考架构**不涉及**的范围（全篇零命中，别把通用工程常识挂到它头上）：
+ *   CDU / manifold / cold plate / coolant / quick disconnect / Oberon 六个词一次都没出现。
+ *   液冷只写到 “the GB300 NVL72 rack is liquid cooled, based on the MGX architecture” 与
+ *   “Integrated tray-level and rack-level liquid leakage detection” 两句。
  */
 
 const SYSTEM_ID = 'sys.gb300-nvl72'
+
+/**
+ * ★ 跨文件统一口径（hgx-b300.ts 里说的是同一句话）：
+ * **NVLink 与以太网的带宽比是 9 倍，不是 18 倍。**
+ *
+ * 根因是 NVIDIA 给 NVLink 的数字默认是**双向合计**——参考架构原文：
+ * 「all 72 GPUs are interconnected in a single NVLink domain … with a bandwidth of
+ * 900GB/s (1800 GB/s bi-directional)」。拿 1800（双向）去除以 100 GB/s
+ * （800 Gb/s 网卡按单向折算）得到的 18，是把双向和单向两种口径混着用。
+ *
+ * 同方向口径下两种算法都得 9：
+ *   单向 900 GB/s ÷ 100 GB/s = 9；双向 1800 GB/s ÷ 200 GB/s（2 × 800 Gb/s）= 9。
+ * 独立佐证：HGX 平台页规格表相邻两行「Total NVLink Bandwidth | 14.4 TB/s」与
+ * 「Networking Bandwidth | 1.6 TB/s」同表同口径，14.4 ÷ 1.6 = 9。
+ *
+ * ⚠️ NVIDIA 从未发布过 NVLink vs 以太网的「18×」对比，讲的时候不要说这个数。
+ */
+const NVLINK_VS_ETHERNET_NOTE =
+  '★ 同口径对照：机架内 NVLink 每卡 900 GB/s（单向）/ 1800 GB/s（双向），' +
+  '跨机架以太网每卡 800 Gb/s（= 100 GB/s 单向 / 200 GB/s 双向）——**同方向下差 9 倍**。' +
+  '（拿 1800 双向去比 100 单向会算出 18 倍，那是双向/单向口径混用；' +
+  '官方原文写的是「a bandwidth of 900GB/s (1800 GB/s bi-directional)」。）'
 
 // ─────────────────────────── 系统 ───────────────────────────
 
@@ -39,7 +72,11 @@ export const GB300_SYSTEM: FactorySystem = {
   summary:
     '把 72 张 Blackwell Ultra GPU 与 36 颗 Grace CPU 用第五代 NVLink 连成一台机器的液冷机架系统，是当前「机架即计算机」的量产标准形态。',
   presalesNote:
-    '讲 GB300 NVL72 只要抓住一句话：它不是 18 台服务器摆在一个柜子里，而是 72 张 GPU 通过 NVLink 组成的**单一计算单元**。对客户的直接意义是——万亿参数模型的张量并行/专家并行可以整个装在机架内，不必走慢 18 倍的以太网出机架。',
+    '讲 GB300 NVL72 只要抓住一句话：18 个托盘既可以各自当独立服务器用，也能被 NVLink 合成**一台机器**' +
+    '——官方原话是「While each tray (single server or node) can still operate independently as needed, ' +
+    'the NVLink interconnect enables GPUs to be dynamically combined」。' +
+    '对客户的直接意义是：万亿参数模型的张量并行/专家并行可以整个装在机架内，不必出机架走以太网。' +
+    `${NVLINK_VS_ETHERNET_NOTE}`,
   sourceIds: [RA_SOURCE, GB300_PAGE_SOURCE],
   keySpecs: {
     gpuCount: raSpec<number>(72, '张', 'Overview，「72 NVIDIA Blackwell Ultra GPUs」'),
@@ -101,7 +138,15 @@ export const GB300_SYSTEM: FactorySystem = {
       '倍',
       RA_SOURCE,
       'System Hardware & Components，「can deliver up to a 50x overall increase in AI factory output performance compared to NVIDIA Hopper-based platforms」',
-      '⚠️ 厂商营销口径（含功耗与成本因子的综合产出比），不是单卡算力比，不可直接换算成 token 产能。',
+      '⚠️ 厂商营销口径，不是单卡算力比，不可直接换算成 token 产能。' +
+        '★ 官方自己给了拆解（GB300 NVL72 产品页）：「Compared to Hopper, the GB300 NVL72 delivers an ' +
+        'impressive 10x boost in user responsiveness (TPS per user) and a 5x improvement in throughput ' +
+        '(TPS per megawatt (MW)). Together, these advancements translate into a remarkable 50x leap in ' +
+        'overall AI factory output.」——即 50 = 10（每用户 TPS）× 5（每兆瓦 TPS）。' +
+        '**因子里有功耗（TPS/MW），没有成本**；讲的时候别加「成本」二字。' +
+        '另：数据手册第 3 页把它画成帕累托前沿的最优交点（DeepSeek-R1，ISL 32K / OSL 8K，' +
+        'GB300 NVL72 用 FP4 Dynamo disaggregation vs H100 用 FP8 in-flight batching，' +
+        '标注「Projected performance subject to change」）。',
     ),
   },
   // 48U 为 3D 摆位用的示意值：官方未公布机架 U 高与逐 U 布局
@@ -119,7 +164,13 @@ export const GB300_COMPONENTS: HardwareComponent[] = [
     status: 'shipping',
     summary: '整个系统里真正做矩阵乘法的算力核心，自带 HBM3e 高带宽显存并通过 NVLink 与其余 71 张卡直连。',
     presalesNote:
-      '客户问「买卡到底买什么」，答案是三件事：算力（FP4 稠密 15 PFLOPS）、显存容量（288 GB，决定装得下多大模型）、显存带宽（8 TB/s，决定 decode 有多快）。推理场景里后两项往往比第一项更卡脖子——这也是为什么 Blackwell Ultra 相对 B200 主要加的是显存而不是算力。',
+      '客户问「买卡到底买什么」，答案是三件事：算力（FP4 稠密 15 PFLOPS）、显存容量（288 GB，决定装得下多大模型）、' +
+      '显存带宽（8 TB/s，决定 decode 有多快）。推理场景里后两项往往比第一项更卡脖子。' +
+      '★ 但**不要说「Blackwell Ultra 主要加的是显存而不是算力」**——官方口径是两头一起加：' +
+      'GB300 NVL72 产品页原话「The system delivers 1.5x more dense FP4 Tensor Core FLOPS and 2x higher ' +
+      'attention performance compared to NVIDIA Blackwell GPUs.」，即**稠密 FP4 算力 1.5×、注意力层 2×**，' +
+      '算力与显存是同幅提升，不是「只加显存」。真正的差异化卖点是那个 2× 的注意力性能' +
+      '（芯片博客：SFU 吞吐翻倍），长上下文推理里 softmax 常常就是时延瓶颈。',
     visual: { shape: 'chip', colorToken: 'accent' },
     imageUrl: 'https://www.nvidia.com/en-us/data-center/gb300-nvl72/',
     sourceIds: [RA_SOURCE, GB300_PAGE_SOURCE],
@@ -134,25 +185,67 @@ export const GB300_COMPONENTS: HardwareComponent[] = [
         '带宽 8 TB/s = 产品页「576 TB/s」÷ 72 卡；' +
         'FP4 稠密 15 PFLOPS = 产品页稠密值 1080 PFLOPS ÷ 72 卡；' +
         'FP8 稠密 5 PFLOPS = 产品页「720 PFLOPS」（脚注 1 声明含稀疏）÷ 2 ÷ 72 卡；' +
-        'TDP 官方未公布单卡值，保持 null。',
+        'TDP 官方未公布单卡值，保持 null。' +
+        '⚠️ 显存另有两个官方数字：Blackwell Ultra 数据手册 GB300 NVL72 列写 279 GB HBM3E（SKU 实配口径，' +
+        '× 72 ≈ 20.1 TB，更贴近产品页的「20 TB」），参考架构 Appendix B Table 10 写 720 GB/托盘（= 180 GB/卡）。' +
+        '本项目产能数学取参考架构 Table 1 的 288 GB（本文件母版表），差异见该 Claim 的 note。',
     },
     specs: {
       hbmPerGpuGB: raSpec<number>(
         288,
         'GB',
         'System Hardware & Components Table 1，「NVIDIA B300 GPU, with 1,152 GB aggregated HBM3 memory」（每托盘 4 张，÷4 得单卡值）',
-        '⚠️ 官方文档内部冲突：Appendix B Table 10 同一配置写作「720 GB of aggregated HBM3」（即 180 GB/卡）。取 1,152 GB 的依据是它与产品页「20 TB ÷ 72 卡」一致，而 180 GB/卡 是上一代 B200 口径。',
+        '⚠️ 官方**三个数字并存**，本项目全部登记、不互相覆盖：' +
+          '① 参考架构 Table 1「1,152 GB aggregated HBM3」÷ 4 = **288 GB/卡**（本条取值，也是芯片技术博客的' +
+          '架构上限口径「up to 160 SMs and 288GB HBM3E Memory」）；' +
+          '② Blackwell Ultra 数据手册第 5 页 GB300 NVL72 列「GPU Memory | Bandwidth 279 GB HBM3E | 8 TB/s」' +
+          '（正文亦写「With 279 GB of HBM3E memory per Blackwell Ultra chip」）——这是 GB300 平台的 **SKU 实配**；' +
+          '③ 参考架构 Appendix B Table 10 同一配置写「720 GB of aggregated HBM3」= **180 GB/卡**。' +
+          '官方对①②的差异自己给了解释：博客图 1 脚注「Available SM count and HBM capacity varies by SKU.」' +
+          '——288 是架构上限，279 是本平台 SKU。③ 与前两者差一半，官方无解释，本项目视为该表的残留错误。' +
+          '⚠️ 换算参照：产品页整机「20 TB」÷ 72 ≈ 278 GB，更贴近 279；288 × 72 = 20,736 GB ≈ 20.7 TB。' +
+          '本条仍取 288 是因为它来自本文件的母版表（参考架构 Table 1，逐托盘部件清单），' +
+          '产能数学的 derivation 里已写明来源，报数时请连同 279 一起讲。' +
+          '⚠️ 另一处措辞细节：参考架构 Table 1 与 Table 10 写的都是「HBM3」而**不是** HBM3e；' +
+          '产品页、数据手册与芯片博客写的是 HBM3E。本项目按后者理解为 HBM3e，但引用参考架构原文时须照抄「HBM3」。',
       ),
       nvlinkPerGpuGBs: raSpec<number>(
         1800,
         'GB/s',
         'NVIDIA NVLink 节，「fifth-generation NVLink, delivering up to 1800 GB/s per GPU – doubling the bandwidth of the previous generation」',
+        '★★ **1800 GB/s 是双向合计**，单向是 900 GB/s。同一份参考架构在 Network Logical Architecture 节' +
+          '把两个方向都写了出来：「all 72 GPUs are interconnected in a single NVLink domain, allowing them ' +
+          'to function as a single multi-GPU unit of compute with a bandwidth of 900GB/s (1800 GB/s ' +
+          'bi-directional)」。' +
+          `这是全项目最容易引发口径事故的一个数字——${NVLINK_VS_ETHERNET_NOTE}`,
+      ),
+      nvlinkPerGpuUnidirectionalGBs: raSpec<number>(
+        900,
+        'GB/s',
+        'Network Logical Architecture 节 Enterprise RA Scalable Unit (SU)，「all 72 GPUs are interconnected in a single NVLink domain, allowing them to function as a single multi-GPU unit of compute with a bandwidth of 900GB/s (1800 GB/s bi-directional)」',
+        '★ 与上一条 1800 GB/s 是同一件事的两个方向口径：900 单向 / 1800 双向。' +
+          '与以太网做对比时**必须**先对齐方向，否则会算出并不存在的「18 倍」。',
       ),
       nvlinkLinksPerGpu: raSpec<number>(
         18,
         '条',
         'NVIDIA NVLink Switch Tray 节，「Each GPU has 18 NVLink Fifth-Generation links, one per in-rack NVSwitch via the copper backplane」',
-        '18 条链路恰好对应机架内 9 托盘 × 2 = 18 颗 NVSwitch ASIC，每颗一条——这就是「全互联无阻塞」的物理实现。',
+        '18 条链路恰好对应机架内 9 托盘 × 2 = 18 颗 NVSwitch ASIC，每颗一条——这就是「全互联无阻塞」的物理实现。' +
+          '⚠️ 这个 18 与「NVLink 比以太网快几倍」毫无关系，别把两个 18 联想到一起（后者的正确答案是 9 倍）。',
+      ),
+      denseFp4UpliftVsBlackwell: vendorClaim<number>(
+        1.5,
+        '倍',
+        GB300_PAGE_SOURCE,
+        '产品页，「The system delivers 1.5x more dense FP4 Tensor Core FLOPS and 2x higher attention performance compared to NVIDIA Blackwell GPUs.」',
+        '★ 官方对比基准是 **NVIDIA Blackwell GPUs**（即 B200 一代），不是 Hopper。稠密口径。',
+      ),
+      attentionUpliftVsBlackwell: vendorClaim<number>(
+        2,
+        '倍',
+        GB300_PAGE_SOURCE,
+        '产品页，「The system delivers 1.5x more dense FP4 Tensor Core FLOPS and 2x higher attention performance compared to NVIDIA Blackwell GPUs.」',
+        '与 HGX 平台页规格表的「Attention Performance | 2x」（脚注 3「vs. NVIDIA Blackwell.」）是同一件事。',
       ),
       tdpW: notPublished('W', GB300_PAGE_SOURCE, 'NVIDIA 未在产品页或参考架构中公布 B300 单卡 TDP。'),
       fp4DenseTflopsPerGpu: pageSpec<number>(
@@ -229,11 +322,27 @@ export const GB300_COMPONENTS: HardwareComponent[] = [
     status: 'shipping',
     summary: '机架的计算基本单元：2 颗 Grace CPU + 4 张 B300 GPU + 4 张 ConnectX-8 + 1 张 BlueField-3 + 本地 NVMe，全液冷。',
     presalesNote:
-      '这是最容易讲错的一层，务必记准 GB300 的口径：**每托盘 2 CPU + 4 GPU**（上一代 GB200 Bianca 是 2 CPU + 4 GPU 但板型不同，也有 1:2 的其他形态在传）。18 个这样的托盘 × 4 = 72 张卡，就是 NVL72 名字的来源。',
+      '这是最容易讲错的一层，务必记准 GB300 的口径：**每托盘 2 CPU + 4 GPU**。' +
+      '18 个这样的托盘 × 4 = 72 张卡，就是 NVL72 名字的来源。' +
+      '★ 官方给了一句极好记的口诀，Overview 首句就是：**2-4-5-800**' +
+      '（2 CPU、4 GPU、5 张网卡 = 4 张 ConnectX-8 + 1 张 BlueField-3、每 GPU 800 Gb/s）。' +
+      '这一句最适合和 HGX B300 的 **2-8-9-800** 摆在一起讲两代对照——' +
+      '同一套记法，差别一眼可见：GB300 的托盘是 4 卡（NVLink 域在机架上），HGX 的服务器是 8 卡（域到基板为止）。',
     visual: { shape: 'tray-slab', colorToken: null },
     imageUrl: null,
     sourceIds: [RA_SOURCE],
     specs: {
+      nodeArchitectureCode: raSpec<string>(
+        '2-4-5-800（dual plane）',
+        null,
+        'Overview 首句，「The NVIDIA Enterprise RA using 2-4-5-800 (dual plane) node architecture with NVIDIA GB300 NVL72 and NVIDIA Spectrum-X Networking offers a fully integrated, rack-scale solution optimized for the most demanding AI workloads.」',
+        '★ 官方对「一个节点长什么样」的四位口诀：2 CPU / 4 GPU / 5 网卡 / 每 GPU 800 Gb/s。' +
+          '⚠️ 参考架构只给了这个代号本身，**没有**在同一句里逐位解释；' +
+          '四位的拆解依据是同文档的部件表（Table 1：2 Grace + 4 B300 + 2 夹层板 × 2 CX-8 + 1 BF-3）' +
+          '与 Compute (Node East/West) Ethernet Networking 节的「Each ConnectX-8 SuperNIC offers up to ' +
+          '800 Gb/s」，与 HGX RA 的「2-8-9-800 infrastructure configuration (2 CPUs, 8 GPUs, 9 NICs at ' +
+          '800 Gb/s bandwidth per GPU)」逐位对齐——HGX RA 那一处**是**官方逐位写明的，可作交叉印证。',
+      ),
       gpusPerTray: raCount(4, 'System Hardware & Components Table 1，「NVIDIA B300 GPU … | 4」'),
       cpusPerTray: raCount(2, 'System Hardware & Components Table 1，「NVIDIA Grace Processor … | 2」'),
       connectx8PerTray: raCount(
@@ -335,25 +444,70 @@ export const GB300_COMPONENTS: HardwareComponent[] = [
     vendor: 'NVIDIA',
     status: 'shipping',
     summary:
-      '64 端口 800 Gb/s 的 Spectrum-X 交换机，同一型号按接线角色分饰三层：作为 Leaf 交换层承担计算网（East/West）的机架接入，作为 Spine 交换层承担计算网的跨机架主干，作为汇聚交换层则切到完全独立的另一张网——业务与存储（North/South，经 BlueField-3 DPU）。',
+      '64 端口 800 Gb/s 的 Spectrum-X 交换机，同一型号按接线角色分饰三层：作为 Leaf 交换层承担计算网（East/West）的机架接入，作为 Spine 交换层承担计算网的跨机架主干，作为汇聚交换层则切到完全独立的另一张网——业务与存储（North/South，经 BlueField-3 DPU）。⚠️ 型号有官方两说，见 modelNameConflict。',
     presalesNote:
-      '同一款 SN5610，讲清楚靠这套对照框架：Leaf 管接入——每机架的 CX-8 网卡按 rail 上联到 leaf（同编号网卡接同一台 leaf，即 rail-optimized），是 GPU 跨机架东西向流量的第一跳；Spine 管互联——只连 leaf、不直连服务器，与 leaf 构成两级 fat-tree，把多台机架拼成一个训练/推理集群。「Leaf 管接入，Spine 管互联，它们是同一张计算网的两级」，而「NVLink 负责机架内 72 GPU 一跳互联，leaf/spine 负责机架之间」。汇聚交换层则完全不同：南北向客户请求与存储读写经 BlueField-3 DPU 接入，与计算网物理隔离，避免业务流量抢占东西向带宽——「leaf/spine 是 GPU 之间说话的网，汇聚层是集群对外界与存储说话的网」。',
+      '同一款交换机，讲清楚靠这套对照框架：Leaf 管接入——每机架的 CX-8 网卡按 rail 上联到 leaf（同编号网卡接同一台 leaf，即 rail-optimized），是 GPU 跨机架东西向流量的第一跳；Spine 管互联——只连 leaf、不直连服务器，与 leaf 构成两级 fat-tree，把多台机架拼成一个训练/推理集群。「Leaf 管接入，Spine 管互联，它们是同一张计算网的两级」，而「NVLink 负责机架内 72 GPU 一跳互联，leaf/spine 负责机架之间」。汇聚交换层则完全不同：南北向客户请求与存储读写经 BlueField-3 DPU 接入，与计算网物理隔离，避免业务流量抢占东西向带宽——「leaf/spine 是 GPU 之间说话的网，汇聚层是集群对外界与存储说话的网」。' +
+      '⚠️ **型号别说死**：同一份参考架构里 SN5600 与 SN5610 两种写法并存（详见 modelNameConflict），' +
+      '对客户说「Spectrum-X 交换机，64 × 800G / 等效 128 × 400G 那一档」最安全，具体型号以订单 BOM 为准。' +
+      '★ 台数官方是给了的，别说「参考架构没给」：每机架 2 台跑 CPU 与存储、最多 12 台跑双平面 GPU 网；' +
+      '按 SU 规模的 leaf/spine 台数见 switchCountBySu。',
     visual: { shape: 'switch-box', colorToken: 'plane-scaleout' },
     imageUrl: null,
     sourceIds: [RA_SOURCE],
     specs: {
-      ports: raSpec<number>(64, '端口', 'Networking Hardware，「64 total ports of 800 Gbps」'),
-      portSpeedGbs: raSpec<number>(800, 'Gb/s', 'Networking Hardware，「64 total ports of 800 Gbps」'),
-      sfp28Ports: raSpec<number>(2, '端口', 'Networking Hardware，「two SFP28 ports」'),
-      roles: raSpec<string>(
-        'Compute (East/West)、Customer 与 Storage (North/South)、带内管理',
-        null,
-        'Networking Hardware，「Serves Compute (East/West), Customer and Storage (North/South), in-band management, and storage」',
+      ports: raSpec<number>(
+        64,
+        '端口',
+        'Networking Hardware，「The NVIDIA SN5610 switch both offer 64 total ports of 800 Gbps to provide connectivity for Compute (East/West), Customer and Storage (North/South), in-band management, and storage in the Enterprise RA.」',
+        '⚠️ 同一份文档的 Table 5 与 Appendix Table 11 写的是「SN5600 128-port 400 Gb/s」。' +
+          '两种写法的端口总容量相同（128 × 400 = 64 × 800 = 51,200 Gb/s），但**参考架构自己没说它们是同一款**，' +
+          '也没给过任何交换芯片代际标注——不要替官方补这句。详见 modelNameConflict。',
       ),
-      switchesPerRack: notPublished(
-        '台',
-        RA_SOURCE,
-        '参考架构未给出每机架/每 POD 的交换机台数，需按实际 SU 规模与收敛比设计。',
+      portSpeedGbs: raSpec<number>(
+        800,
+        'Gb/s',
+        'Networking Hardware，「The NVIDIA SN5610 switch both offer 64 total ports of 800 Gbps」',
+        '⚠️ Table 5 / Appendix Table 11 的写法是 400 Gb/s × 128 口。见 modelNameConflict。',
+      ),
+      sfp28Ports: raSpec<number>(
+        2,
+        '端口',
+        'Networking Hardware，「The NVIDIA SN5610 adds two SFP28 ports and makes switch testing easier since the ports are in pairs.」',
+      ),
+      roles: raSpec<string>(
+        'Compute (East/West)、Customer 与 Storage (North/South)、带内管理与存储',
+        null,
+        'Networking Hardware，「to provide connectivity for Compute (East/West), Customer and Storage (North/South), in-band management, and storage in the Enterprise RA」',
+      ),
+      modelNameConflict: raSpec<string>(
+        '官方两种写法并存：SN5610（64 × 800 Gbps）/ SN5600（128 端口 400 Gb/s）',
+        null,
+        'Networking Hardware，「The NVIDIA SN5610 switch both offer 64 total ports of 800 Gbps」；Network Logical Architecture Table 5，「Compute (East/West) Spine-Leaf Fabric | NVIDIA SN5600 128-port 400 Gb/s switches」（Appendix B Table 11 同样写「SN5600 Ethernet switch, compute core fabric」）',
+        '★★ 这是参考架构自身的内部矛盾，本项目**两说并存、不做「修正」**（与 HGX RA 的同类处理一致）。' +
+          '本项目取 **SN5610** 作组件主值，理由有二：' +
+          '① Networking Hardware 是这份文档专门定义网络硬件的一章，SN5610 出现在那里并带完整端口规格；' +
+          '② Network Logical Architecture 自己的设计点正文三次描述为「64-port switch design」/' +
+          '「non-blocking using 64-port switches」，与 SN5610 的端口数一致、与 Table 5 的「128-port」不一致。' +
+          '⚠️ 但要如实告诉读者：**按出现次数 SN5600 更多**（Table 5 两行 + Appendix Table 11 两行），' +
+          '所以对外只说端口档位、不说死型号。',
+      ),
+      switchesPerRack: raSpec<string>(
+        '每机架 2 台（CPU 与存储）+ 最多 12 台（双平面 GPU 网）',
+        null,
+        'Network Logical Architecture 节 2 Racks, 36 Trays with 144 Blackwell Ultra GPUs，「Each rack requires 2x SN5600 switches for CPU and storage connectivity and up to 12x SN5600 switches for the dual-plane GPU network」',
+        '★ 参考架构**是**给了每机架台数的（此前本项目误记为「未公布」）。' +
+          '注意官方在这句里用的型号写法是 SN5600，见 modelNameConflict。' +
+          '「up to 12」是上限措辞，实际台数随 SU 规模与端口填充率变化——按 SU 的口径见 switchCountBySu。',
+      ),
+      switchCountBySu: raSpec<string>(
+        '计算网（双平面合计）2 SU：8 leaf + 4 spine；4 SU：16 + 8；8 SU：32 + 12。汇聚网 2 SU：2 leaf（无 spine）；4 SU：4 + 2；8 SU：7 + 4',
+        null,
+        'Network Logical Architecture 节 Table 6（Nodes 36/72/144 行「Leaf | 8 / 16 / 32」「Spine | 4 / 8 / 12」）与 Table 7（Nodes 36/72/144 行「Leaf | 2 / 4 / 7」「Spine | N/A / 2 / 4」）',
+        '★ Table 6/7 的「Nodes」是**托盘数**（36 / 72 / 144），对应 2 / 4 / 8 个 SU（机架），' +
+          '即 144 / 288 / 576 张 GPU。' +
+          '⚠️ Appendix B Table 11 是另一套按 1~8 SU 逐列的口径：compute core fabric 12/12/24/24/32/32/44/44、' +
+          'converged core fabric 2/2/5/6/9/10/11/11——与 Table 6/7 **不是同一个切分**（Table 11 含核心层，' +
+          '且逐 SU 给值），两表并存，本项目两处都登记不互推。',
       ),
     },
   },
@@ -415,13 +569,42 @@ export const GB300_COMPONENTS: HardwareComponent[] = [
       dualPlaneSplit: raSpec<string>(
         '800 Gb/s 拆成 2×400 Gb/s，两个接口分别连到不同 leaf 交换机',
         null,
-        'Networking Physical Topologies，「this splits into 2x400 Gb/s interfaces, with each interface connecting to a different leaf switch」',
+        'Networking Physical Topologies 节 Dual Plane Topology，「With each GPU generating 800 Gb/s bandwidth through the ConnectX-8 SuperNICs, dual plane topology involves breaking the interface to 2x400 Gb/s interfaces.」＋「Every such interface is then connected to a different leaf switch, and every such leaf switch is part of an independent fabric that scales to 1024 interfaces of 400 Gb/s as part of this reference architecture.」',
+        '⚠️ locator 是原文**两句相邻的完整句**，用「＋」分隔——不要把它们合并改写成一句。',
+      ),
+      trayAggregateBandwidthGbs: raSpec<number>(
+        3200,
+        'Gb/s',
+        'Network Logical Architecture 节 Enterprise RA Scalable Unit (SU)，「For the Compute (East/West) fabric: 18 trays, each with 4 x single-port NVIDIA ConnectX-8 NICs and a total aggregate bandwidth of 3200 Gb/s」',
+        '★★ 这才是 **GB300 计算托盘**的官方计算网聚合带宽：3200 Gb/s = 400 GB/s ' +
+          '（4 张 GPU × 800 Gb/s，或 8 个 400 Gb/s breakout 接口）。' +
+          '⚠️ 别把它和下面 recommendedComputeBandwidthGBs 的 800 GB/s 搞混——那一行是 **8 GPU 节点**的口径。' +
+          '⚠️ 同一句里的「4 x single-port」与 Compute (Node East/West) Ethernet Networking 节的' +
+          '「Each tray within the GB300 NVL72 rack has four dual-port ConnectX-8 SuperNICs」' +
+          '及 Table 5 的「Four NVIDIA ConnectX-8 SuperNICs dual-port 800 Gb/s. The adapters operate at ' +
+          '2x400 Gb/s per port」措辞不同（单口 vs 双口 2×400 breakout），但 4 × 800 Gb/s = 3200 Gb/s ' +
+          '这个总量三处一致——差别只在「一张卡算 1 个 800G 口还是 2 个 400G 口」。',
+      ),
+      minComputeBandwidthGBs: raSpec<number>(
+        400,
+        'GB/s',
+        'Compute (Node East/West) Ethernet Networking，「Total Minimum Compute Network Bandwidth」＋「400 GB/s (8x 400 Gb/s Ethernet NICs)」',
+        'GB300 计算托盘（4 GPU × 2×400 Gb/s breakout = 8 个 400 Gb/s 接口 = 3200 Gb/s）恰好落在这一档。',
       ),
       recommendedComputeBandwidthGBs: raSpec<number>(
         800,
         'GB/s',
-        'Compute (Node East/West) Ethernet Networking，「Total Recommended Compute Network Bandwidth 800 GB/s (16x 400 Gb/s Ethernet NICs using breakout)」',
-        '这是每节点（托盘）的推荐计算网总带宽；最低要求为 400 GB/s。',
+        'Compute (Node East/West) Ethernet Networking，「Total Recommended Compute Network Bandwidth」＋「800 GB/s (16x 400 Gb/s Ethernet NICs using breakout)」',
+        '⚠️★ **这不是 GB300 计算托盘的值**（此前本项目误记为「每节点（托盘）的推荐计算网总带宽」）。' +
+          '两条理由：① 这张表的引导句写的是「Multi-node deployments with an NVIDIA B300 platform should ' +
+          'adhere to the following total compute network bandwidth **per GPU** recommendations:」——官方标题' +
+          '说的是 per GPU；② 16 × 400 Gb/s = 6400 Gb/s = 800 GB/s 对应的是 **8 GPU 节点**' +
+          '（正是 HGX B300 的 2-8-9-800 口径），而 GB300 的计算托盘只有 4 张 GPU、官方给的聚合值是 ' +
+          '3200 Gb/s = 400 GB/s（见 trayAggregateBandwidthGbs）。' +
+          '★ 也就是说这一段官方原文**自身口径不闭合**：标题写 per GPU，数值给的却是节点合计。' +
+          '按 per GPU 读，正确的说法是「每 GPU 推荐 800 Gb/s」（与「Each ConnectX-8 SuperNIC offers up to ' +
+          '800 Gb/s」+ 1:1 GPU:NIC 一致）；按节点合计读，800 GB/s 只适用于 8 卡节点。' +
+          '本项目原样登记官方那一行、不改数字，但引用时必须带上这条口径说明。',
       ),
     },
   },
@@ -442,7 +625,16 @@ export const GB300_COMPONENTS: HardwareComponent[] = [
         480,
         'Gb/s',
         'Converged (Node North/South) Ethernet Networking，「can handle an aggregate bandwidth of approximately 480 Gb/s」',
-        '官方措辞为「approximately」；另在 Appendix B Table 10 中写作「operating at 400 GB/s」（单位疑为笔误）。',
+        '⚠️ 官方对「这张卡到底多少带宽」有**三个并存的写法**，讲的时候别让客户自己去相加：' +
+          '① 本条 480 Gb/s——卡的实际聚合能力上限，措辞是「approximately」' +
+          '（Networking Hardware 节说得更明白：「Even though the B3240 DPU supports 400Gb/s per port, ' +
+          'the card only supports an aggregate bandwidth across both its ports of approximately 480Gb/s.」）；' +
+          '② 端口标称 2 × 400 Gb/s——Network Logical Architecture 的 SU 一节据此写「18 trays, each with ' +
+          '1x B3240 DPU providing 2x 400Gb/s connections and a total aggregate bandwidth of 800 Gb/s」，' +
+          '这里的 800 Gb/s 是**端口标称相加**，不是卡的实际吞吐；' +
+          '③ Appendix B Table 10 写「1x Dual-port QSFP112 NVIDIA BlueField-3 DPU operating at 400 GB/s」' +
+          '（单位 GB/s 疑为 Gb/s 笔误）。' +
+          '★ 售前口径：**按 480 Gb/s 算容量、按双 400 Gb/s 讲连线**，不要说「每托盘 800 Gb/s 南北向带宽」。',
       ),
       portType: raSpec<string>(
         'Dual-port QSFP112',
@@ -521,7 +713,11 @@ export const GB300_COMPONENTS: HardwareComponent[] = [
     status: 'shipping',
     summary: '每架 33 kW、内含 6 个 5.5 kW 电源模块，把机房交流电整流成直流后送上母排。',
     presalesNote:
-      '算一笔账客户就懂了：8 架 × 33 kW = 264 kW 的供电能力，服务的是最高 142 kW 的机架负载——冗余度接近 2N。高密机架的供电设计不是「够用就行」，而是要撑住 AI 负载剧烈的功率波动。',
+      '算一笔账客户就懂了：8 架 × 33 kW = 264 kW 的供电能力，服务的是最高 142 kW 的机架负载，' +
+      '**容量余量约 1.86 倍**。高密机架的供电设计不是「够用就行」，而是要撑住 AI 负载剧烈的功率波动。' +
+      '⚠️ 但**不要把它说成 2N**：264/142 是容量余量，2N 说的是供电路径级的冗余架构，两回事；' +
+      '参考架构自始至终没有声明冗余模式（N+1 / 2N）与掉电保持策略，' +
+      '真要谈冗余等级，得看 OEM 整机与客户机房的配电设计。',
     visual: { shape: 'psu-brick', colorToken: 'plane-power' },
     imageUrl: null,
     sourceIds: [RA_SOURCE],
@@ -588,6 +784,25 @@ export const GB300_COMPONENTS: HardwareComponent[] = [
  */
 const RACK_U_PLACEHOLDER = '机架内 U 位为 3D 摆位示意占位，官方未公布逐 U 布局。'
 
+/**
+ * ⚠️★ 液冷链路的溯源边界（G5）。
+ *
+ * 对 GB300 NVL72 参考架构全部页面做过全文检索：`CDU` / `manifold` / `cold plate` /
+ * `coolant` / `quick disconnect` 五个词的**命中数均为 0**。RA 关于液冷只有两句：
+ *   - “To accommodate the massive compute power within a limited space, the GB300 NVL72 rack is
+ *     liquid cooled, based on the MGX architecture.”
+ *   - “Integrated tray-level and rack-level liquid leakage detection”
+ *
+ * 因此：机架**是**液冷的（有官方出处，见 cmp.shared.oberon-rack.specs.liquidCooled），
+ * 但「冷板 → 歧管 → CDU → 一次侧水」这条二次侧回路的**结构与部件**是本项目按通用液冷工程
+ * 做的建模，RA 没有描述。这些节点/连接仍挂 RA 源（它是「机架为液冷」这一前提的出处），
+ * 但每一处都必须带上本条说明，不得让读者以为部件细节也是官方写过的。
+ */
+const COOLING_MODEL_NOTE =
+  '⚠️ 通用液冷工程建模，非参考架构原文：RA 全篇只写了「the GB300 NVL72 rack is liquid cooled, ' +
+  'based on the MGX architecture」与「Integrated tray-level and rack-level liquid leakage detection」，' +
+  'CDU / manifold / cold plate / coolant / quick disconnect 五个词一次都没出现。'
+
 export const GB300_ASSEMBLIES: AssemblyNode[] = [
   // ── cluster 层 ──
   {
@@ -643,7 +858,7 @@ export const GB300_ASSEMBLIES: AssemblyNode[] = [
     countClaim: null,
     lodLevel: 'cluster',
     rackU: null,
-    note: '参考架构未指定 CDU 数量与型号，此处按每部署 1 台示意。',
+    note: `参考架构未指定 CDU 数量与型号，此处按每部署 1 台示意。${COOLING_MODEL_NOTE}`,
   },
   {
     id: 'asm.gb300.scaleout-spine',
@@ -656,7 +871,11 @@ export const GB300_ASSEMBLIES: AssemblyNode[] = [
     countClaim: null,
     lodLevel: 'cluster',
     rackU: null,
-    note: '台数取决于 SU 规模与收敛比，参考架构未给定值。',
+    note:
+      '★ 3D 里画 1 个盒子只是**代表这一层**，不是台数。官方给了台数：Table 6 的双平面合计 spine ' +
+      '为 2 SU → 4 台、4 SU → 8 台、8 SU → 12 台（见 cmp.gb300.sn5610.specs.switchCountBySu）。' +
+      '因为 `countClaim.value` 必须等于 `count`（pack.test 强制），此处不填 countClaim，' +
+      '把官方台数放在组件规格里，避免 3D 摆位需求污染证据层。',
   },
   {
     id: 'asm.gb300.scaleout-leaf',
@@ -669,7 +888,11 @@ export const GB300_ASSEMBLIES: AssemblyNode[] = [
     countClaim: null,
     lodLevel: 'cluster',
     rackU: null,
-    note: '双平面设计下每张 GPU 的 2×400 Gb/s 接口分别连到不同 leaf。',
+    note:
+      '双平面设计下每张 GPU 的 2×400 Gb/s 接口分别连到不同 leaf。' +
+      '★ 3D 里画 1 个盒子只是代表这一层：官方 Table 6 的双平面合计 leaf 为 2 SU → 8 台、' +
+      '4 SU → 16 台、8 SU → 32 台，另有「Each rack requires ... up to 12x SN5600 switches for the ' +
+      'dual-plane GPU network」的每机架口径（见 cmp.gb300.sn5610）。',
   },
   {
     id: 'asm.gb300.converged-switch',
@@ -682,7 +905,10 @@ export const GB300_ASSEMBLIES: AssemblyNode[] = [
     countClaim: null,
     lodLevel: 'cluster',
     rackU: null,
-    note: '承载 North/South 客户业务、存储与带内管理流量。',
+    note:
+      '承载 North/South 客户业务、存储与带内管理流量。' +
+      '★ 3D 里画 1 个盒子只是代表这一层：官方 Table 7 给的汇聚网台数为 2 SU → 2 台 leaf（无 spine）、' +
+      '4 SU → 4 + 2、8 SU → 7 + 4，另有每机架「2x SN5600 switches for CPU and storage connectivity」。',
   },
   {
     id: 'asm.gb300.oob-fabric-switch',
@@ -843,7 +1069,7 @@ export const GB300_ASSEMBLIES: AssemblyNode[] = [
     countClaim: null,
     lodLevel: 'rack',
     rackU: null,
-    note: '纵向贯穿机架，不占用 U 位。',
+    note: `纵向贯穿机架，不占用 U 位。${COOLING_MODEL_NOTE}`,
   },
   {
     id: 'asm.gb300.nvlink-backplane',
@@ -871,7 +1097,7 @@ export const GB300_ASSEMBLIES: AssemblyNode[] = [
     countClaim: null,
     lodLevel: 'tray',
     rackU: null,
-    note: '按托盘内一套冷板回路建模；官方未公布逐器件冷板数量。',
+    note: `按托盘内一套冷板回路建模；官方未公布逐器件冷板数量。${COOLING_MODEL_NOTE}`,
   },
   {
     id: 'asm.gb300.grace-cpu',
@@ -1020,7 +1246,7 @@ export const GB300_ASSEMBLIES: AssemblyNode[] = [
     countClaim: null,
     lodLevel: 'tray',
     rackU: null,
-    note: null,
+    note: COOLING_MODEL_NOTE,
   },
 ]
 
@@ -1142,13 +1368,19 @@ export const GB300_CONNECTIONS: Connection[] = [
     bandwidth: raSpec<number>(
       400,
       'Gb/s',
-      'Networking Physical Topologies，「this splits into 2x400 Gb/s interfaces, with each interface connecting to a different leaf switch」',
-      '每个接口 400 Gb/s，两个接口分属两个平面。',
+      'Networking Physical Topologies 节 Dual Plane Topology，「With each GPU generating 800 Gb/s bandwidth through the ConnectX-8 SuperNICs, dual plane topology involves breaking the interface to 2x400 Gb/s interfaces.」＋「Every such interface is then connected to a different leaf switch, and every such leaf switch is part of an independent fabric that scales to 1024 interfaces of 400 Gb/s as part of this reference architecture.」',
+      '每个接口 400 Gb/s，两个接口分属两个平面。⚠️ locator 是原文两句相邻完整句，不要合并改写。',
     ),
     direction: 'bidirectional',
     label: 'ConnectX-8 → Leaf（双平面 rail-optimized）',
     summary:
-      '每张网卡的 800 Gb/s 拆成 2×400 Gb/s，分别接到两个独立平面的不同 leaf 交换机；每个平面可扩展到 1024 个 400 Gb/s 接口。故障切换与负载均衡由网卡硬件完成。',
+      '每张网卡的 800 Gb/s 拆成 2×400 Gb/s，分别接到两个独立平面的不同 leaf 交换机；' +
+      '每个平面可扩展到 1024 个 400 Gb/s 接口。' +
+      '⚠️ 双平面的负载均衡与故障切换由谁做，官方**同一页里有两说**：' +
+      'Dual Plane Topology 节写「Tracking of each plane, load balancing, and failure handling is handled ' +
+      'by the ConnectX-8 SuperNIC on the hardware level」（网卡硬件），' +
+      'Multi-Plane Topology Approach 节写「the resiliency and the load balancing between the two planes ' +
+      'is handled by the NCCL on the host」（主机上的 NCCL）。两说并存，不要单向断言。',
     sourceIds: [RA_SOURCE],
   },
   {
@@ -1180,8 +1412,11 @@ export const GB300_CONNECTIONS: Connection[] = [
     bandwidth: raSpec<number>(
       400,
       'Gb/s',
-      'Networking Physical Topologies，「Each compute tray connects using dual 400 Gb/s ports to two separate switches」',
-      '双端口各 400 Gb/s，分别接到两台交换机。',
+      'Networking Physical Topologies 节 CPU Converged (Node North/South) Network，「Each compute tray connects to two separate switches using dual 400 Gb/s ports, while each management connects to the same switches with four 200 Gb/s ports.」',
+      '双端口各 400 Gb/s，分别接到两台交换机。' +
+        '⚠️ Network Logical Architecture 节 Spine-Leaf Networking 的写法略有不同：' +
+        '「Each compute and management node are connected with two 400 Gb/s ports to two separate switches」' +
+        '——那里把管理节点也写成 400 Gb/s，与本条原文的「four 200 Gb/s ports」不一致，两说并存。',
     ),
     direction: 'bidirectional',
     label: 'BlueField-3 → 汇聚交换机',
@@ -1242,12 +1477,16 @@ export const GB300_CONNECTIONS: Connection[] = [
     bandwidth: raSpec<number>(
       1,
       'Gb/s',
-      'Table 2: Management Node Components，Management Network，「2 x 1 Gb/s In-band port」',
-      '参考架构给出的是管理节点口速率；托盘 BMC 口速率未单独公布，此处按同级别标注。',
+      'Network Logical Architecture 节 Enterprise RA Scalable Unit (SU)，「For the Out-of-band Management fabric, 18 trays, each with 3x 1Gb/s connections providing 54 x 1Gb/s for management」',
+      '★ 官方**是**公布了托盘侧带外口的（此前本项目误记为「未单独公布」）：' +
+        '每托盘 3 条 1 Gb/s，全机架 18 × 3 = 54 条。' +
+        '（管理节点侧另有 Table 2「Management Network | 2 x 1 Gb/s In-band port」，是另一类节点的口径，别混用。）',
     ),
     direction: 'bidirectional',
     label: '计算托盘 BMC → 机架管理交换机',
-    summary: '每个托盘的主机 BMC 接入机架内 SN2201，支持 Redfish 带外上电、刷固件与日志采集。',
+    summary:
+      '每个托盘的主机 BMC 接入机架内 SN2201，支持 Redfish 带外上电、刷固件与日志采集。' +
+      '官方口径是每托盘 3 条 1 Gb/s、全机架 54 条。',
     sourceIds: [RA_SOURCE],
   },
   {
@@ -1456,7 +1695,8 @@ export const GB300_CONNECTIONS: Connection[] = [
     bandwidth: null,
     direction: 'unidirectional',
     label: 'B300 GPU → 冷板',
-    summary: '冷板直接压在 GPU 顶盖上带走热量，这是高密机架能做到 142 kW 的前提。',
+    summary:
+      '冷板直接压在 GPU 顶盖上带走热量，这是高密机架能做到 142 kW 的前提。' + COOLING_MODEL_NOTE,
     sourceIds: [RA_SOURCE],
   },
   {
@@ -1471,7 +1711,7 @@ export const GB300_CONNECTIONS: Connection[] = [
     bandwidth: null,
     direction: 'unidirectional',
     label: 'Grace CPU → 冷板',
-    summary: 'CPU 与 GPU 共用托盘内同一套冷板回路。',
+    summary: 'CPU 与 GPU 共用托盘内同一套冷板回路。' + COOLING_MODEL_NOTE,
     sourceIds: [RA_SOURCE],
   },
   {
@@ -1486,7 +1726,8 @@ export const GB300_CONNECTIONS: Connection[] = [
     bandwidth: null,
     direction: 'bidirectional',
     label: '计算托盘冷板 ↔ 分液歧管',
-    summary: '托盘冷板经快接头挂上机架歧管，支持单托盘维护而不停整机架。',
+    summary:
+      '托盘冷板经快接头挂上机架歧管，支持单托盘维护而不停整机架。' + COOLING_MODEL_NOTE,
     sourceIds: [RA_SOURCE],
   },
   {
@@ -1501,7 +1742,8 @@ export const GB300_CONNECTIONS: Connection[] = [
     bandwidth: null,
     direction: 'bidirectional',
     label: '交换托盘冷板 ↔ 分液歧管',
-    summary: 'NVSwitch 同样是液冷器件——18 颗交换芯片的功耗不容忽视。',
+    summary:
+      'NVSwitch 同样是液冷器件——18 颗交换芯片的功耗不容忽视。' + COOLING_MODEL_NOTE,
     sourceIds: [RA_SOURCE],
   },
   {
@@ -1516,7 +1758,8 @@ export const GB300_CONNECTIONS: Connection[] = [
     bandwidth: null,
     direction: 'bidirectional',
     label: '分液歧管 ↔ CDU',
-    summary: '机架歧管与 CDU 之间构成二次侧闭环，CDU 负责恒温恒压与流量分配。',
+    summary:
+      '机架歧管与 CDU 之间构成二次侧闭环，CDU 负责恒温恒压与流量分配。' + COOLING_MODEL_NOTE,
     sourceIds: [RA_SOURCE],
   },
   {
@@ -1531,7 +1774,8 @@ export const GB300_CONNECTIONS: Connection[] = [
     bandwidth: null,
     direction: 'bidirectional',
     label: 'CDU ↔ 机房一次侧水',
-    summary: 'CDU 在这里把机架的热量换给机房冷冻水系统，完成整条散热链。',
+    summary:
+      'CDU 在这里把机架的热量换给机房冷冻水系统，完成整条散热链。' + COOLING_MODEL_NOTE,
     sourceIds: [RA_SOURCE],
   },
 ]
@@ -1709,7 +1953,7 @@ export const GB300_SCENES: ScenePreset[] = [
     title: '练习 · 三个交换层各管什么（leaf / spine / 汇聚）',
     narration:
       '① 你应该看到什么：机房总览里同时亮着三处交换层——Leaf、Spine、汇聚，同开计算网（紫）与业务网（蓝）两个平面，一眼看出前两者串在一起、第三者自成一路。' +
-      '② 谁连谁 + 关键数字：三层用的是同一款 SN5610（64 端口 × 800 Gb/s），差别只在接线角色。九字框架：leaf = 接入（每机架的 ConnectX-8 按 rail 上联，同编号网卡接同一台 leaf，是 GPU 东西向流量的第一跳）；spine = 主干（只连 leaf、不直连服务器，与 leaf 构成两级无阻塞胖树）；汇聚 = 另一张网（南北向客户请求与存储读写经 BlueField-3 接入，与计算网物理隔离）。' +
+      '② 谁连谁 + 关键数字：三层用的是同一款 Spectrum-X 交换机（参考架构两种写法并存：Networking Hardware 章写 SN5610「64 个 800 Gbps 端口」，Table 5 与 Appendix Table 11 写 SN5600「128 端口 400 Gb/s」，端口总容量相同；对客户说端口档位、不说死型号），差别只在接线角色。九字框架：leaf = 接入（每机架的 ConnectX-8 按 rail 上联，同编号网卡接同一台 leaf，是 GPU 东西向流量的第一跳）；spine = 主干（只连 leaf、不直连服务器，与 leaf 构成两级无阻塞胖树）；汇聚 = 另一张网（南北向客户请求与存储读写经 BlueField-3 接入，与计算网物理隔离）。台数官方给了：每机架 2 台跑 CPU 与存储、最多 12 台跑双平面 GPU 网；按规模看，8 个 SU 时计算网 32 leaf + 12 spine、汇聚网 7 leaf + 4 spine。' +
       '③ 断了会怎样：leaf 断 = 那一机架从计算网上掉线；spine 断 = 机架之间不通、集群碎成一堆单机架；汇聚断 = 计算网还好好的，但数据与请求进不来，照样产不出 token。',
     lodLevel: 'cluster',
     focusAssemblyId: 'asm.gb300.facility',
@@ -1720,6 +1964,10 @@ export const GB300_SCENES: ScenePreset[] = [
       'asm.gb300.converged-switch',
     ],
     presalesNote:
-      '「同一款交换机分饰三层」是这一屏的钩子。先说三层职责，再点出型号相同——客户会立刻明白「网络设计的关键不是买什么盒子，是怎么接」。',
+      '「同一款交换机分饰三层」是这一屏的钩子。先说三层职责，再点出型号相同——客户会立刻明白「网络设计的关键不是买什么盒子，是怎么接」。' +
+      '⚠️ 型号别说死：参考架构自己就有 SN5610（64 × 800 Gbps，Networking Hardware 章）与 ' +
+      'SN5600（128 端口 400 Gb/s，Table 5 / Appendix Table 11）两种写法。' +
+      '被懂行的人追问时，如实说「官方文档里两种写法都有，端口总容量一致，以订单 BOM 为准」' +
+      '——比咬定一个型号更专业。',
   },
 ]

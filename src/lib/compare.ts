@@ -43,6 +43,16 @@ export const DIFF_TOKEN: Record<DiffKind, string | null> = {
   unchanged: null,
 }
 
+/**
+ * 「这张表没有人工叙述」的统一警示文案。
+ *
+ * 比较面板（用户把左右调成没有定义的组合时）与 `/report` §04（人工定义里恰好没写
+ * summary 时）共用同一句——一张只有配对结果、没有叙述的 diff 表极易被读成
+ * 「新一代砍掉了这些部件」，两处必须给同一个提醒，不能各写各的。
+ */
+export const AUTO_DIFF_NOTICE =
+  '这一对组合没有写过人工比较定义（或方向与定义相反），下面是纯自动 diff——只有配对结果，没有叙述。把左右调回定义方向即可看到汇报要点。'
+
 export const DIFF_ORDER: readonly DiffKind[] = [
   'added',
   'removed',

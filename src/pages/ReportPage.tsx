@@ -15,11 +15,26 @@ import { Link } from 'react-router-dom'
 import CapacityBands from '../components/panels/CapacityBands'
 import RackElevationSvg from '../components/fallback/RackElevationSvg'
 import { EvidenceChip, EVIDENCE_LABEL, StatusChip, STATUS_LABEL } from '../components/ui/Chips'
+import RichText from '../components/ui/RichText'
 import { FACTORY_PACK, flowsOfSystem, sourceById, systemById } from '../data'
-import type { CapacityPolicy, Claim, EvidenceType, SourceKind } from '../data/types'
+import type {
+  CapacityPolicy,
+  Claim,
+  EvidenceType,
+  ProductStatus,
+  SourceKind,
+} from '../data/types'
 import { estimateSystemCapacity } from '../lib/capacity'
-import { changedRows, compareSystems } from '../lib/compare'
+import { AUTO_DIFF_NOTICE, buildComparison, changedRows, compareSystems } from '../lib/compare'
 import { FLOW_PHASE_LABEL } from '../lib/flowTimeline'
+import {
+  REPORT_RELATION_TITLE,
+  generationChainSystems,
+  reportComparisonGroups,
+  shortSystemName,
+} from '../lib/reportSections'
+import type { ReportBodyRelation } from '../lib/reportSections'
+import { specLabel } from '../lib/specLabel'
 
 const GB300 = 'sys.gb300-nvl72'
 const VERA_RUBIN = 'sys.vera-rubin-nvl72'
@@ -52,17 +67,19 @@ function allClaims(): ClaimRef[] {
 }
 
 /**
- * 相邻两代之间的比较链：按内容包里 `systems` 的**声明顺序**两两串起来。
- *
- * v1.3 W3 起改成动态推导而不是硬编码三个 ID——第四代（Groq 3 LPX）加进来时
- * 这一节要自动跟着长出来，否则汇报页会永远停在「三代」，而顶栏已经有四个按钮了。
- * 顺序即声明顺序，因此结果是确定的（截图基线依赖这一点）。
+ * §04 每一组关系的导读。**不再按 `systems` 声明顺序机械串联**（v1.5 缺陷 4）——
+ * 分组判据与理由见 `lib/reportSections.ts`。
  */
-function adjacentComparisonPairs(): Array<[string, string]> {
-  const ids = FACTORY_PACK.systems.map((s) => s.id)
-  const pairs: Array<[string, string]> = []
-  for (let i = 1; i < ids.length; i += 1) pairs.push([ids[i - 1]!, ids[i]!])
-  return pairs
+const RELATION_INTRO: Record<ReportBodyRelation, string> = {
+  generation:
+    '下面每一对都是同一条产品线上真正的前后代，按时间轴读。每一段的要点与差异表都来自内容包里' +
+    '**人工写过的比较定义**——没有人工定义的组合不会出现在这一节，避免把一张没有叙述的自动 diff 表' +
+    '当成「新一代砍掉了这些部件」来读。',
+  'same-era-domain':
+    '这一组读的**不是时间轴**：左右两边是同一代芯片的两种 scale-up 域形态，区别在于域画在哪一层' +
+    '（整机架 / 单台服务器），谁都不是谁的后继。★ 尤其注意 **HGX B300 不是 Vera Rubin 之后的新一代**：' +
+    '它用的是与 GB300 NVL72 完全相同的 Blackwell Ultra（B300）芯片，两者同代、且现在都在量产，' +
+    '比 Vera Rubin 早一代。把它排在换代链尾是事实错误。',
 }
 
 export default function ReportPage() {
@@ -75,11 +92,25 @@ export default function ReportPage() {
       ),
     [],
   )
-  const diffs = useMemo(
-    () => adjacentComparisonPairs().map(([left, right]) => compareSystems(left, right)),
+  /**
+   * 遍历**人工比较定义**（不是 systems），按关系分组：换代主线 / 同代内的域选择。
+   * `buildComparison` 直接吃定义，因此这里渲染出来的每一张表都带标题与叙述，
+   * 不会再出现 `cmpdef.auto` 那种没头没尾的裸表。
+   */
+  const diffGroups = useMemo(
+    () =>
+      reportComparisonGroups().map((g) => ({
+        relation: g.relation,
+        results: g.definitions.map((d) => buildComparison(d)),
+      })),
     [],
   )
-  /** Vera Rubin ↔ Groq 3 LPX 是**配对**而不是换代，单独成段讲（见下面的配对小节）。 */
+  /** 换代主线上的代际（只收有人写过换代比较定义的那几代），用于标题里的箭头链。 */
+  const chainNames = useMemo(
+    () => generationChainSystems().map((s) => shortSystemName(s.name)),
+    [],
+  )
+  /** Vera Rubin ↔ Groq 3 LPX 是**配对**而不是换代，单独成段讲（见下面的 §4b 配对小节）。 */
   const pairing = useMemo(() => compareSystems(VERA_RUBIN, LPX), [])
   const lpxCapacity = capacity.find((c) => c.systemId === LPX)
   const episode = flowsOfSystem(GB300)[0]
@@ -171,7 +202,9 @@ export default function ReportPage() {
       <Section n={3} title="推理数据流：一个请求在机架里怎么跑">
         {episode ? (
           <>
-            <p>{episode.summary}</p>
+            <p>
+              <RichText text={episode.summary} />
+            </p>
             <ol className="space-y-2">
               {episode.steps.map((step, i) => (
                 <li key={step.id} className="rounded-md border border-line px-3 py-2">
@@ -193,10 +226,13 @@ export default function ReportPage() {
                       {step.logicalOnly ? '逻辑层' : '物理层'}
                     </span>
                   </div>
-                  <p className="mt-1 text-xs leading-relaxed">{step.description}</p>
+                  <p className="mt-1 text-xs leading-relaxed">
+                    <RichText text={step.description} />
+                  </p>
                   {step.presalesNote ? (
                     <p className="mt-1 text-[11px] leading-relaxed text-warn">
-                      售前怎么解释：{step.presalesNote}
+                      售前怎么解释：
+                      <RichText text={step.presalesNote} />
                     </p>
                   ) : null}
                 </li>
@@ -213,19 +249,61 @@ export default function ReportPage() {
       </Section>
 
       {/* ── 4. 代际变化 ── */}
+      {/*
+        ★ 标题里**只放换代主线**（chainNames 来自有人写过换代比较定义的那几代）。
+        绝不能把内容包里所有系统串成一条箭头链：HGX B300 与 GB300 同代、现在就量产，
+        排进链尾等于对客户断言它是最新一代（v1.5 缺陷 4）。
+      */}
       <Section
         n={4}
-        title={`代际变化：${FACTORY_PACK.systems.map((s) => s.name.replace(/^NVIDIA\s+/, '')).join(' → ')}`}
+        title={
+          chainNames.length >= 2
+            ? `代际变化：换代主线 ${chainNames.join(' → ')}，外加同代内的域选择与配对`
+            : '代际变化'
+        }
       >
-        {/* 相邻两代逐对展开，按内容包声明顺序动态生成——新增代际自动接上。 */}
-        <div className="space-y-4" data-report-diffs>
-          {diffs.map((result) => (
-            <div key={result.id === 'cmpdef.auto' ? `${result.leftSystemId}->${result.rightSystemId}` : result.id}>
-              <SummaryBlock title={result.title} points={result.summary} />
-              <div className="mt-2">
-                <DiffTable title="主要差异（按 roleKey 自动配对）" result={result} />
+        {/* 按关系分组渲染人工比较定义（lib/reportSections.ts）——新增一条 cmpdef 自动接上。 */}
+        <div className="space-y-6" data-report-diffs>
+          {diffGroups.map((group) => (
+            <section key={group.relation} data-report-diff-group={group.relation}>
+              <h3 className="text-sm font-semibold">
+                {REPORT_RELATION_TITLE[group.relation]}
+                <span className="ml-1.5 font-normal text-dim">（{group.results.length} 组人工比较）</span>
+              </h3>
+              <p className="mt-1 text-xs leading-relaxed text-dim">
+                <RichText text={RELATION_INTRO[group.relation]} />
+              </p>
+              <div className="mt-2 space-y-4">
+                {group.results.map((result) => (
+                  <div key={result.id} data-report-diff={result.id}>
+                    <SummaryBlock
+                      title={result.title}
+                      points={result.summary}
+                      sides={[
+                        { name: result.leftName, status: result.leftStatus },
+                        { name: result.rightName, status: result.rightStatus },
+                      ]}
+                    />
+                    {/*
+                      兜底：人工定义存在但没写 summary 时 SummaryBlock 会整块不渲染，
+                      那就只剩一张裸表——复用比较面板同款警示，绝不让它素颜出现
+                      （缺陷 4 的第 2 条：没有叙述的 diff 表会被读成「新一代砍掉了这些部件」）。
+                    */}
+                    {result.summary.length === 0 ? (
+                      <p
+                        data-auto-diff-notice
+                        className="rounded-md border border-warn/30 bg-warn/10 px-3 py-2 text-xs leading-relaxed text-warn"
+                      >
+                        {result.title}：{AUTO_DIFF_NOTICE}
+                      </p>
+                    ) : null}
+                    <div className="mt-2">
+                      <DiffTable title="主要差异（按 roleKey 自动配对）" result={result} />
+                    </div>
+                  </div>
+                ))}
               </div>
-            </div>
+            </section>
           ))}
         </div>
 
@@ -238,8 +316,11 @@ export default function ReportPage() {
             ★ 例外：Vera Rubin NVL72 ↔ Groq 3 LPX 不是「换代」，是「配对」
           </h3>
           <p className="mt-1 text-xs leading-relaxed">
-            上面那串箭头读的是时间轴，唯独最后一格要换个读法。<strong>Groq 3 LPX 不接替
-            Vera Rubin NVL72，而是和它一起工作</strong>：NVIDIA 把推理的 decode 阶段拆成两半——
+            上面那条换代主线读的是时间轴，而 Groq 3 LPX 根本不在那条线上——它要换个读法。
+            <strong>
+              Groq 3 LPX 不接替 Vera Rubin NVL72，而是和它一起工作
+            </strong>
+            ：NVIDIA 把推理的 decode 阶段拆成两半——
             <strong>Rubin GPU 负责 prefill 与 decode 的 attention</strong>（吃长上下文与 KV cache，
             靠 HBM 的容量与带宽），<strong>LPU 负责 decode 的 FFN/MoE</strong>（吃小 batch 下的
             确定性低时延，靠片上 SRAM）。官方称之为 attention–FFN 分离（AFD），
@@ -247,7 +328,9 @@ export default function ReportPage() {
           </p>
           <ul className="mt-2 ml-4 list-disc space-y-1 text-xs leading-relaxed">
             {pairing.summary.map((p, i) => (
-              <li key={i}>{p}</li>
+              <li key={i}>
+                <RichText text={p} />
+              </li>
             ))}
           </ul>
           <div className="mt-3">
@@ -285,7 +368,9 @@ export default function ReportPage() {
               官方从未给出「LPX 单独跑能出多少 token」的口径。本工具因此把它的 capacityPolicy 设为
               <code className="mx-1 font-mono">paired-only</code>，在查找 GPU 组件<strong>之前</strong>就拒绝出数。
             </p>
-            <p className="mt-1 text-[11px] leading-relaxed text-dim">{lpxCapacity.reason}</p>
+            <p className="mt-1 text-[11px] leading-relaxed text-dim">
+              <RichText text={lpxCapacity.reason} />
+            </p>
             <p className="mt-1 text-[11px] leading-relaxed text-warn">
               ⚠️ 推论：任何来源给你一个「Groq 3 LPX 每机架 N tokens/s」的独立数字，都要先问它的口径出处。
               官方能对得上的只有相对指标——与 Vera Rubin NVL72 配对后，在 400 TPS/用户 的交互度上，
@@ -572,7 +657,10 @@ function KeySpecTable({ systemId, keys }: { systemId: string; keys: string[] }) 
           if (!claim) return null
           return (
             <tr key={k} className="border-b border-line/60 align-top">
-              <th className="py-1 pr-2 text-left font-mono font-normal text-dim">{k}</th>
+              {/* 显示名走 lib/specLabel.ts；原始键挂 title=，懂行的人悬停可对回内容包。 */}
+              <th className="py-1 pr-2 text-left font-normal text-dim" title={k}>
+                {specLabel(k)}
+              </th>
               <td className="py-1 pr-2 text-right font-medium whitespace-nowrap">
                 {claim.value === null ? (
                   <span className="text-dim italic">官方未公布</span>
@@ -594,14 +682,40 @@ function KeySpecTable({ systemId, keys }: { systemId: string; keys: string[] }) 
   )
 }
 
-function SummaryBlock({ title, points }: { title: string; points: string[] }) {
+function SummaryBlock({
+  title,
+  points,
+  sides,
+}: {
+  title: string
+  points: string[]
+  /**
+   * 左右两侧的名字与产品状态。同代对照那一组靠它把「两边都在量产」这件事
+   * 直接摆在标题下面——比任何一句话都更能挡住「HGX 是后继代」的误读。
+   */
+  sides?: { name: string; status: ProductStatus }[]
+}) {
   if (points.length === 0) return null
   return (
     <div className="rounded-md border border-accent/25 bg-accent/5 px-3 py-2">
-      <h3 className="text-sm font-semibold">{title}</h3>
+      <h4 className="text-sm font-semibold">{title}</h4>
+      {sides && sides.length > 0 ? (
+        <p className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[11px] text-dim">
+          {sides.map((s, i) => (
+            <span key={s.name} className="flex items-center gap-1">
+              {i > 0 ? <span className="mr-1 text-dim">·</span> : null}
+              {s.name}
+              {/* StatusChip 自带文字（已量产 / 已发布），不要再补一遍 STATUS_LABEL。 */}
+              <StatusChip status={s.status} />
+            </span>
+          ))}
+        </p>
+      ) : null}
       <ul className="mt-1 ml-4 list-disc space-y-1 text-xs leading-relaxed">
         {points.map((p, i) => (
-          <li key={i}>{p}</li>
+          <li key={i}>
+            <RichText text={p} />
+          </li>
         ))}
       </ul>
     </div>
@@ -635,7 +749,9 @@ function DiffTable({ title, result }: { title: string; result: ReturnType<typeof
               <td className="py-1 pr-2 whitespace-nowrap">
                 {row.right ? `${row.right.componentName} ×${row.right.total}` : <span className="text-dim">—</span>}
               </td>
-              <td className="py-1 leading-relaxed">{row.narrative ?? row.summary}</td>
+              <td className="py-1 leading-relaxed">
+                <RichText text={row.narrative ?? row.summary} />
+              </td>
             </tr>
           ))}
         </tbody>

@@ -12,6 +12,7 @@
 import type { CapacityEstimate, Band, CapacityRefusalReasonCode } from '../../lib/capacity'
 import { capacityUnitWordingFor } from '../../lib/capacity'
 import { MetaChip } from '../ui/Chips'
+import RichText from '../ui/RichText'
 
 /**
  * 策略性拒绝（`capacityPolicy !== 'standard'`）的固定标题文案——比 `estimate.reason`
@@ -127,10 +128,15 @@ export default function CapacityBands({ estimate, compact = false }: CapacityBan
       {refused ? (
         <div className="space-y-2 px-3 py-3">
           <p className="text-sm leading-relaxed text-bad">
-            拒绝出数：{(estimate.reasonCode && REASON_HEADLINE[estimate.reasonCode]) ?? estimate.reason}
+            拒绝出数：
+            <RichText
+              text={(estimate.reasonCode && REASON_HEADLINE[estimate.reasonCode]) ?? estimate.reason}
+            />
           </p>
           {estimate.reasonCode && REASON_HEADLINE[estimate.reasonCode] ? (
-            <p className="text-[11px] leading-relaxed text-dim">{estimate.reason}</p>
+            <p className="text-[11px] leading-relaxed text-dim">
+              <RichText text={estimate.reason} />
+            </p>
           ) : null}
           {estimate.missing.length > 0 ? (
             <div>
@@ -211,7 +217,9 @@ export default function CapacityBands({ estimate, compact = false }: CapacityBan
       )}
 
       <div className="mt-auto border-t border-line px-3 py-2">
-        <p className="text-[11px] leading-relaxed text-warn">{estimate.caveats[0]}</p>
+        <p className="text-[11px] leading-relaxed text-warn">
+          <RichText text={estimate.caveats[0]} />
+        </p>
         {estimate.caveats.length > 1 ? (
           <details className="mt-1">
             <summary className="cursor-pointer text-[11px] text-dim hover:text-accent">
@@ -219,7 +227,9 @@ export default function CapacityBands({ estimate, compact = false }: CapacityBan
             </summary>
             <ul className="mt-1 list-inside list-disc space-y-1 text-[11px] leading-relaxed text-dim">
               {estimate.caveats.slice(1).map((c, i) => (
-                <li key={i}>{c}</li>
+                <li key={i}>
+                  <RichText text={c} />
+                </li>
               ))}
             </ul>
             {estimate.evidence.inputClaims.length > 0 ? (
@@ -232,7 +242,7 @@ export default function CapacityBands({ estimate, compact = false }: CapacityBan
             ) : null}
             <p className="mt-1 text-[11px] leading-relaxed text-dim">
               <span className="font-semibold">估算方法：</span>
-              {estimate.evidence.method}
+              <RichText text={estimate.evidence.method} />
             </p>
           </details>
         ) : null}

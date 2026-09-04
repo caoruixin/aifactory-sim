@@ -32,6 +32,17 @@ import type {
  *   CPU**——图上它们是两个盒子。
  * - 整机架功率（kW）、单 LPU TDP、机架 U 高与逐 U 布局、LPX↔NVL72 之间的物理介质与带宽。
  * - 单芯片晶体管数：只在主题演讲里出现过，官方文字材料没有，因此**整条不建**。
+ *
+ * ★ v1.5 三条事实核验订正（改之前先读这里）：
+ * 4. **C2C spine 的物理介质官方公布了，是铜缆**——2026-03 POD 博客：「connected by a direct
+ *    chip-to-chip spine, which consists of two copper cable cartridges that create an intricate
+ *    point-to-point topology over thousands of paired copper cable connections.」此前本文件记作
+ *    「介质未公布」，是漏检。⚠️ 与 Vera Rubin 同一个措辞陷阱：官方的 cableless 修饰的是**托盘**，
+ *    机架脊柱是 2 个铜缆匣。官方**没有**给铜缆根数（只说 thousands of paired），因此不建根数 Claim。
+ * 5. **带宽口径同样不闭合**：256 × 150 TB/s = 32 × 1.2 PB/s = 38.4 PB/s ≠ 官方机架级 40 PB/s。
+ *    见 `BANDWIDTH_MISMATCH_NOTE`——与算力那一对是同一类问题，此前只给算力加了留痕。
+ * 6. **「35×」有三个前提不是两个**：配对系统 + 400 TPS/用户 + **万亿参数模型**。
+ *    第三个前提官方在产品页与发布稿里都写在同一句里，此前全部对外文案都漏了它。
  */
 
 const SYSTEM_ID = 'sys.groq3-lpx'
@@ -42,6 +53,12 @@ const LPX_PAGE = 'src.nvidia-lpx-page'
 const LPX_BLOG = 'src.nvidia-lpx-blog'
 const GTC26_PRESS = 'src.nvidia-vera-rubin-gtc26-press'
 const GROQ_NEWS = 'src.groq-nvidia-licensing'
+/** 2026-08-24 Hot Chips「进入量产」发布稿——上市口径的最新官方来源（v1.5 新增）。 */
+const LPX_FULLPROD_PRESS = 'src.nvidia-lpx-fullprod-press'
+/** 2026-08-24 长上下文技术博客（与量产发布稿同日）——与现有数据一致，作背景登记（v1.5 新增）。 */
+const LPX_LONGCTX_BLOG = 'src.nvidia-lpx-longcontext-blog'
+/** POD 博客——LPX 的 C2C spine 物理介质的唯一官方出处（v1.5 新增）。 */
+const VR_POD = 'src.nvidia-rubin-pod-blog'
 
 /** 各源的抓取/发布时间（与 sources.ts 保持一致）。 */
 const AS_OF: Record<string, string> = {
@@ -49,6 +66,9 @@ const AS_OF: Record<string, string> = {
   [LPX_BLOG]: '2026-03',
   [GTC26_PRESS]: '2026-03',
   [GROQ_NEWS]: '2025-12',
+  [LPX_FULLPROD_PRESS]: '2026-08',
+  [LPX_LONGCTX_BLOG]: '2026-08',
+  [VR_POD]: '2026-03',
 }
 
 /**
@@ -103,6 +123,25 @@ const COMPUTE_MISMATCH_NOTE =
   '而 32 × 9.6 = 307.2 ≠ 315。NVIDIA 没有解释这 7.8 PFLOPS 的差值（可能是 binning、可能是两表口径不同）。' +
   '本项目两条数字各自独立成立、互不推导，报数时按需要引用其中一条并说明它的出处，不要拿一条去「验算」另一条。'
 
+/**
+ * ★ v1.5 新增：与 `COMPUTE_MISMATCH_NOTE` 对称的**带宽**口径不闭合留痕。
+ *
+ * 此前只给 PFLOPS 那一对加了留痕，带宽这一对完全没加，而它是同一类问题：
+ *   256 颗 × 150 TB/s = 38.4 PB/s ≠ 40 PB/s（机架级）
+ *   32 托盘 × 1.2 PB/s = 38.4 PB/s ≠ 40 PB/s（同样差 1.6 PB/s）
+ * 三条数字（40 / 150 / 1.2）各自都有官方出处，官方没有解释差值。
+ *
+ * 对照：真正闭合的两对**不要**贴这条 note——
+ *   128 GB = 256 × 500 MB ✅、640 TB/s = 256 × 2.5 TB/s = 32 × 20 TB/s ✅
+ */
+const BANDWIDTH_MISMATCH_NOTE =
+  '⚠️ 官方三处带宽口径不完全闭合：机架级 40 PB/s（表 1 / 产品页）、单颗 150 TB/s（产品页 / 技术博客）、' +
+  '每托盘 1.2 PB/s（表 2），而 256 × 150 TB/s = 38.4 PB/s、32 × 1.2 PB/s = 38.4 PB/s，都 ≠ 40 PB/s。' +
+  'NVIDIA 没有解释这 1.6 PB/s 的差值（可能是取整、可能是三表口径不同）。' +
+  '本项目三条各自独立成立、**互不推导**——报数时按需要引用其中一条并说明出处，' +
+  '不要说「每颗 150 TB/s，所以机架 40 PB/s」，那是错误推导。' +
+  '（对照：容量 128 GB = 256 × 500 MB、scale-up 640 TB/s = 256 × 2.5 TB/s = 32 × 20 TB/s 这两对确实闭合。）'
+
 const NO_SPEC_SHEET =
   '⚠️ NVIDIA 至今未发布 LPX 的规格表 / 参考架构文档，本条为产品页或技术博客的厂商宣称口径。'
 
@@ -124,12 +163,22 @@ export const GROQ3_LPX_SYSTEM: FactorySystem = {
   presalesNote:
     '讲 LPX 只需要说清「它补的是哪一段」：GPU 擅长吞吐与大内存（prefill、decode 的 attention），' +
     'LPU 擅长小 batch 下的确定性低时延（decode 的 FFN/MoE）。官方把两者绑在一起卖，宣称配对后' +
-    '**每兆瓦吞吐最高 35×**（对比 GB200 NVL72，在 400 TPS/用户 这个交互度上）。' +
+    '**每兆瓦吞吐最高 35×**——★ 这个数字有**三个必须同时说出口的前提**：' +
+    '**万亿参数模型**（官方产品页原文 for trillion-parameter models）、**400 TPS/用户** 的交互度、' +
+    '**对比 GB200 NVL72**。三个里少说一个就是超范围引用，拿它去讲 70B 模型没有官方依据。' +
     '★ 三个最容易说错的地方：① 它**没有 HBM**，工作集靠 500 MB/颗的片上 SRAM 与层间切分撑起来，' +
     '「装得下多大模型」不能按单卡显存算；② 它**不单独出产能**——本工具对它一律拒绝出数，' +
     '谁给你一个「LPX 一个机架多少 token/s」的独立数字都要问口径；③ NVIDIA 与 Groq 是' +
     '**非排他技术许可 + 团队加入**，不是收购，Groq 仍作为独立公司运营 GroqCloud，别讲成「NVIDIA 买了 Groq」。',
-  sourceIds: [LPX_PAGE, LPX_BLOG, GTC26_PRESS, GROQ_NEWS],
+  sourceIds: [
+    LPX_PAGE,
+    LPX_BLOG,
+    GTC26_PRESS,
+    GROQ_NEWS,
+    LPX_FULLPROD_PRESS,
+    LPX_LONGCTX_BLOG,
+    VR_POD,
+  ],
   keySpecs: {
     // ⚠️ 历史命名：`gpuCount` 是 GPU 语义的键，LPX 没有 GPU。按 types.ts 的约定仍然填写
     // （值为 null），真正的加速器数量走下面语义准确的 `acceleratorCount`。
@@ -145,7 +194,11 @@ export const GROQ3_LPX_SYSTEM: FactorySystem = {
       LPX_PAGE,
       'NVIDIA Groq 3 LPU Inference Accelerator 节，「Each LPX rack features 256 interconnected LPU accelerators」' +
         '（发布稿同口径：「The LPX rack with 256 LPU processors」；技术博客表 1「Scale-up density | 256 chips」）',
-      '三处官方材料互相印证的唯一一个数字。',
+      '★ v1.5 订正措辞（此前写「三处官方材料互相印证的**唯一**一个数字」，不成立）：' +
+        'GTC26 发布稿一句话同时给了**三个**数字——「The LPX rack with 256 LPU processors features 128GB of ' +
+        'on-chip SRAM and 640 TB/s of scale-up bandwidth.」，因此 **256 颗 / 128 GB SRAM / 640 TB/s 这三条' +
+        '都是产品页 + 发布稿 + 技术博客表 1 三处互证**，不止 256 一条。' +
+        '（本代际真正稀缺的不是互证，是官方从未发过规格表——见 NO_SPEC_SHEET。）',
     ),
     rackPowerKW: lpxNull(
       'kW',
@@ -180,7 +233,7 @@ export const GROQ3_LPX_SYSTEM: FactorySystem = {
       LPX_BLOG,
       '表 1「On-chip SRAM bandwidth | 40 PB/s」（产品页 High-Velocity SRAM 卡片：「40 petabytes per second (PB/s) of SRAM bandwidth per rack」）',
       '★ 与容量正好相反的一面：Vera Rubin NVL72 机架级显存带宽是 1,580 TB/s ≈ 1.58 PB/s，' +
-        'LPX 是它的约 25 倍。容量换带宽，这是 SRAM-first 架构的全部交易内容。',
+        `LPX 是它的约 25 倍。容量换带宽，这是 SRAM-first 架构的全部交易内容。\n${BANDWIDTH_MISMATCH_NOTE}`,
     ),
     scaleUpBandwidthTBs: lpx<number>(
       640,
@@ -195,7 +248,11 @@ export const GROQ3_LPX_SYSTEM: FactorySystem = {
       'TB',
       LPX_PAGE,
       'Fusion Memory Architecture 卡片，「In each rack, LPX delivers 128 GB of SRAM for low-latency processing and 12 TB of DDR5 memory for large models and workloads」',
-      '与技术博客表 2 的每托盘 DRAM 口径闭合：32 × (256 GB 经 fabric expansion logic + 128 GB 经 host CPU) = 12,288 GB = 12 TB。',
+      '★ v1.5 订正措辞（此前写「与表 2 的每托盘 DRAM 口径**闭合**」，把上限当成了实配）：' +
+        '技术博客表 2 两行的原文都是 **Up to**——「DRAM via fabric expansion logic | Up to 256 GB」与' +
+        '「DRAM via host CPU | Up to 128 GB」。因此正确说法是「机架级 12 TB 与表 2 的**上限**口径一致」：' +
+        '32 × (256 + 128) GB = 12,288 GB = 12 TB，成立的前提是每托盘都按上限配满。' +
+        '客户问「实际能配多少 DDR5」时，答案是「官方只给了上限，实配需向 OEM 确认」。',
     ),
     fp8RackPflops: lpx<number>(
       315,
@@ -212,19 +269,37 @@ export const GROQ3_LPX_SYSTEM: FactorySystem = {
       COMPUTE_MISMATCH_NOTE,
     ),
     pairedThroughputGain: lpx<string>(
-      '与 Vera Rubin NVL72 配对后，每兆瓦吞吐最高 35×（对比 GB200 NVL72，在 400 TPS/用户 交互度上）',
+      '与 Vera Rubin NVL72 配对后，**万亿参数模型**在 **400 TPS/用户** 交互度上、对比 **GB200 NVL72**，每兆瓦吞吐最高 35×',
       null,
       LPX_BLOG,
-      'Unlocking a new category of AI experiences on the Pareto frontier 节，「the combination of Vera Rubin NVL72 and LPX delivers up to 35x higher TPS per megawatt at 400 TPS per user compared with the NVIDIA GB200 NVL72」',
-      '★ 这是**配对系统**的相对指标，不是 LPX 单独的能力。「400 TPS/用户」这个前提必须一起说：' +
-        '在低交互度（普通聊天）区间，同构 GPU 方案本来就够用，35× 不成立。',
+      'Unlocking a new category of AI experiences on the Pareto frontier 节，「the combination of Vera Rubin NVL72 and LPX delivers up to 35x higher TPS per megawatt at 400 TPS per user compared with the NVIDIA GB200 NVL72」；模型规模前提见产品页「When paired with LPX, Vera Rubin NVL72 delivers up to 35x higher throughput per megawatt (MW) for trillion-parameter models.」与 GTC26 发布稿「…up to 35x higher inference throughput per megawatt and up to 10x more revenue opportunity for trillion-parameter models」',
+      '★ **三个前提缺一不可，少说一个就是超范围引用**（v1.5 补齐第三个：模型规模）：' +
+        '① 是**配对系统**（Vera Rubin NVL72 + LPX）的指标，不是 LPX 单独的能力；' +
+        '② 交互度 **400 TPS/用户**——低交互度（普通聊天）区间同构 GPU 方案本来就够用，35× 不成立；' +
+        '③ 模型规模 **trillion-parameter models（万亿参数）**——官方产品页与 GTC26 发布稿都把这个限定' +
+        '直接写在同一句里。技术博客进一步交代了该 Pareto 点的具体口径：' +
+        '「that premium tier is represented by a 2-trillion-parameter MoE model with a 400K input context ' +
+        'window operating at roughly 400 TPS per user and beyond」。' +
+        '⚠️ 拿 35× 去讲一个 70B 稠密模型或短上下文场景，是**超范围引用**——三个前提不成立时这个倍数没有官方依据。',
     ),
     availability: lpx<string>(
-      '2026 年下半年',
+      '已官宣进入量产（2026-08-24）；GTC 2026-03 的原口径为「2026 年下半年上市」',
       null,
-      GTC26_PRESS,
-      'NVIDIA Groq 3 LPX Rack 节，「Fully liquid cooled and built on MGX infrastructure, LPX integrates seamlessly into next-generation Vera Rubin AI factories to be available in the second half of this year.」',
-      '发布稿发布于 2026-03，因此「this year」= 2026。',
+      LPX_FULLPROD_PRESS,
+      '首句，「NVIDIA today announced that NVIDIA Groq 3 LPX, the interactive AI inference accelerator, is now in full production.」（发布于 2026-08-24 Hot Chips）',
+      '★ v1.5 更新（此前只写「2026 下半年」，口径已落后）。三点要一起说：' +
+        '① **两版官方口径并存且不矛盾**：GTC 2026-03 发布稿写「LPX integrates seamlessly into next-generation ' +
+        'Vera Rubin AI factories to be available in the second half of this year.」（发布于 2026 年 ⇒ 2026 下半年）；' +
+        '2026-08-24 发布稿把它兑现为「is now in full production」——8 月正落在下半年内，是承诺被兑现，不是改口。' +
+        '② **「量产」不等于「已在售」**：发布稿只说加速器进入 full production，没有 Availability 段、' +
+        '也没有「shipping now」这类措辞；点名的云厂商强度更弱——Nebius 是「plans to bring NVIDIA Groq 3 LPX ' +
+        'to Nebius Token Factory」，Groq 是「plans to be among the platform\'s earliest adopters」，都是 plans to。' +
+        '③ **因此 sys.groq3-lpx 的 status 保持 announced，不改 shipping**：本项目的判据是官方有没有明说在售' +
+        '（HGX B300 之所以是 shipping，是因为平台页脚注 4 写着「HGX B300 and HGX B200 shipping now.」）；' +
+        '而且同一句「in full production」在 CES 2026-01 就已经用在 Rubin 平台上（「NVIDIA Rubin is in full ' +
+        'production」），本项目当时也没有据此把 Vera Rubin 改成 shipping——两代必须用同一把尺子。' +
+        '另注：LPX 是 paired-only，配对的 Vera Rubin 官方口径是「Production shipments… set to begin starting ' +
+        'this fall」（2026-05-31），配对系统本身也还没确认出货。',
     ),
     groqRelationship: lpx<string>(
       'NVIDIA 与 Groq 签署非排他推理技术许可协议；Groq 创始人 Jonathan Ross、总裁 Sunny Madra 与部分团队加入 NVIDIA；Groq 作为独立公司继续运营，GroqCloud 不中断',
@@ -232,7 +307,10 @@ export const GROQ3_LPX_SYSTEM: FactorySystem = {
       GROQ_NEWS,
       '全文三段，「entered into a non-exclusive licensing agreement with Nvidia for Groq\'s inference technology」/「will join Nvidia to help advance and scale the licensed technology」/「Groq will continue to operate as an independent company with Simon Edwards stepping into the role of Chief Executive Officer」',
       '★ 对外口径纪律：这**不是收购**。说成「NVIDIA 收购了 Groq」既不准确，也会让客户对 GroqCloud 的存续产生错误预期。' +
-        'Groq 发布稿没有提到任何金额，本项目因此不建金额 Claim（坊间流传的数字没有官方出处）。',
+        'Groq 发布稿没有提到任何金额，本项目因此不建金额 Claim（坊间流传的数字没有官方出处）。' +
+        '★ **NVIDIA 侧的第二处官方证据**（v1.5 新增）：2026-08-24 量产发布稿的商标行逐字写着' +
+        '「Groq and LPU are used under license from Groq, Inc.」——「授权使用」正是许可关系的标准表述。' +
+        '两处证据一份出自 Groq、一份出自 NVIDIA，可以互相独立佐证。',
     ),
   },
   // 与前三代一致的示意高度：官方同样未公布 LPX 机架的 U 高与逐 U 布局。
@@ -276,9 +354,10 @@ export const GROQ3_LPX_COMPONENTS: HardwareComponent[] = [
         150,
         'TB/s',
         LPX_PAGE,
-        'NVIDIA Groq 3 LPU Inference Accelerator 节，「150 terabytes per second (TB/s) of SRAM bandwidth」' +
-          '（技术博客同口径：「the LPX pairs 150 TB/s of on-chip memory bandwidth with high bandwidth scale-up… per LPU」）',
-        '对照 Rubin GPU 单卡 22 TB/s 显存带宽：单颗约 6.8 倍。这一项直接决定 decode 的 FFN 段能跑多快。',
+        'NVIDIA Groq 3 LPU Inference Accelerator 节，「Each LPU accelerator delivers 500 megabytes (MB) of SRAM, 150 terabytes per second (TB/s) of SRAM bandwidth, and 2.5 TB/s scale-up bandwidth.」' +
+          '（技术博客同口径：「the LPX pairs 150 TB/s of on-chip memory bandwidth with high bandwidth scale-up chip-to-chip (C2C) communication per LPU」）',
+        '对照 Rubin GPU 单卡 22 TB/s 显存带宽：单颗约 6.8 倍。这一项直接决定 decode 的 FFN 段能跑多快。\n' +
+          BANDWIDTH_MISMATCH_NOTE,
       ),
       scaleUpBandwidthTBs: lpx<number>(
         2.5,
@@ -396,8 +475,9 @@ export const GROQ3_LPX_COMPONENTS: HardwareComponent[] = [
       '托盘上的扩展逻辑：一边把 8 颗 LP30 的 C2C 链路引到背板与前面板（跨托盘、跨机架），' +
       '一边挂最高 256 GB DRAM 作为片上 SRAM 之外的第二层容量。',
     presalesNote:
-      '它是 LPX「无线缆」设计能成立的关键件——托盘内 LPU 直连、跨托盘经它上背板到 C2C spine，' +
-      '整机架不需要一根 scale-up 线缆。对客户的意义与 Vera Rubin 的 PCB 中板一样：装配与更换托盘不用重新走线。' +
+      '它是 LPX**托盘**无线缆设计能成立的关键件——托盘内 LPU 直连、跨托盘经它上背板到 C2C spine，' +
+      '托盘侧不需要手工走一根 scale-up 线缆（⚠️ 机架后部的 C2C spine 本身是 2 个铜缆匣、数千对铜缆，' +
+      '别讲成「整机架没有线缆」）。对客户的意义与 Vera Rubin 的托盘一样：装配与更换托盘不用重新走线。' +
       '另外它挂的 256 GB DRAM 是「大模型/大工作集」的兜底层，但要说清楚——那不是给 decode 主路径用的，' +
       'decode 的热数据必须在 SRAM 里，掉到 DRAM 就失去 LPX 的意义了。',
     visual: { shape: 'chip', colorToken: 'plane-nvlink' },
@@ -416,8 +496,9 @@ export const GROQ3_LPX_COMPONENTS: HardwareComponent[] = [
         'GB',
         LPX_BLOG,
         '表 2「DRAM via fabric expansion logic | Up to 256 GB」',
-        '官方措辞是「Up to」（上限口径）。与 host CPU 侧的 128 GB 合计每托盘最高 384 GB，' +
-          '× 32 托盘 = 12 TB，与产品页机架级「12 TB of DDR5」闭合。',
+        '官方措辞是「Up to」（上限口径，不是标配值）。与 host CPU 侧的 Up to 128 GB 合计每托盘最高 384 GB，' +
+          '× 32 托盘 = 12 TB——**与产品页机架级「12 TB of DDR5」一致的是这个上限**，' +
+          '不能反过来当成「每托盘实配 384 GB」。实配量官方未公布。',
       ),
       c2cScope: lpx<string>(
         '托盘内直连 / 经 LPU C2C spine 跨托盘 / 随系统规模跨机架',
@@ -467,7 +548,13 @@ export const GROQ3_LPX_COMPONENTS: HardwareComponent[] = [
         '图 2 图注，「…an on-tray Fabric Expansion Logic, DRAM, Host CPU, BlueField-4 DPU, and backplane and front-panel connections」',
       ),
       sramPerTrayGB: lpx<number>(4, 'GB', LPX_BLOG, '表 2「On-chip SRAM | 4 GB」', '= 8 × 500 MB，与单芯片口径闭合。'),
-      sramBandwidthPerTrayPBs: lpx<number>(1.2, 'PB/s', LPX_BLOG, '表 2「SRAM bandwidth | 1.2 PB/s」'),
+      sramBandwidthPerTrayPBs: lpx<number>(
+        1.2,
+        'PB/s',
+        LPX_BLOG,
+        '表 2「SRAM bandwidth | 1.2 PB/s」',
+        BANDWIDTH_MISMATCH_NOTE,
+      ),
       dramViaFabricGB: lpx<number>(256, 'GB', LPX_BLOG, '表 2「DRAM via fabric expansion logic | Up to 256 GB」'),
       dramViaHostGB: lpx<number>(128, 'GB', LPX_BLOG, '表 2「DRAM via host CPU | Up to 128 GB」'),
       fp8PflopsPerTray: lpx<number>(
@@ -494,7 +581,14 @@ export const GROQ3_LPX_COMPONENTS: HardwareComponent[] = [
         null,
         LPX_BLOG,
         'NVIDIA 未公布 LPX 托盘是否配备独立的 scale-out 网卡（官方托盘图里只有 BlueField-4 与「backplane and front-panel connections」，' +
-          '没有出现 ConnectX 系列）。本项目因此不为 LPX 建 scale-out 网卡组件——「未收录」不等于「没有」。',
+          '没有出现 ConnectX 系列）。本项目因此不为 LPX 建 scale-out 网卡组件——「未收录」不等于「没有」。' +
+          '⚠️ v1.5 复核了一处**看似相关、实则不适用**的官方句子，在此留痕以免后人误引：' +
+          'POD 博客写过「MGX ETL leverages a Spectrum-X Multiplane topology that fans out the 200 Gb/s lanes ' +
+          'across multiple switches, delivering full all-to-all connectivity among nodes within the rack…」' +
+          '——但同文明确 MGX ETL 是「designed with a Spectrum-X Ethernet spine **or** a direct chip-to-chip ' +
+          'spine」两种配置，那段 Multiplane 描述出现在「NVIDIA Spectrum-X Ethernet spine」小节，' +
+          '服务的是 Vera CPU 机架与 BlueField-4 STX 存储机架；**LPX 用的是另一种配置**' +
+          '（「Direct chip-to-chip spine」小节）。所以那句话不能套到 LPX 上。',
       ),
       trayPowerW: lpxNull('W', LPX_BLOG, 'NVIDIA 未公布单个 LPX 计算托盘的功耗。'),
     },
@@ -507,23 +601,41 @@ export const GROQ3_LPX_COMPONENTS: HardwareComponent[] = [
     status: 'announced',
     summary:
       '机架内承载跨托盘 LPU 直连链路的 spine：32 个托盘经它把各自的 8 颗 LP30 连成一个 640 TB/s 的' +
-      'scale-up 域，全程无交换芯片、无线缆。',
+      'scale-up 域，全程无交换芯片。物理形态官方已公布——机架后部**两个铜缆匣**，' +
+      '用数千对铜缆连成点对点拓扑。',
     presalesNote:
       '这是 LPX 与 NVLink 体系最值得对比的一处：**Vera Rubin 靠 36 颗 NVLink 6 交换芯片做全互联，' +
       'LPX 干脆不要交换层**——LPU 之间是直连 C2C，spine 只是把链路引过去的无源通路。' +
       '好处是少一跳、时延与抖动都更可控；代价是拓扑固定，扩展方式由编译器的切分策略决定。' +
-      '⚠️ 官方只说了「无线缆」与「经背板/spine 连接」，**没有公布 spine 的物理介质**（铜背板还是光），' +
-      '3D 里的形态是示意。',
+      '★ v1.5 订正：**spine 的物理介质官方公布了，是铜缆**（POD 博客原话见 medium 规格）。' +
+      '⚠️ 与 Vera Rubin 完全一样的措辞陷阱：官方的「cableless / 无线缆」修饰的是**托盘**' +
+      '（「Every tray integrates… in a cableless design」），机架脊柱是 2 个预集成铜缆匣、' +
+      '数千对铜缆——别对客户讲成「整机架没有线缆」。' +
+      '另一个可讲的点：这两个铜缆匣与 MGX NVL 机架的 NVLink 脊柱**共用同一套机械形态**' +
+      '（官方「the same cable cartridge mechanical form factor as other MGX racks」），' +
+      '这正是「单一通用机架」这个卖点在物理层的落地。',
     visual: { shape: 'backplane', colorToken: 'plane-nvlink' },
     imageUrl: null,
-    sourceIds: [LPX_BLOG, LPX_PAGE],
+    sourceIds: [LPX_BLOG, LPX_PAGE, VR_POD],
     specs: {
-      medium: lpxNull(
+      medium: lpx<string>(
+        '机架后部铜缆脊柱：2 个铜缆匣，数千对铜缆组成点对点拓扑',
         null,
-        LPX_BLOG,
-        '★ NVIDIA 未公布 LPU C2C spine 的物理介质。官方原话只有「across trays via the LPU C2C spine」与' +
-          '托盘的「cableless design」「backplane and front-panel connections」——能确定的是无线缆、经背板，' +
-          '但是铜背板还是光背板没有说明。3D 里按无源背板形态示意。',
+        VR_POD,
+        'Direct chip-to-chip spine 节，「It features 32 compute trays, each with eight LPUs, connected by a direct chip-to-chip spine, which consists of two copper cable cartridges that create an intricate point-to-point topology over thousands of paired copper cable connections. These cables make up the direct chip-to-chip spine at the back of the rack consisting of the same cable cartridge mechanical form factor as other MGX racks.」',
+        '★ v1.5 订正（此前记作「官方未公布物理介质，铜还是光没有说明」，属漏检）：' +
+          '2026-03 POD 博客把 LPX 的 direct chip-to-chip spine 写得很清楚——**铜缆**，2 个线缆匣，' +
+          '位于机架后部，与其他 MGX 机架共用同一套线缆匣机械形态。' +
+          '⚠️ 官方**没有**给出铜缆的具体根数（只说 thousands of paired connections，' +
+          '对照 MGX NVL 的 NVLink 脊柱官方给的是 5,000 根 / 4 个匣），因此本项目不建根数 Claim。' +
+          '也要注意「无线缆」的主语是托盘不是机架，与 Vera Rubin 同一个陷阱。',
+      ),
+      cableCartridgeCount: lpxCount(
+        2,
+        VR_POD,
+        'Direct chip-to-chip spine 节，「…which consists of two copper cable cartridges that create an intricate point-to-point topology over thousands of paired copper cable connections」',
+        '对照 MGX NVL（Vera Rubin NVL72）的 NVLink 脊柱是 4 个线缆匣、约 5,000 根铜缆。' +
+          '两者匣数不同但机械形态相同（官方「the same cable cartridge mechanical form factor as other MGX racks」）。',
       ),
       switchless: lpx<string>(
         '无交换芯片：LPU 之间直连 chip-to-chip',
@@ -901,8 +1013,10 @@ export const GROQ3_LPX_ASSEMBLIES: AssemblyNode[] = [
     rackU: null,
     note:
       '★ 复用 roleKey「nvlink-backplane」是刻意的：这一格在跨代比较里的语义是「机架内 scale-up 互连底板」' +
-      '——GB300 是铜背板、Vera Rubin 是 PCB 中板、LPX 是 C2C spine。三代放在同一行对比才看得出' +
-      '「交换式 → 无线缆中板 → 无交换直连」这条演进。位于机架中部，不占用 U 位。',
+      '——GB300 是铜背板、Vera Rubin 是铜缆脊柱（4 个线缆匣）+ 托盘 PCB 中板、LPX 是铜缆 C2C spine' +
+      '（2 个线缆匣）。三代放在同一行对比看到的**不是「铜 → 无线缆 → 光」**，而是' +
+      '「**交换式铜 → 交换式铜（托盘侧免走线）→ 无交换直连铜**」——三代的机架脊柱介质其实都是铜，' +
+      '变的是有没有交换层、以及托盘侧要不要手工走线。位于机架后部，不占用 U 位。',
   },
 
   // ── tray / board 层 ──
@@ -1034,9 +1148,11 @@ export const GROQ3_LPX_CONNECTIONS: Connection[] = [
     direction: 'bidirectional',
     label: 'Fabric Expansion → LPU C2C Spine',
     summary:
-      '每个托盘 20 TB/s 上到机架 spine，32 托盘合计 640 TB/s。⚠️ 官方只说了「无线缆」与「经背板/spine」，' +
-      '**没有公布 spine 的物理介质**（铜还是光），此处按无源背板形态示意。',
-    sourceIds: [LPX_BLOG],
+      '每个托盘 20 TB/s 上到机架 spine，32 托盘合计 640 TB/s。' +
+      '官方已公布 spine 的物理形态：机架后部 **2 个铜缆匣**，「thousands of paired copper cable connections」' +
+      '组成点对点拓扑（v1.5 订正，此前记作「介质未公布」）。' +
+      '⚠️ 官方没有给出铜缆的具体根数，本项目不编数。',
+    sourceIds: [LPX_BLOG, VR_POD],
   },
   {
     id: 'con.lpx.tray-spine',
@@ -1057,8 +1173,11 @@ export const GROQ3_LPX_CONNECTIONS: Connection[] = [
     label: 'LPX 计算托盘 → C2C Spine（机架级 scale-up 域）',
     summary:
       '32 个托盘盲插到 spine 即组成 640 TB/s 的 scale-up 域——**没有交换层**，全部是 LPU 之间的直连链路。' +
-      '这是与 Vera Rubin NVL72（72 GPU × 36 颗 NVLink 6 交换芯片 / 260 TB/s）最本质的结构差异。',
-    sourceIds: [LPX_BLOG, LPX_PAGE],
+      '这是与 Vera Rubin NVL72（72 GPU × 36 颗 NVLink 6 交换芯片 / 260 TB/s）最本质的结构差异。' +
+      '官方原话：「the LPX rack connects 256 LPUs as one… connected by a direct chip-to-chip spine, which ' +
+      'consists of two copper cable cartridges that create an intricate point-to-point topology over ' +
+      'thousands of paired copper cable connections.」',
+    sourceIds: [LPX_BLOG, LPX_PAGE, VR_POD],
   },
   {
     id: 'con.lpx.host-lpu',
@@ -1304,11 +1423,15 @@ export const GROQ3_LPX_SCENES: ScenePreset[] = [
       '① 你应该看到什么：一个 MGX ETL 机架里 32 个 1U 液冷托盘整齐排开——比 Vera Rubin NVL72 的 18 个计算托盘多得多，' +
       '而且**找不到交换托盘**。' +
       '② 谁连谁 + 关键数字：每个托盘 8 颗 LP30，32 × 8 = 256 颗 LPU；' +
-      '每颗 500 MB 片上 SRAM（机架合计 128 GB）、150 TB/s 片上带宽（机架合计 40 PB/s）；' +
-      'LPU 之间是**直连** C2C——每颗 96 条 112 Gb/s 链路凑 2.5 TB/s，托盘内直连、跨托盘经 C2C spine，机架级 640 TB/s。' +
-      '整机架 FP8 算力 315 PFLOPS（官方另给每托盘 9.6 PFLOPS，两条口径不完全闭合，见数字旁的说明）。' +
-      '③ 断了会怎样：C2C spine 是这台机器成立的前提——256 颗 LPU 必须像一颗芯片一样被编译器统一调度，' +
-      '任何一段链路抖动都会让「确定性低时延」这个卖点失效。',
+      '每颗 500 MB 片上 SRAM——这一条乘得起来，机架合计正好 128 GB；' +
+      '带宽则是**两条独立口径、不要互推**：单颗 150 TB/s、机架 40 PB/s（256 × 150 TB/s = 38.4 PB/s ≠ 40，' +
+      '官方没解释这个差值，见数字旁的说明）。' +
+      'LPU 之间是**直连** C2C——每颗 96 条 112 Gb/s 链路凑 2.5 TB/s，托盘内直连、跨托盘经 C2C spine，' +
+      '机架级 640 TB/s（这一对闭合：256 × 2.5 = 32 × 20 = 640）。' +
+      '整机架 FP8 算力 315 PFLOPS（官方另给每托盘 9.6 PFLOPS，同样不完全闭合）。' +
+      '③ 断了会怎样：C2C spine 是这台机器成立的前提——机架后部 2 个铜缆匣、数千对铜缆把 256 颗 LPU ' +
+      '连成点对点拓扑，它们必须像一颗芯片一样被编译器统一调度，任何一段链路抖动都会让' +
+      '「确定性低时延」这个卖点失效。',
     lodLevel: 'rack',
     focusAssemblyId: 'asm.lpx.rack',
     planes: ['nvlink', 'power'],
@@ -1330,18 +1453,21 @@ export const GROQ3_LPX_SCENES: ScenePreset[] = [
       '**第二段 decode 的 attention** ——每出一个 token，GPU 在累积的 KV cache 上算全上下文注意力（吃带宽与容量，GPU 的强项）；' +
       '**第三段 decode 的 FFN/MoE** ——中间激活交给 LPX，256 颗 LPU 用片上 SRAM 把稀疏专家前馈跑完，结果回传 GPU 继续生成。' +
       '这一来一回每个 token 都要走一遍，官方称之为 attention–FFN 分离（AFD）。' +
-      '③ 断了会怎样 / 值多少：官方宣称配对后在 **400 TPS/用户** 这个交互度上，' +
-      '每兆瓦吞吐最高 **35×**（对比 GB200 NVL72），收入机会最高 10×。' +
-      '⚠️ 但「35×」是**配对系统**的数字，且死死绑在 400 TPS/用户 这个前提上——' +
-      '低交互度场景里同构 GPU 方案本来就够用，这个倍数不成立。',
+      '③ 断了会怎样 / 值多少：官方宣称配对后，**万亿参数模型**在 **400 TPS/用户** 这个交互度上、' +
+      '对比 **GB200 NVL72**，每兆瓦吞吐最高 **35×**，收入机会最高 10×。' +
+      '⚠️ 这三个前提缺一不可：它是**配对系统**的数字，且死死绑在「万亿参数模型 + 400 TPS/用户」上' +
+      '（技术博客给的具体口径是「2-trillion-parameter MoE model with a 400K input context window」）——' +
+      '低交互度场景、或者模型只有几十 B，同构 GPU 方案本来就够用，这个倍数不成立。',
     lodLevel: 'cluster',
     focusAssemblyId: 'asm.lpx.facility',
     planes: ['scaleout', 'nvlink'],
     highlightAssemblyIds: ['asm.lpx.rack', 'asm.lpx.afd-peer'],
     presalesNote:
       '这一站是 LPX 全部叙事的落点，三句话讲完：①「GPU 管理解，LPU 管吐字」——prefill 与 decode-attention 在 GPU，' +
-      'decode 的 FFN/MoE 在 LPU；②「贵的是交互度不是吞吐」——35× 只在高 TPS/用户 区间成立，要先问客户的目标交互度；' +
+      'decode 的 FFN/MoE 在 LPU；②「贵的是交互度不是吞吐」——35× 只在**万亿参数模型 + 高 TPS/用户**' +
+      '这两个前提同时成立时才有官方依据，要先问客户的模型规模与目标交互度；' +
       '③「它俩是一套」——LPX 不单独报产能，方案里必须成对出现。' +
-      '⚠️ 另外记住 NVIDIA 与 Groq 是非排他技术许可 + 团队加入，不是收购。',
+      '⚠️ 另外记住 NVIDIA 与 Groq 是非排他技术许可 + 团队加入，不是收购' +
+      '（NVIDIA 自己的发布稿商标行也写着「Groq and LPU are used under license from Groq, Inc.」）。',
   },
 ]

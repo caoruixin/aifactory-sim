@@ -20,6 +20,7 @@ import { expect, test, type Page, type TestInfo } from '@playwright/test'
 import { FACTORY_PACK } from '../../src/data'
 import { compareSystems } from '../../src/lib/compare'
 import { layoutOf } from '../../src/lib/layout'
+import { reportComparisonGroups } from '../../src/lib/reportSections'
 import { routeConnections } from '../../src/lib/routing'
 
 const GB300 = 'sys.gb300-nvl72'
@@ -1015,8 +1016,45 @@ test('/report：五系统动态渲染 + VR↔LPX 配对段 + LPX 拒绝卡 + 国
     )
   }
 
-  // ③ 相邻代际比较链：systems.length - 1 段
-  await expect(page.locator('[data-report-diffs] > div')).toHaveCount(FACTORY_PACK.systems.length - 1)
+  // ③ 代际变化：按**人工比较定义**分组渲染（v1.5 缺陷 4 起不再按 systems 声明顺序机械串联）
+  const groups = reportComparisonGroups()
+  await expect(page.locator('[data-report-diff-group]')).toHaveCount(groups.length)
+  await expect(page.locator('[data-report-diffs] [data-report-diff]')).toHaveCount(
+    groups.reduce((n, g) => n + g.definitions.length, 0),
+  )
+  for (const g of groups) {
+    for (const d of g.definitions) {
+      // 每一段都必须带人工写的标题（= 不存在没有叙述的裸 diff 表）
+      await expect(page.locator(`[data-report-diff="${d.id}"]`), d.id).toContainText(d.title)
+    }
+  }
+
+  // ③b ★ 缺陷 4 回归锁：标题只放换代主线，绝不出现把 HGX B300 排在 Vera Rubin 之后的箭头链
+  const section4 = page.locator('h2', { hasText: '代际变化' })
+  await expect(section4).toContainText('换代主线')
+  await expect(section4).toContainText('GB300 NVL72 → Vera Rubin NVL72 → Vera Rubin Ultra NVL576')
+  await expect(section4).not.toContainText('HGX')
+  await expect(section4).not.toContainText('Groq')
+
+  // ③c 同代分组必须明说「不是换代」，并把「HGX B300 不是 Vera Rubin 之后的新一代」写清楚
+  const sameEra = page.locator('[data-report-diff-group="same-era-domain"]')
+  await expect(sameEra).toContainText('不是换代')
+  await expect(sameEra).toContainText('HGX B300 不是 Vera Rubin 之后的新一代')
+  await expect(sameEra).toContainText('同代')
+  // 内容包里现成的两条人工定义此前根本渲染不到，现在必须都在
+  await expect(page.locator('[data-report-diff="cmpdef.gb300-to-hgx-b300"]')).toContainText('同一颗 B300')
+  await expect(page.locator('[data-report-diff="cmpdef.gb300-to-rubin-ultra"]')).toContainText('跨两代')
+
+  // ③d ★ 缺陷 1 回归锁：整页不得出现字面的 `**`（内容包用它写粗体，渲染层要吃掉）
+  await expect(page.locator('main')).not.toContainText('**')
+
+  // ③e ★ 缺陷 2 回归锁：§02 规格表显示中文标签而不是 JS 变量名（原 key 只留在 title=）
+  const keySpecTable = page.locator('h2', { hasText: '当前架构' }).locator('..')
+  await expect(page.locator('main')).toContainText('GPU 数量')
+  await expect(page.locator('main')).toContainText('整机架功率')
+  await expect(keySpecTable).not.toContainText('gpuCount')
+  await expect(keySpecTable).not.toContainText('rackPowerKW')
+  await expect(page.locator('th[title="gpuCount"]')).toHaveCount(1)
 
   // ④ VR ↔ LPX 配对段（内容断言）
   const pairing = page.locator(`[data-report-pairing="${VERA_RUBIN}|${LPX}"]`)
@@ -1055,6 +1093,62 @@ test('/report：五系统动态渲染 + VR↔LPX 配对段 + LPX 拒绝卡 + 国
 
   // 硬规则复核：/report 全程不加载 three-vendor
   expect(requestedUrls.some((u) => u.includes('three-vendor'))).toBe(false)
+})
+
+// ─────────────────────────── v1.5 UI 缺陷回归（1 富文本 / 2 规格标签 / 3 跨代复用） ───────────────────────────
+
+test('桌面·v1.5 缺陷 1+2+3：粗体不再显示成星号、规格是中文标签、跨代复用不可点', async ({
+  page,
+}, testInfo) => {
+  onlyOn(testInfo, 'desktop')
+  // 缺陷 3 的实测现场：GB300 的根节点「机房」用的是 shared.ts 的共享组件，
+  // 五个系统各引用一次、装配节点还都叫「机房」——老实现在这里给出四个同名链接。
+  await gotoAndSettle(
+    page,
+    `/?gen=${GB300}&gl=off&motion=off&level=cluster&focus=asm.gb300.facility`,
+    400,
+  )
+
+  // ── 缺陷 3 ──
+  await expect(page.locator('[data-component-reuse]')).toHaveCount(1)
+  // 本代际内没有第二处「机房」⇒ 同代那一行整块不渲染（老实现会渲染四个同名链接）
+  await expect(page.locator('[data-reuse-same-generation]')).toHaveCount(0)
+  const others = page.locator('[data-reuse-other-generations]')
+  await expect(others).toHaveCount(1)
+  // ★ 纯文字不可点：跨代跳转会把右栏带到另一棵树，而顶栏/面包屑/3D/导览全还停在本代
+  await expect(others.locator('button')).toHaveCount(0)
+  await expect(others.locator('a')).toHaveCount(0)
+  // 显式标出是哪几代（老实现只显示四个一模一样的「机房」）
+  await expect(others).toContainText('Vera Rubin NVL72')
+  await expect(others).toContainText('HGX B300')
+  await expect(others).not.toContainText('sys.')
+
+  // ── 缺陷 2：详情面板「官方规格」显示中文标签，原 key 只留在 title= ──
+  await expect(page.locator('main')).not.toContainText('powerCapacityKW')
+  await expect(page.locator('dt[title="powerCapacityKW"]')).toHaveCount(1)
+  await expect(page.locator('dt[title="powerCapacityKW"]')).toContainText('机房总供电容量')
+
+  // ── 缺陷 1：导览讲解里的 `**粗体**` 必须渲染成 <strong>，不是字面星号 ──
+  // HGX B300 第 2 站就是用户实测报的那一屏（「没有铜背板、没有直流母排…」）。
+  await gotoAndSettle(page, '/?tour=scene.hgx.rack-no-nvlink&gl=off&motion=off', 400)
+  const narration = page.locator('[data-tour-narration="scene.hgx.rack-no-nvlink"]')
+  await expect(narration).toHaveCount(1)
+  await expect(narration).not.toContainText('**')
+  expect(await narration.locator('strong').count(), '导览讲解里应当出现真正的 <strong>').toBeGreaterThan(0)
+  // 整个工作台一处字面星号都不该剩
+  await expect(page.locator('main')).not.toContainText('**')
+})
+
+test('桌面·v1.5 比较面板：汇报要点/叙述加粗生效 + 规格对照用中文标签', async ({ page }, testInfo) => {
+  onlyOn(testInfo, 'desktop')
+  await gotoAndSettle(page, `/?gen=${GB300}&mode=compare&right=${HGX}&gl=off&motion=off`, 600)
+  const panel = page.locator('[data-compare-left]')
+  await expect(panel).toHaveAttribute('data-compare-right', HGX)
+  await expect(panel).not.toContainText('**')
+  expect(await panel.locator('strong').count()).toBeGreaterThan(0)
+  // 规格对照行：中文标签 + 原 key 挂 title
+  await expect(panel).not.toContainText('hbmPerGpuGB')
+  await expect(page.locator('main')).not.toContainText('**')
 })
 
 test('桌面·W-C 五系统 × ?gl=off 扫查：三页签都出内容 + 全程不加载 three-vendor', async ({
@@ -1124,7 +1218,10 @@ test('移动·W-C 五系统切换：根节点/站数跟着换，且窄屏不横�
       String(sceneCount),
     )
 
-    // ③ 窄屏不横向溢出——顶栏每多一个代际按钮就更容易撑宽，第五个尤其危险
+    // ③ v1.5 缺陷 1：移动端导览讲解同样要吃掉 `**`（narration 走的是同一个 RichText）
+    await expect(view, `${gen} 移动端出现了字面的 **`).not.toContainText('**')
+
+    // ④ 窄屏不横向溢出——顶栏每多一个代际按钮就更容易撑宽，第五个尤其危险
     const overflow = await page.evaluate(() => ({
       doc: document.documentElement.scrollWidth,
       win: window.innerWidth,

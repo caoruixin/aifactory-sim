@@ -3,10 +3,20 @@ import type { SourceRef } from './types'
 /**
  * 全部数据源登记处。每条 Claim 的 sourceId 必须落在这里（pack.test.ts 强制）。
  *
- * 证据分级纪律（测试强制，见 pack.test.ts）：
+ * 证据分级纪律（测试强制，见 pack.test.ts / content.test.ts）：
  * - `verified_spec` / `vendor_claim` 只能引用 `official_doc` / `official_press`。
- * - `analyst_report` / `earnings_call` 类（SemiAnalysis / Marvell / GS / JPM）属于
- *   **非官方**来源，禁止出现在任何 `countClaim` 或组件 `specs` 里，只能做背景叙述。
+ * - **非官方来源分两档，纪律强度不同**（v1.5 订正：此前这段注释把两档写成一档，
+ *   与 `BROKER_SOURCE_IDS` 的实际内容和 `rubin-ultra-nvl576.ts` 的设计相矛盾，
+ *   照旧注释「修 bug」会把 NVL576 整代内容改坏）：
+ *   ① **券商/业绩会档**（`BROKER_SOURCE_IDS`：Marvell / GS / JPM）——禁止出现在任何
+ *      `countClaim` 或组件 `specs` 里，只能做背景叙述（`management_guidance` 等）。
+ *   ② **分析师研究档**（SemiAnalysis，`src.semianalysis-nvl576`）——**可以**进
+ *      `countClaim` 与组件 `specs`，但恒为 `evidence: 'analyst_estimate' | 'forecast'`
+ *      + `status: 'forecast'` + `locator` 必带页码（`content.test.ts` 的「SemiAnalysis
+ *      专项证据纪律」四重锁）。**禁止**进入 `GpuMathSpecs` 与 `lib/capacity.ts` 的产能估算
+ *      （该代际 `capacityPolicy: 'analyst-modeled'` 直接拒绝出数）。
+ *      之所以留这条口子：NVL576 目前只有分析师文章描述机架内部结构，一刀切禁掉等于
+ *      整代无法建模；而 forecast 口径 + 页码 locator 已经让读者看得出「这不是官方规格」。
  */
 export const SOURCES: SourceRef[] = [
   {
@@ -17,7 +27,30 @@ export const SOURCES: SourceRef[] = [
     url: 'https://docs.nvidia.com/enterprise-reference-architectures/nvl72-ai-factory/latest/components.html',
     localFile: null,
     asOf: '2026-08',
-    note: 'GB300 部件清单/数量/网络拓扑/供电的母版来源。抓取于 2026-08，含 components、networking-hardware、networking-physical-topologies、appendix-node-configurations 等页。',
+    note:
+      'GB300 部件清单/数量/网络拓扑/供电的母版来源。抓取于 2026-08，含 abstract、overview、components、' +
+      'networking-hardware、networking-physical-topologies、network-logical-architecture、' +
+      'appendix-node-configurations 等页。核心口径：**2-4-5-800**（Overview 首句原文「The NVIDIA ' +
+      'Enterprise RA using 2-4-5-800 (dual plane) node architecture with NVIDIA GB300 NVL72 and ' +
+      'NVIDIA Spectrum-X Networking offers a fully integrated, rack-scale solution optimized for the ' +
+      'most demanding AI workloads.」——即 2 CPU / 4 GPU / 5 网卡（4 张 ConnectX-8 + 1 张 BlueField-3）/ ' +
+      '每 GPU 800 Gb/s，与 HGX RA 的 2-8-9-800 正好是同一套记法的两代对照）。' +
+      '⚠️ 已发现四处该文档自身的内部不一致，引用时须留痕：' +
+      '① 每托盘 HBM：components Table 1 写「1,152 GB aggregated HBM3」，appendix Table 10 写' +
+      '「720 GB of aggregated HBM3」（另：两处写的都是 HBM3，不是 HBM3e）；' +
+      '② 每托盘 E1.S：components 正文写「4 E1.S NVMe storage devices」，Table 10 写「8 x 4 TB E1.S」；' +
+      '③ **交换机型号**：network-logical-architecture Table 5 与 appendix Table 11 写 SN5600' +
+      '（Table 5「NVIDIA SN5600 128-port 400 Gb/s switches」），networking-hardware 一节写 SN5610' +
+      '（「The NVIDIA SN5610 switch both offer 64 total ports of 800 Gbps」）——同一份文档两种写法并存，' +
+      '本项目取 SN5610 作主值（理由见 cmp.gb300.sn5610 的 note），但两种写法都在数据里留痕；' +
+      '④ 双平面的负载均衡由谁做：networking-physical-topologies 同一页里，Multi-Plane Topology ' +
+      'Approach 一节写「the resiliency and the load balancing between the two planes is handled by ' +
+      'the NCCL on the host」，Dual Plane Topology 一节写「Tracking of each plane, load balancing, ' +
+      'and failure handling is handled by the ConnectX-8 SuperNIC on the hardware level」——主机软件与' +
+      '网卡硬件两说并存（HGX RA 同一页有完全相同的两说）。' +
+      '★ 另需注意本文档**不涉及**的范围：全篇零出现 CDU / manifold / cold plate / coolant / ' +
+      'quick disconnect / Oberon，液冷只写到「the GB300 NVL72 rack is liquid cooled, based on the ' +
+      'MGX architecture」与「Integrated tray-level and rack-level liquid leakage detection」两句。',
   },
   {
     id: 'src.nvidia-gb300-page',
@@ -57,7 +90,29 @@ export const SOURCES: SourceRef[] = [
     url: 'https://developer.nvidia.com/blog/nvidia-vera-rubin-pod-seven-chips-five-rack-scale-systems-one-ai-supercomputer/',
     localFile: null,
     asOf: '2026-03',
-    note: 'NVIDIA 官方技术博客。机架级结构的唯一官方出处：18 计算托盘 + 9 NVLink 交换托盘、每托盘 2 个 Vera Rubin 超级芯片 + 8 ConnectX-9 + 1 BlueField-4，以及「Rubin Ultra NVL576 = 8 个 MGX NVL 机架 × 72 GPU」的官方拓扑口径。',
+    note:
+      'NVIDIA 官方技术博客。机架级结构的唯一官方出处：18 计算托盘 + 9 NVLink 交换托盘、每托盘 2 个 Vera Rubin ' +
+      '超级芯片 + 8 ConnectX-9 + 1 BlueField-4，以及「Rubin Ultra NVL576 = 8 个 MGX NVL 机架 × 72 GPU」的官方拓扑口径。' +
+      '★ v1.5 逐字复核后新增三条关键留痕（此前应用把前两条讲反了）：' +
+      '① **机架级 NVLink 走后部铜缆脊柱**——「This high-speed data transfer happens in the NVLink spine at the ' +
+      'back of the rack, which features four modular preintegrated cable cartridges housing 5,000 copper cables ' +
+      'over two miles in length.」；通用形态另有「The rack features a highly modular spine as its backplane, ' +
+      'consisting of up to four preintegrated and prevalidated copper cable cartridges that connect each tray as one.」' +
+      '② **「cable-free」修饰的是托盘、不是机架**——「The compute trays inside the Vera Rubin NVL72 are completely ' +
+      'redesigned from NVIDIA Blackwell. It features a robust PCB midplane designed to fit in a single-wide rack ' +
+      'that unlocks a cable-free, hose-free, and fanless design.」；**PCB 中板连的是超级芯片 ↔ 前部网卡仓**——' +
+      '「The superchips are connected to the front modular bays that house eight ConnectX-9 SuperNICs and one ' +
+      'BlueField-4 DPU through the PCB midplane.」官方**没有**说明这 5,000 根铜缆与 PCB 中板在电气上如何分工，' +
+      '也没说中板完全不参与 NVLink——两句都要如实呈现，不得用一句否定另一句。' +
+      '③ **LPX 的 C2C spine 物理介质官方已公布**——「…connected by a direct chip-to-chip spine, which consists of ' +
+      'two copper cable cartridges that create an intricate point-to-point topology over thousands of paired copper ' +
+      'cable connections.」' +
+      '④ **NVL576 拓扑官方已命名**——「NVIDIA Vera Rubin Ultra introduces a new two-layer all-to-all NVLink topology ' +
+      'that will enable developers to scale-up to 576 GPUs.」（导语同口径：「with a two-layer all-to-all NVLink ' +
+      'topology across eight racks」）；Kyber 的定位是「NVIDIA Kyber is the next-generation MGX NVL rack design ' +
+      'that will double the NVLink domain per rack to fit 144 GPUs.」' +
+      '⑤ 装配时间在本文更新为「This simplification drops compute tray assembly time from nearly two hours to just ' +
+      'five minutes—up to 20x faster assembly and serviceability.」（2026-01 六芯片博客与数据手册写的是 18×，两版并存）。',
   },
   {
     id: 'src.nvidia-rubin-chips-blog',
@@ -87,7 +142,14 @@ export const SOURCES: SourceRef[] = [
     url: 'https://dam-cdn.nvd.orangelogic.com/AssetLink/v5rf2icnf86o26e464tf6djn23r8ibhe.pdf',
     localFile: null,
     asOf: '2026-08',
-    note: '由 Vera Rubin NVL72 产品页「Read the NVIDIA Vera Rubin Datasheet」链接。第 1 页 Key Features 给出 20.7 TB HBM4 / 54 TB LPDDR5X / 75 TB 快内存 / NVLink 域 260 TB/s。⚠️ 同样带「Preliminary information」脚注。',
+    note:
+      '由 Vera Rubin NVL72 产品页「Read the NVIDIA Vera Rubin Datasheet」链接。第 1 页 Key Features 给出 ' +
+      '20.7 TB HBM4 / 54 TB LPDDR5X / 75 TB 快内存 / NVLink 域 260 TB/s。' +
+      '⚠️ Technical Specifications¹ 表的脚注 1 **比产品页多一句**，逐字为：' +
+      '「Preliminary information. All values are up to and subject to change. NVFP4 Inference specification is sparse.」' +
+      '——这是「NVFP4 Inference 那一列是稀疏口径」的**官方硬证据**（产品页脚注 1 没有这后半句），' +
+      '本项目据此把该列排除在 mathSpecs 与产能数学之外。脚注 2 仍为「Dense specification.」，' +
+      '脚注 3「Peak performance using NVIDIA Tensor Core-based emulation algorithms.」',
   },
   {
     id: 'src.nvidia-dgx-rubin-page',
@@ -127,7 +189,34 @@ export const SOURCES: SourceRef[] = [
     url: 'https://www.cnbc.com/2026/07/06/nvidia-kyber-rack-system-delays-manufacturing-taiwan-rubin-chips-.html',
     localFile: null,
     asOf: '2026-07',
-    note: '⚠️ 媒体报道（转引 SemiAnalysis 研究），非 NVIDIA 官方材料。原文「2028」延期指的是 **Kyber NVL144**（PCB 中板良率问题），对 **NVL576** 原文只说「is also likely delayed or limited to small volumes」——不带具体年份。文中记录 NVIDIA 对 SemiAnalysis 报道的回应「Our roadmap is intact」，这是媒体转述的官方回应，只能以「媒体转述」的身份出现在 Claim 的 note 里，不可当作独立的官方声明引用。',
+    note:
+      '⚠️ 媒体报道（转引 SemiAnalysis 研究），非 NVIDIA 官方材料。原文「2028」延期指的是 **Kyber NVL144**，' +
+      '原因逐字为「Kyber NVL144 rack architecture has been delayed to 2028 as the PCB midplane remains ' +
+      'challenging from a manufacturability standpoint」——是**可制造性**（manufacturability），' +
+      '原文没有出现 yield / 良率（v1.5 订正：此前本项目写作「良率问题」，属转述失真）。' +
+      '对 **NVL576** 原文只说「is also likely delayed or limited to small volumes」——不带具体年份。' +
+      '文中 NVIDIA 的表态逐字为「Nvidia rejected the SemiAnalysis report and said, "Our roadmap is intact."」' +
+      '——是**驳斥**（rejected）而不是中性「回应」；这仍是媒体转述的官方表态，' +
+      '只能以「媒体转述」的身份出现在 Claim 的 note 里，不可当作独立的官方声明引用。',
+  },
+  {
+    id: 'src.nvidia-vera-rubin-fullprod-press',
+    title: 'NVIDIA Vera Rubin Ramps Into Full Production to Power Agentic AI Factories Worldwide',
+    publisher: 'NVIDIA Newsroom',
+    kind: 'official_press',
+    url: 'https://nvidianews.nvidia.com/news/vera-rubin-full-production-agentic-ai-factory',
+    localFile: null,
+    asOf: '2026-05',
+    note:
+      'GTC Taipei 发布稿（2026-05-31，链接挂在 Vera Rubin NVL72 产品页上）。比 CES 2026-01 发布稿更新更具体的' +
+      '上市口径：正文「NVIDIA today announced the NVIDIA Vera Rubin platform is ramping into full production to ' +
+      'power agentic AI factories worldwide.」，Availability 一节只有一句「Production shipments of Vera Rubin are ' +
+      'set to begin starting this fall.」' +
+      '★ 口径要点：「ramping into full production」说的是**制造**已经起量，而**客户出货**是「set to begin ' +
+      'starting this fall」——是前瞻性承诺，不是「已开始出货」的事实陈述。本项目因此把系统 status 保持在 ' +
+      'announced（详见 sys.vera-rubin-nvl72 的 availability Claim note），并把这条与 CES 发布稿的' +
+      '「available from partners the second half of 2026」两版口径一起留痕。' +
+      '⚠️ 全篇末尾带 Safe Harbor 前瞻性声明段，因此上市时间只能是 vendor_claim，不是 verified_spec。',
   },
   {
     id: 'src.nvidia-lpx-page',
@@ -149,6 +238,44 @@ export const SOURCES: SourceRef[] = [
     localFile: null,
     asOf: '2026-03',
     note: 'NVIDIA 官方技术博客（2026-03-16）。LPX 机架/托盘/芯片三级规格的唯一官方出处：表 1 机架级（315 PFLOPS / 128 GB SRAM / 40 PB/s / 256 chips / 640 TB/s）、表 2 每托盘（8 颗 LP30 / 4 GB SRAM / 1.2 PB/s / 9.6 PFLOPS FP8 / 20 TB/s）、「32 liquid-cooled 1U compute trays」「eight LPU accelerators, a host processor, and fabric expansion logic」、LPU「500 MB of high-speed on-chip SRAM」「96 C2C links running at 112 Gbps each… 2.5 TB/s」，以及 AFD（attention–FFN disaggregation）与 Dynamo 编排、「35x higher TPS per megawatt at 400 TPS per user compared with the NVIDIA GB200 NVL72」。⚠️ 机架 315 PFLOPS 与每托盘 9.6 PFLOPS 是表 1/表 2 各自给出的独立口径（32 × 9.6 = 307.2 ≠ 315），官方没有解释差值，本项目两条并存、不互推。',
+  },
+  {
+    id: 'src.nvidia-lpx-fullprod-press',
+    title: 'NVIDIA Groq 3 LPX Now in Full Production With World-Class Speed for Agentic AI',
+    publisher: 'NVIDIA Newsroom',
+    kind: 'official_press',
+    url: 'https://nvidianews.nvidia.com/news/nvidia-groq-3-lpx-now-in-full-production-with-world-class-speed-for-agentic-ai',
+    localFile: null,
+    asOf: '2026-08',
+    note:
+      'Hot Chips 发布稿（2026-08-24，产品页首屏「Read Press Release」按钮直达）。**取代 GTC 2026-03 的' +
+      '「2026 下半年上市」口径**：首句逐字「NVIDIA today announced that NVIDIA Groq 3 LPX, the interactive AI ' +
+      'inference accelerator, is now in full production.」' +
+      '★ 另两条可用事实：① 云侧落地强度弱于加速器本身——「Nebius, a leading AI cloud, plans to bring NVIDIA ' +
+      'Groq 3 LPX to Nebius Token Factory」「Following Nebius, purpose-built AI inference cloud Groq plans to be ' +
+      'among the platform\'s earliest adopters.」（都是 plans to，不是 is）；' +
+      '② **「许可而非收购」的第二处官方证据**——商标行「Groq and LPU are used under license from Groq, Inc.」' +
+      '（第一处是 2025-12 Groq 官方新闻室的非排他许可协议发布稿）。' +
+      '⚠️ 全篇末尾带 Safe Harbor 前瞻性声明段。',
+  },
+  {
+    id: 'src.nvidia-lpx-longcontext-blog',
+    title:
+      'How NVIDIA Groq 3 LPX Unlocks Ultrafast Interactivity at Long Context on NVIDIA Vera Rubin',
+    publisher: 'NVIDIA Developer Blog',
+    kind: 'official_doc',
+    url: 'https://developer.nvidia.com/blog/how-nvidia-groq-3-lpx-unlocks-ultrafast-interactivity-at-long-context-on-nvidia-vera-rubin/',
+    localFile: null,
+    asOf: '2026-08',
+    note:
+      'NVIDIA 官方技术博客（2026-08-24，与量产发布稿同日）。与本项目已有的 LPX 数据**逐条一致、无矛盾**：' +
+      '仍是「the 256 LP30 local processing units (LPUs)」「The 128 GB of total SRAM-based memory collectively in ' +
+      'those chips」。新增的是配对分工的一种更细说法：「Standard prefill-decode disaggregation: Vera Rubin NVL72 ' +
+      'handles prefill and hands off the KV cache once per turn. Groq 3 LPX uses this KV cache, along with weights ' +
+      'held in SRAM, to perform the entire decode step.」' +
+      '⚠️ 注意这与 2026-03 技术博客的 AFD（attention–FFN 分离，每 token 往返一次）**不是同一种切分方式**——' +
+      '官方在这里把它列为「standard」的那一档，本项目不据此改写既有的 AFD 叙述，两种编排方式并存留痕。' +
+      '本源另有第三方 benchmark（Artificial Analysis，Gemma 4 31B）数字，属他方跑分，本项目不建 Claim。',
   },
   {
     id: 'src.nvidia-vera-rubin-gtc26-press',
@@ -186,12 +313,28 @@ export const SOURCES: SourceRef[] = [
       'configuration (2 CPUs, 8 GPUs, 9 NICs at 800 Gb/s bandwidth per GPU)」）、8 张 ConnectX-8 SuperNIC ' +
       '焊在 HGX 基板上 + 每台 1 张 BlueField-3、Spectrum-X 以太网、**风冷**（「industry-leading performance ' +
       'in an air-cooled form factor」）、4 节点 SU、32/64/128 节点三个设计点。' +
-      '⚠️ 已发现三处该文档自身的内部不一致，引用时须留痕：① components.html Table 2 的「CPU」「CPU sockets」' +
+      '⚠️ 已发现七处该文档自身的内部不一致，引用时须留痕：① components.html Table 2 的「CPU」「CPU sockets」' +
       '两行被误填成 NVLink 的值（「Total Aggregate Bandwidth 14.4TB/s」「GPU-to-GPU Bandwidth 1800GB/s」）；' +
       '② CPU 核数下限 Table 2 写「Minimum of 48 physical CPU cores per socket」、appendix Table 8 写' +
       '「Minimum of 32 physical CPU cores per socket」；③ 交换机型号 network-logical-architecture Table 5 与 ' +
       'appendix Table 9 写 SN5600（128-port 400 GbE / Spectrum-4），networking-hardware 一节写 SN5610' +
-      '（64 × 800 Gbps）。另：appendix Table 8 的标题误写成「RTX PRO Server system components」。',
+      '（64 × 800 Gbps）；④ 汇聚网交换机台数 network-logical-architecture Table 7（Nodes=32）写' +
+      '「Leaf | 2」「Spine | N/A」、同节正文写「Cost-efficient converged two-switch fabric for CPU ' +
+      '(North/South) Network」，而 appendix Table 9 的「NVIDIA Spectrum-4 SN5600 Ethernet switch, ' +
+      'converged core fabric」一行写 12 / 24 / 48；⑤ 128 节点的 SN2201 台数正文写「NVIDIA SN2201 switch ' +
+      'per SU (32 switches total)」、appendix Table 9 写 16（32 与 64 节点两处则一致，分别是 4 与 8）；' +
+      '⑥ 管理节点的汇聚网口速率 network-logical-architecture 写「Each compute node is connected with two ' +
+      '400 GbE ports and each management node is connected with two 200 GbE ports」，' +
+      'networking-physical-topologies 写「Each compute and management node is connected with two 400 GbE ' +
+      'ports」；⑦ 双平面的负载均衡由谁做：networking-physical-topologies 同一页里，Multi Plane Topology ' +
+      'Approach 一节写「the resiliency and the load balancing between the two planes is handled by the ' +
+      'NCCL on the host」，Dual Plane Topology 一节写「Tracking of each plane, load balancing, and ' +
+      'failure handling is handled by the ConnectX-8 SuperNIC on the hardware level」' +
+      '（GB300 NVL72 RA 同一页有完全相同的两说）。' +
+      '另：appendix Table 8 的标题误写成「RTX PRO Server system components」。' +
+      '★ 还有一处**不是矛盾但极易误引**：「Rack layout must provide power supply redundancy」在 32/64/128 ' +
+      '三个设计点都出现，但只有 32 节点那一处带后半句「; otherwise, consider an alternative rack layout」。' +
+      '★ 全篇零出现「Spectrum-4」以外的交换芯片代际标注（SN5610 从未被标过代际），也零出现「51.2」。',
   },
   {
     id: 'src.nvidia-hgx-page',

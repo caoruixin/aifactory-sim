@@ -19,14 +19,18 @@ import {
   totalInstances,
   ancestorsOf,
   childrenOf,
-  assembliesUsingComponent,
+  systemById,
 } from '../../data'
 import type { AssemblyNode, Claim, Connection, HardwareComponent } from '../../data/types'
+import { componentReuseGroups } from '../../lib/componentReuse'
 import { LEVEL_LABEL, canDrillInto, levelOfFocus, rackContainerOf } from '../../lib/drill'
 import { planeColor } from '../../lib/palette'
 import { planeLabel } from '../../lib/planeLabel'
+import { plainText } from '../../lib/richText'
+import { hasSpecLabel, specLabel } from '../../lib/specLabel'
 import { detailIdOf, useFactoryStore } from '../../store'
 import { EvidenceChip, MetaChip, StatusChip } from '../ui/Chips'
+import RichText from '../ui/RichText'
 
 export default function DetailPanel() {
   const detailId = useFactoryStore(detailIdOf)
@@ -82,8 +86,14 @@ export default function DetailPanel() {
       <div className="space-y-5 px-4 py-4">
         {/* ── 作用 ── */}
         <Section title="它是干嘛的">
-          <p className="text-sm leading-relaxed">{component.summary}</p>
-          {node.note ? <p className="mt-2 text-xs leading-relaxed text-dim">{node.note}</p> : null}
+          <p className="text-sm leading-relaxed">
+            <RichText text={component.summary} />
+          </p>
+          {node.note ? (
+            <p className="mt-2 text-xs leading-relaxed text-dim">
+              <RichText text={node.note} />
+            </p>
+          ) : null}
         </Section>
 
         {/* ── 售前话术 ── */}
@@ -91,7 +101,9 @@ export default function DetailPanel() {
           <h3 className="text-[11px] font-semibold tracking-widest text-warn uppercase">
             售前怎么解释
           </h3>
-          <p className="mt-1.5 text-sm leading-relaxed">{component.presalesNote}</p>
+          <p className="mt-1.5 text-sm leading-relaxed">
+            <RichText text={component.presalesNote} />
+          </p>
         </div>
 
         {/* ── 数量证据 ── */}
@@ -108,7 +120,7 @@ export default function DetailPanel() {
           ) : (
             <dl className="divide-y divide-line rounded-md border border-line">
               {Object.entries(component.specs).map(([key, claim]) => (
-                <ClaimRow key={key} name={key} claim={claim} />
+                <ClaimRow key={key} name={key} specKey={key} claim={claim} />
               ))}
             </dl>
           )}
@@ -215,13 +227,35 @@ function formatValue(claim: Claim): string {
   return claim.value
 }
 
-function ClaimRow({ name, claim }: { name: string; claim: Claim }) {
+function ClaimRow({
+  name,
+  specKey,
+  claim,
+}: {
+  /** 没有 `specKey` 时（如「每个上级里的数量」）直接用这个显示名。 */
+  name: string
+  /**
+   * 内容包里的原始规格键。给了它就查 `lib/specLabel.ts` 换成中文标签，
+   * 同时把原 key 挂到 `<dt title>`——键名是 `compare.ts` 跨代配对的依据、不能改，
+   * 但懂行的人仍然要能一眼对回内容包。查不到标签时回落显示键名本身（并保留等宽字体，
+   * 让「这是个未翻译的标识符」这件事一眼可见）。
+   */
+  specKey?: string
+  claim: Claim
+}) {
   const source = sourceById(claim.sourceId)
   const unknown = claim.value === null
+  const labelled = specKey !== undefined && hasSpecLabel(specKey)
+  const display = specKey !== undefined ? specLabel(specKey) : name
   return (
     <div className="px-2.5 py-2">
       <div className="flex items-baseline justify-between gap-2">
-        <dt className="font-mono text-[11px] break-all text-dim">{name}</dt>
+        <dt
+          className={`text-[11px] break-all text-dim ${labelled ? '' : 'font-mono'}`}
+          title={specKey}
+        >
+          {display}
+        </dt>
         <dd className={`text-right text-sm font-medium ${unknown ? 'text-dim italic' : ''}`}>
           {formatValue(claim)}
           {claim.unit && !unknown ? <span className="ml-0.5 text-xs text-dim">{claim.unit}</span> : null}
@@ -230,17 +264,23 @@ function ClaimRow({ name, claim }: { name: string; claim: Claim }) {
       <div className="mt-1 flex flex-wrap items-center gap-1.5">
         <EvidenceChip evidence={claim.evidence} />
         <StatusChip status={claim.status} />
-        <span className="text-[11px] text-dim" title={claim.locator ?? undefined}>
+        {/* title= 放不下 <strong>，用 plainText 去掉成对的 `**`（locator 里也会出现粗体）。 */}
+        <span className="text-[11px] text-dim" title={plainText(claim.locator) || undefined}>
           {source ? source.title : claim.sourceId}
           {' · '}
           {claim.asOf}
         </span>
       </div>
       {claim.locator ? (
-        <p className="mt-1 text-[11px] leading-snug text-dim">出处：{claim.locator}</p>
+        <p className="mt-1 text-[11px] leading-snug text-dim">
+          出处：
+          <RichText text={claim.locator} />
+        </p>
       ) : null}
       {claim.note ? (
-        <p className="mt-1 text-[11px] leading-snug text-warn">{claim.note}</p>
+        <p className="mt-1 text-[11px] leading-snug text-warn">
+          <RichText text={claim.note} />
+        </p>
       ) : null}
     </div>
   )
@@ -329,11 +369,32 @@ function ConnectionRow({
         {' · '}
         {connection.medium}
       </p>
-      <p className="mt-1 text-[11px] leading-relaxed">{connection.summary}</p>
+      <p className="mt-1 text-[11px] leading-relaxed">
+        <RichText text={connection.summary} />
+      </p>
     </li>
   )
 }
 
+/**
+ * 「同一组件还出现在」——**必须按代际分开**（v1.5 缺陷 3）。
+ *
+ * 出问题的现场：`shared.ts` 里的 9 个共享组件（机房 / 一次侧水路 / 机房配电 …）被 5 个
+ * 系统各引用一次，装配节点的 `label` 又都叫「机房」，于是 GB300 里选中根节点时这一行
+ * 会渲染出四个**完全同名**的链接；点进去 `select()` 把 `selectedId` 指到了 Vera Rubin 的
+ * 节点上，右栏换成了另一棵树，而顶栏代际按钮、面包屑、3D 场景、导览面板全部仍停在 GB300
+ * ——用户被静默带进一个左右不一致的状态。
+ *
+ * ★ 修法（三选一里选「跨代单独一行、标代际名、纯文字不可点」），理由：
+ * 1. **不可能再产生自相矛盾的画面**——跨代那一行根本不改任何状态，这是结构上的保证，
+ *    而不是「记得同时改 generation」这种要靠人守的约定。
+ * 2. **换代在本项目里是一个有明确重置语义的显式动作**（`store.setGeneration` 会重置
+ *    focusPath / selectedId / tourStopIdx / flow，并给比较模式重挑右侧）。把这么重的一次
+ *    状态重置藏在「实物参考与出处」末尾一个 11px 的脚注链接后面，点击代价远超它的外观。
+ *    顶栏那排代际按钮才是换代的正确入口，用户仍然两步就能过去。
+ * 3. **信息一条都没少**：共享组件跨代复用本身就是教学内容（同一个机房/水路服务五代），
+ *    列出代际名比列出四个同名的「机房」链接更能把这件事讲清楚。
+ */
 function ComponentReuse({
   component,
   selfId,
@@ -343,20 +404,35 @@ function ComponentReuse({
   selfId: string
   onJump: (id: string) => void
 }) {
-  const uses = assembliesUsingComponent(component.id).filter((a) => a.id !== selfId)
-  if (uses.length === 0) return null
+  // 分组逻辑是纯函数（lib/componentReuse.ts），在 node 环境里单测。
+  const { sameGeneration, otherSystemIds } = componentReuseGroups(component.id, selfId)
+  if (sameGeneration.length === 0 && otherSystemIds.length === 0) return null
+
   return (
-    <p className="mt-2 text-[11px] leading-relaxed text-dim">
-      同一组件还出现在：
-      {uses.map((a, i) => (
-        <span key={a.id}>
-          {i > 0 ? '、' : ' '}
-          <button type="button" onClick={() => onJump(a.id)} className="text-accent underline">
-            {a.label}
-          </button>
-        </span>
-      ))}
-    </p>
+    <div className="mt-2 space-y-1 text-[11px] leading-relaxed text-dim" data-component-reuse="1">
+      {sameGeneration.length > 0 ? (
+        <p data-reuse-same-generation="1">
+          同一组件在本代际还出现在：
+          {sameGeneration.map((a, i) => (
+            <span key={a.id}>
+              {i > 0 ? '、' : ' '}
+              <button type="button" onClick={() => onJump(a.id)} className="text-accent underline">
+                {a.label}
+              </button>
+            </span>
+          ))}
+        </p>
+      ) : null}
+      {otherSystemIds.length > 0 ? (
+        <p data-reuse-other-generations={otherSystemIds.join(',')}>
+          其他代际也用了这个组件：
+          <span className="text-fg">
+            {otherSystemIds.map((id) => systemById(id)?.name ?? id).join('、')}
+          </span>
+          <span>（不可直接跳转——换代际请用顶栏的代际按钮，否则左右两边会讲不同的机器）</span>
+        </p>
+      ) : null}
+    </div>
   )
 }
 

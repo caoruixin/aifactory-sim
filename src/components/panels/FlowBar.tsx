@@ -26,6 +26,7 @@
 import { assemblyById, episodeOf, systemById } from '../../data'
 import { buildTimeline, FLOW_PHASE_LABEL, flowStepFocus } from '../../lib/flowTimeline'
 import { useFactoryStore } from '../../store'
+import RichText from '../ui/RichText'
 
 const EMPTY_ROUTES = new Map<string, never>()
 const SPEEDS = [0.5, 1, 2] as const
@@ -215,11 +216,13 @@ export default function FlowBar({ onInspectAssembly }: FlowBarProps = {}) {
             </span>
           ) : null}
         </div>
-        <p className="mt-1.5 text-xs leading-relaxed">{current.description}</p>
+        <p className="mt-1.5 text-xs leading-relaxed">
+          <RichText text={current.description} />
+        </p>
         {current.presalesNote ? (
           <p className="mt-1.5 rounded-md border border-warn/30 bg-warn/10 px-2.5 py-1.5 text-[11px] leading-relaxed">
             <span className="font-semibold text-warn">售前怎么解释：</span>
-            {current.presalesNote}
+            <RichText text={current.presalesNote} />
           </p>
         ) : null}
       </div>

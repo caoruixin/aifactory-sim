@@ -403,6 +403,34 @@ describe('Vera Rubin NVL72：证据纪律与 null 传播', () => {
     VERA_RUBIN_CONNECTIONS,
   )
 
+  /**
+   * ★ v1.5 订正：本代际的 evidence 不再是「一律 verified_spec」。
+   *
+   * `types.ts` 把 `verified_spec` 定义成「官方规格表/参考架构中的**确切数字**」，
+   * 有两类内容不满足这个定义，硬标成 verified_spec 是给读者错误的确定性：
+   * 1. 发布稿里的**前瞻性上市承诺**（两篇 Vera Rubin 发布稿末尾都带 Safe Harbor 声明）；
+   * 2. 官方英文本身**有歧义**、当前值是本项目对该英文的一种解读（ConnectX-9 板级拆分），
+   *    或官方规格表**刻意留空**、数值取自另一层级口径（NVLink-C2C 的 1.8 TB/s 是每超级芯片，
+   *    产品页 Rubin GPU 列写的是「-」）。
+   *
+   * 因此这条断言改成：官方源 + announced 仍是硬约束；evidence 放宽到
+   * `verified_spec | vendor_claim`，但**下面那条白名单锁死了哪几条可以是 vendor_claim**
+   * ——任何人把一个规格表数字悄悄降级、或把一条解读悄悄升级成 verified_spec，都会在这里红掉。
+   */
+  const VENDOR_CLAIM_ALLOWLIST = new Set([
+    // 发布稿里的前瞻性上市承诺（Safe Harbor）
+    'sys.vera-rubin-nvl72.keySpecs.availability',
+    // 产品页规格表 Rubin GPU 列在 NVLink-C2C 行是「-」；1.8 TB/s 是每超级芯片口径
+    'cmp.rubin.rubin-gpu.specs.c2cBandwidthGBs',
+    'con.rubin.vera-gpu-c2c.bandwidth',
+    // 「quad ConnectX-9 SuperNIC boards」英文有歧义，板级拆分不是确证事实
+    'cmp.rubin.cx9-mezzanine.specs.boardsPerTray',
+    'cmp.rubin.cx9-mezzanine.specs.nicsPerBoard',
+    'cmp.rubin.cx9-mezzanine.specs.cpuPairing',
+    'asm.rubin.nic-board.countClaim',
+    'asm.rubin.cx9-nic.countClaim',
+  ])
+
   it('★ 本代际的每条 Claim 都引用 NVIDIA 官方源，且状态为 announced', () => {
     const official = new Set(
       FACTORY_PACK.sources
@@ -413,8 +441,18 @@ describe('Vera Rubin NVL72：证据纪律与 null 传播', () => {
     for (const { where, claim } of claims) {
       expect(official.has(claim.sourceId), `${where} 引用了非官方源 ${claim.sourceId}`).toBe(true)
       expect(claim.status, `${where}.status`).toBe('announced')
-      expect(claim.evidence, `${where}.evidence`).toBe('verified_spec')
+      expect(['verified_spec', 'vendor_claim'], `${where}.evidence`).toContain(claim.evidence)
       expect(claim.locator === null || claim.locator.length > 0, `${where}.locator`).toBe(true)
+    }
+  })
+
+  it('★ 只有白名单里的 Claim 能是 vendor_claim（其余必须是官方规格表里的确切数字）', () => {
+    const actual = claims.filter((c) => c.claim.evidence === 'vendor_claim').map((c) => c.where)
+    expect(new Set(actual)).toEqual(VENDOR_CLAIM_ALLOWLIST)
+    // 每条 vendor_claim 都必须写清「为什么它不是 verified_spec」
+    for (const { where, claim } of claims.filter((c) => c.claim.evidence === 'vendor_claim')) {
+      expect(claim.note, `${where} 是 vendor_claim 却没有说明理由`).not.toBeNull()
+      expect(claim.note!.length, `${where}.note 太短`).toBeGreaterThan(20)
     }
   })
 
@@ -461,6 +499,73 @@ describe('Vera Rubin NVL72：证据纪律与 null 传播', () => {
   it('预发布限定（Preliminary information）在关键 Claim 上留痕', () => {
     expect(VERA_RUBIN_SYSTEM.keySpecs.gpuCount!.note).toContain('Preliminary')
     expect(VERA_RUBIN_SYSTEM.keySpecs.fp4InferencePflops!.note).toContain('稀疏')
+  })
+
+  /**
+   * ★ v1.5：把「Preliminary information」从「手写 2 条」升级成「按源自动注入」后的可执行锁。
+   *
+   * 背景：`DetailPanel` 的 `SourceLine` 只渲染 source 的 title/publisher/asOf，`SourceRef.note`
+   * 从不上屏——写在 sources.ts 里那句脚注声明对最终用户不可见。用户看到的是一枚证据徽章加一个
+   * 不带任何预发布提示的数字。因此这条限定必须落在 **Claim.note** 上，且必须是无遗漏的。
+   */
+  it('★ 三个带脚注 1 的源上的每条有值 Claim 都自动带「Preliminary information」', () => {
+    const PRELIM_SOURCES = new Set([
+      'src.nvidia-vera-rubin-page',
+      'src.nvidia-dgx-rubin-page',
+      'src.nvidia-vera-rubin-datasheet',
+    ])
+    const targets = claims.filter((c) => PRELIM_SOURCES.has(c.claim.sourceId) && c.claim.value !== null)
+    // 这三个源承载了 20.7 TB / 1,580 TB/s / 2,520 PFLOPS / 3,168 核 / 1,296 颗… 十几条规格
+    expect(targets.length).toBeGreaterThan(15)
+    for (const { where, claim } of targets) {
+      expect(claim.note, `${where} 落在脚注 1 下却没有预发布提示`).toContain('Preliminary information')
+    }
+  })
+
+  it('★ V1 机架级 NVLink 走后部铜缆脊柱（不是 PCB 中板），且两句官方话并存', () => {
+    const bp = componentById('cmp.rubin.nvlink-midplane')!
+    // 5,000 根铜缆 / 4 个线缆匣是官方数字，不再是「未公布」
+    expect(bp.specs.cableCount!.value).toBe(5000)
+    expect(bp.specs.cableCartridgeCount!.value).toBe(4)
+    // locator 必须同时含两句官方原文，防止有人再用一句否定另一句
+    expect(bp.specs.medium!.locator).toContain('NVLink spine at the back of the rack')
+    expect(bp.specs.medium!.locator).toContain('through the PCB midplane')
+    expect(bp.specs.medium!.note).toContain('不要用一句去否定另一句')
+    // 「cable-free」的主语是托盘：机架组件必须显式说明这条边界
+    expect(componentById('cmp.rubin.mgx-rack')!.specs.cableFree!.note).toContain('tray')
+  })
+
+  it('★ V5 NVLink-C2C 的 1.8 TB/s 是每超级芯片口径，不得按单卡乘 72', () => {
+    const c2c = componentById('cmp.rubin.rubin-gpu')!.specs.c2cBandwidthGBs!
+    expect(c2c.value).toBe(1800)
+    expect(c2c.evidence).toBe('vendor_claim')
+    expect(c2c.note).toContain('每超级芯片')
+    // 36 × 1.8 ≈ 官方整机架 65 TB/s；72 × 1.8 = 129.6 会差一倍
+    expect(36 * 1.8).toBeCloseTo(64.8, 5)
+    expect(VERA_RUBIN_SYSTEM.keySpecs.c2cAggregateBandwidthTBs!.value).toBe(65)
+  })
+
+  it('★ V4 ConnectX-9 板级拆分是解读不是事实：乘积锁死 8，因子降为 low', () => {
+    const mez = componentById('cmp.rubin.cx9-mezzanine')!
+    // 确证事实：每托盘 8 张
+    expect(mez.specs.nicsPerTray!.value).toBe(8)
+    expect(mez.specs.nicsPerTray!.evidence).toBe('verified_spec')
+    // 两个因子都是低置信解读，且乘积必须仍等于 8
+    for (const k of ['boardsPerTray', 'nicsPerBoard'] as const) {
+      expect(mez.specs[k]!.confidence, k).toBe('low')
+      expect(mez.specs[k]!.note, k).toContain('歧义')
+    }
+    expect((mez.specs.boardsPerTray!.value as number) * (mez.specs.nicsPerBoard!.value as number)).toBe(8)
+  })
+
+  it('★ V7 上市时间是 vendor_claim，且两版官方口径都留痕；status 仍为 announced', () => {
+    const av = VERA_RUBIN_SYSTEM.keySpecs.availability!
+    expect(av.evidence).toBe('vendor_claim')
+    expect(av.sourceId).toBe('src.nvidia-vera-rubin-fullprod-press')
+    expect(av.locator).toContain('Production shipments of Vera Rubin are set to begin starting this fall')
+    expect(av.note).toContain('second half of 2026') // CES 2026-01 的原口径未被丢弃
+    // 「ramping into full production」说的是制造，客户出货只是 set to begin ⇒ 不改 shipping
+    expect(VERA_RUBIN_SYSTEM.status).toBe('announced')
   })
 })
 
@@ -649,6 +754,73 @@ describe('★ Rubin Ultra NVL576：SemiAnalysis 专项证据纪律（四重锁�
     expect(optics.specs.bandwidthTbs!.value).toBeNull()
     expect(optics.specs.bandwidthTbs!.note).toContain('x.xT')
   })
+
+  /**
+   * ★ v1.5 R1/R2：官方**已经**点名 NVL576 的拓扑类别（two-layer all-to-all）。
+   * 此前两处 note 断言「官方没有点名任何拓扑」是事实错误，场景层因此把分析师命名
+   * （Dragonfly）当唯一说法对外讲。这条锁保证官方词不会再被删掉、也不会被 Dragonfly 顶替。
+   */
+  it('★ R1 拓扑官方已命名 two-layer all-to-all，Dragonfly 只能作分析师归类并存', () => {
+    for (const c of [
+      RUBIN_ULTRA_SYSTEM.keySpecs.topologyNameOfficial!,
+      componentById('cmp.rubin-ultra.interrack-fabric')!.specs.topologyNameOfficial!,
+    ]) {
+      expect(c.sourceId).toBe('src.nvidia-rubin-pod-blog')
+      expect(c.evidence).toBe('vendor_claim')
+      expect(c.status).toBe('announced')
+      expect(c.asOf).toBe('2026-03')
+      expect(c.locator).toContain('two-layer all-to-all NVLink topology')
+      expect(String(c.value)).toContain('all-to-all')
+    }
+    // 分析师归类保留，但必须显式写明与官方措辞不等价
+    const analyst = componentById('cmp.rubin-ultra.interrack-fabric')!.specs.topologyName!
+    expect(analyst.sourceId).toBe('src.semianalysis-nvl576')
+    expect(analyst.note).toContain('不等价')
+    // 曾经断言「官方没有点名任何拓扑」的两处 note，现在都必须写出官方那个名字
+    // （历史措辞只允许以「此前……是错的」的订正形式出现，不能再作为结论）
+    expect(analyst.note).toContain('two-layer all-to-all')
+    expect(RUBIN_ULTRA_SYSTEM.keySpecs.scaleUpTopology!.note).toContain('two-layer all-to-all')
+    // 场景旁白必须先说官方词——不能只把分析师命名讲给客户
+    const overview = RUBIN_ULTRA_SCENES.find((s) => s.id === 'scene.ru.domain-overview')!
+    expect(overview.narration).toContain('two-layer all-to-all')
+    expect(overview.narration).toContain('分析师')
+  })
+
+  it('★ R2 跨机架光互连的 topology 与官方一致（不是无来源的 fat-tree）', () => {
+    const link = RUBIN_ULTRA_CONNECTIONS.find((c) => c.id === 'con.ru.optics-interrack')!
+    // 官方 = two-layer all-to-all；SemiAnalysis 表① = Dragonfly、表② = Direct Connect NPO。
+    // 三处来源没有任何一处说过 fat-tree。
+    expect(link.topology).toBe('all-to-all')
+    expect(link.summary).toContain('two-layer all-to-all')
+    expect(link.sourceIds).toContain('src.nvidia-rubin-pod-blog')
+  })
+
+  it('★ R3 Kyber 是 MGX NVL 的下一代（不是并列产品线），但仍与 NVL576 分属两档', () => {
+    const opts = RUBIN_ULTRA_SYSTEM.keySpecs.nvlinkDomainOptions!
+    expect(opts.locator).toContain('standalone NVL144 system')
+    expect(opts.note).toContain('next-generation MGX NVL rack design')
+    expect(opts.note).toContain('两档不同产品')
+    expect(opts.note).not.toContain('并列的产品线')
+  })
+
+  it('★ R4/R6 三处措辞精度：keynote 自相矛盾留痕、可制造性、驳斥、22.5U 是增加', () => {
+    const t = RUBIN_ULTRA_SYSTEM.keySpecs.announceTimeline!
+    expect(t.confidence).toBe('low')
+    expect(t.note).toContain('原句自身矛盾')
+
+    const d = RUBIN_ULTRA_SYSTEM.keySpecs.delayOutlook!
+    expect(d.note).toContain('可制造性')
+    expect(d.note).toContain('manufacturability')
+    expect(d.note).toContain('驳斥')
+    expect(d.note).toContain('rejected')
+    // 「良率」只允许以订正说明的形式出现，不能再作为原因的表述
+    expect(d.note).toContain('原文没有出现 yield/良率')
+
+    const maxU = componentById('cmp.rubin-ultra.oberon-rack')!.specs.maxTrayDistanceU!
+    expect(maxU.value).toBe(22.5)
+    expect(maxU.note).toContain('增加')
+    expect(maxU.locator).toContain('19U')
+  })
 })
 
 // ═══════════════════════════ Groq 3 LPX（v1.3 W3） ═══════════════════════════
@@ -766,11 +938,18 @@ describe('Groq 3 LPX：机架/托盘/芯片三级数量与容量', () => {
   })
 
   it('★ 全部 LPX Claim 都是 vendor_claim + announced，且只引官方源', () => {
+    // v1.5：新增两个官方源。
+    // - `src.nvidia-lpx-fullprod-press`（2026-08-24 量产发布稿）：availability 的最新官方口径，
+    //   GTC 2026-03 的「2026 下半年上市」已被它超越（详见该 Claim 的 note）。
+    // - `src.nvidia-rubin-pod-blog`（2026-03 POD 博客）：LPX 的 C2C spine 物理介质
+    //   （2 个铜缆匣、数千对铜缆）的唯一官方出处——此前本项目误记为「官方未公布介质」。
     const officialLpxSources = new Set([
       'src.nvidia-lpx-page',
       'src.nvidia-lpx-blog',
       'src.nvidia-vera-rubin-gtc26-press',
       'src.groq-nvidia-licensing',
+      'src.nvidia-lpx-fullprod-press',
+      'src.nvidia-rubin-pod-blog',
     ])
     const claims: Claim[] = [
       ...Object.values(GROQ3_LPX_SYSTEM.keySpecs),
@@ -798,12 +977,77 @@ describe('Groq 3 LPX：机架/托盘/芯片三级数量与容量', () => {
     expect(JSON.stringify(GROQ3_LPX_SYSTEM)).not.toContain('200 亿')
   })
 
-  it('AFD 叙事数字（35× @400 TPS/用户）带全前提，且标明是配对系统口径', () => {
+  /**
+   * ★ v1.5 L3：官方对「35×」有**三个**前提，此前对外文案只带了两个。
+   * 「trillion-parameter models」这句限定在产品页与 GTC26 发布稿里都与 35× 写在同一句，
+   * 漏掉它就等于允许售前拿 35× 去讲一个 70B 模型——这是实打实的超范围引用。
+   */
+  it('AFD 叙事数字（35×）带齐三个前提：万亿参数模型 + 400 TPS/用户 + 对比 GB200 NVL72', () => {
     const gain = GROQ3_LPX_SYSTEM.keySpecs.pairedThroughputGain!
     expect(gain.sourceId).toBe('src.nvidia-lpx-blog')
-    expect(String(gain.value)).toContain('35')
-    expect(String(gain.value)).toContain('400 TPS')
+    for (const s of ['35', '400 TPS', '万亿参数', 'GB200 NVL72']) {
+      expect(String(gain.value), `35× 的前提缺了「${s}」`).toContain(s)
+    }
+    expect(gain.locator).toContain('trillion-parameter models')
     expect(gain.note).toContain('配对')
+    expect(gain.note).toContain('超范围引用')
+    // 「万亿参数」这个前提必须出现在**对外可见**的地方，不能只躺在 sources.ts 的引文里
+    const outward = JSON.stringify([GROQ3_LPX_SYSTEM, GROQ3_LPX_SCENES, FACTORY_PACK.comparisons])
+    expect(outward).toContain('万亿参数')
+  })
+
+  /**
+   * ★ v1.5 L2：带宽口径与算力口径是同一类「官方自身不闭合」，此前只给算力加了留痕。
+   *   256 × 150 TB/s = 32 × 1.2 PB/s = 38.4 PB/s ≠ 官方机架级 40 PB/s。
+   * 对照：容量与 scale-up 带宽那两对确实闭合，**不该**贴这条 note。
+   */
+  it('★ L2 带宽三条口径不闭合已留痕，且真正闭合的两对不受污染', () => {
+    expect(256 * 150).toBe(38_400) // TB/s ⇒ 38.4 PB/s ≠ 40
+    expect(32 * 1.2).toBeCloseTo(38.4, 5) // PB/s ≠ 40
+    const tray = componentById('cmp.lpx.compute-tray')!
+    const lpu = componentById('cmp.lpx.lp30-lpu')!
+    for (const c of [
+      GROQ3_LPX_SYSTEM.keySpecs.sramBandwidthPBs!,
+      tray.specs.sramBandwidthPerTrayPBs!,
+      lpu.specs.sramBandwidthTBs!,
+    ]) {
+      expect(c.note).toContain('38.4')
+      expect(c.note).toContain('互不推导')
+    }
+    // 闭合的两对：128 GB = 256 × 500 MB、640 TB/s = 256 × 2.5 = 32 × 20
+    expect(GROQ3_LPX_SYSTEM.keySpecs.sramTotalGB!.note).not.toContain('38.4')
+    expect(GROQ3_LPX_SYSTEM.keySpecs.scaleUpBandwidthTBs!.note).not.toContain('38.4')
+    // 旁白不得再把两条独立口径讲成推导关系
+    const anatomy = GROQ3_LPX_SCENES.find((s) => s.id === 'scene.lpx.rack-anatomy')!
+    expect(anatomy.narration).toContain('不要互推')
+    expect(anatomy.narration).not.toContain('150 TB/s 片上带宽（机架合计 40 PB/s）')
+  })
+
+  /**
+   * ★ v1.5 L5：LPX 的 C2C spine 物理介质官方**公布了**（2026-03 POD 博客），
+   * 此前记作「未公布」是漏检。同时锁住那个措辞陷阱：cableless 的主语是托盘不是机架。
+   */
+  it('★ L5 C2C spine 是铜缆脊柱（2 个铜缆匣），且不编造铜缆根数', () => {
+    const spine = componentById('cmp.lpx.c2c-spine')!
+    expect(spine.specs.medium!.value).not.toBeNull()
+    expect(String(spine.specs.medium!.value)).toContain('铜')
+    expect(spine.specs.medium!.sourceId).toBe('src.nvidia-rubin-pod-blog')
+    expect(spine.specs.medium!.locator).toContain('two copper cable cartridges')
+    expect(spine.specs.cableCartridgeCount!.value).toBe(2)
+    // 官方只说 thousands of paired，没给根数 ⇒ 不建根数 Claim
+    expect(Object.keys(spine.specs)).not.toContain('cableCount')
+    // 「无线缆」的主语必须写清是托盘
+    expect(spine.presalesNote).toContain('修饰的是**托盘**')
+  })
+
+  it('★ L1 上市口径已更新到 2026-08 量产发布稿，GTC 原口径保留；status 仍为 announced', () => {
+    const av = GROQ3_LPX_SYSTEM.keySpecs.availability!
+    expect(av.sourceId).toBe('src.nvidia-lpx-fullprod-press')
+    expect(av.locator).toContain('is now in full production')
+    expect(av.note).toContain('second half of this year') // GTC 2026-03 原口径未被丢弃
+    // 「量产」不等于「在售」：官方没有 shipping now 这类措辞，云厂商也只是 plans to
+    expect(av.note).toContain('plans to')
+    expect(GROQ3_LPX_SYSTEM.status).toBe('announced')
   })
 
   it('两个导览场景讲 rack 解剖与 AFD 三段流，highlight 指向本系统真实节点', () => {

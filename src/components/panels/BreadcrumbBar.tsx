@@ -8,6 +8,7 @@
 import { Link } from 'react-router-dom'
 import { FACTORY_PACK, systemById } from '../../data'
 import { LEVEL_LABEL, crumbsOf } from '../../lib/drill'
+import { plainText } from '../../lib/richText'
 import { focusIdOf, useFactoryStore } from '../../store'
 import { StatusChip } from '../ui/Chips'
 
@@ -69,7 +70,9 @@ export default function BreadcrumbBar() {
                 data-generation={s.id}
                 aria-pressed={active}
                 onClick={() => setGeneration(s.id)}
-                title={s.summary}
+                // title= 只能放字符串，塞不下 <strong>：用 plainText 去掉成对的 `**`，
+                // 否则悬浮提示里会出现字面星号（内容包的 system.summary 有两处粗体）。
+                title={plainText(s.summary)}
                 className={`flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs transition-colors ${
                   active
                     ? 'border-accent bg-accent/10 font-medium text-accent'

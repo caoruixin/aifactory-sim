@@ -24,6 +24,7 @@ import CapacityPanel from '../panels/CapacityPanel'
 import ComparePanel from '../panels/ComparePanel'
 import DetailPanel from '../panels/DetailPanel'
 import Drawer from '../ui/Drawer'
+import RichText from '../ui/RichText'
 import { StatusChip } from '../ui/Chips'
 import Fallback2D from '../fallback/Fallback2D'
 
@@ -202,7 +203,9 @@ export default function MobileFactoryView() {
                 {activeScene ? (
                   <div className="mt-1.5">
                     <p className="text-sm font-medium">{activeScene.title}</p>
-                    <p className="mt-0.5 text-xs leading-relaxed text-dim">{activeScene.narration}</p>
+                    <p className="mt-0.5 text-xs leading-relaxed text-dim">
+                      <RichText text={activeScene.narration} />
+                    </p>
                   </div>
                 ) : null}
               </>
