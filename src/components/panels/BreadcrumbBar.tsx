@@ -118,7 +118,6 @@ export default function BreadcrumbBar() {
         </div>
 
         <div className="ml-auto flex items-center gap-3">
-          {capacityCaveat(system) ? <span className="text-[11px] text-warn">{capacityCaveat(system)}</span> : null}
           <Link to="/report" className="text-xs text-accent underline">
             汇报页 →
           </Link>
@@ -130,6 +129,8 @@ export default function BreadcrumbBar() {
         <div className="flex items-center gap-2">
           <span className="text-sm font-semibold">{system?.name ?? generation}</span>
           {system ? <StatusChip status={system.status} /> : null}
+          {/* 警示条挂在系统名旁而非第一行右侧：第一行宽度固定，切代时不再因它换行/跳高 */}
+          {capacityCaveat(system) ? <span className="text-[11px] text-warn">{capacityCaveat(system)}</span> : null}
         </div>
 
         <span aria-hidden className="h-4 w-px bg-line" />
