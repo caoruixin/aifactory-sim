@@ -1,7 +1,18 @@
 # v1.6 领域切面学习板块：网络切面 + 存储切面
 
-> 状态：**待实施**（计划固化于 2026-09-04）。按 W-A 数据层 → W-B 框架与桌面 UI →
-> W-C 计算器 → W-D 移动端与收口 四个工作流依赖递进实施，实施完成后回填本头部。
+> 状态：**已实施完成（本地提交，待推送/部署）**（2026-09-04）。
+> 提交序列：`8c846fa` 计划固化 → `86d59a3` W-A 数据层 → `421fecd` W-B 框架与桌面 UI →
+> `896f9c3` W-C 计算器 + W-D1 移动端/手册 → `bb692b3` W-D2 E2E 收口。
+> 终态门禁（独立复核）：**822 单测（667 → +155）/ E2E 54 passed + 54 skipped（连跑三遍全绿，
+> 基线字节稳定）/ typecheck / build 全绿**；17 张基线 `--update-snapshots=all` 全量重拍并
+> 逐张目检（15 变 / report-page 逐字节同 / lens-network-ch1 新增）。
+> 文档同步：LEARNING.md 新增「第 6 周 · 领域切面」11 张任务卡 + 附录 B lens 深链速查。
+>
+> 实施期已知副作用与订正（详见各提交）：① Model Streamer 37.36s 的对照对象是 **Tensorizer**
+> （非 Safetensors loader）；Mooncake 用 FAST'25 正式版数字（+59%~498% 有效请求容量），
+> 不用 arXiv 版；VAST 源换用 NVIDIA Dynamo×VAST 官方博客（TTFT 62s→3s）。
+> ② 顶栏加第三个模式按钮后，1440px 下 NVL576 的产能警示条会把顶栏首行挤成两行
+> （flex-wrap 预期行为，版面完整，未改 src——如需单行可在后续批次微调）。
 
 ## Context
 
