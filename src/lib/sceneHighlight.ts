@@ -15,10 +15,16 @@
  *
  * ★ 与 `flowStepFocus` 一样**刻意不进 store**：它是 `(scene, depth)` 的派生值，
  *   而深度变化（下钻）根本不经过 `applyScene`，存下来的 ID 一下钻就失效。
+ *
+ * ★ v1.6 起还有第二个来源：切面章节的 `highlightAssemblyIds`（`lensHighlightFocus`）。
+ *   它走**同一套折叠**并复用同一个 scene 通道——切面与导览在同一时刻只可能有一个生效
+ *   （`mode` 三选一），所以不需要第五个高亮通道，`highlightKindOf` 一行都不用改。
  */
 
 import { sceneById, scenesOfSystem } from '../data'
 import type { LodLevel, ScenePreset } from '../data/types'
+import type { LensViewState } from './lens'
+import { activeLensChapter } from './lens'
 import { visibleAncestorAt } from './routing'
 
 export interface SceneHighlightFocus {
@@ -59,15 +65,19 @@ export function sceneHighlightFocusById(sceneId: string, depth: LodLevel): Scene
   return sceneHighlightFocus(sceneById(sceneId) ?? null, depth)
 }
 
-/** 场景 → 该深度下的高亮集合。`null` 场景（不在导览中）一律空集合。 */
-export function sceneHighlightFocus(
-  scene: ScenePreset | null | undefined,
+/**
+ * 一组「内容作者写下的」装配 ID → 该深度下真的挂载的集合。
+ * 导览场景与切面章节（v1.6）共用它——两边写的都是同一种语义 ID，
+ * 折叠规则没有任何理由分叉。
+ */
+export function highlightFocusOf(
+  ids: readonly string[] | null | undefined,
   depth: LodLevel,
 ): SceneHighlightFocus {
-  if (!scene || scene.highlightAssemblyIds.length === 0) return EMPTY_FOCUS
+  if (!ids || ids.length === 0) return EMPTY_FOCUS
 
   const chipIds: string[] = []
-  for (const id of scene.highlightAssemblyIds) {
+  for (const id of ids) {
     if (id && !chipIds.includes(id)) chipIds.push(id)
   }
 
@@ -78,6 +88,14 @@ export function sceneHighlightFocus(
   }
 
   return { chipIds, sceneHighlightIds }
+}
+
+/** 场景 → 该深度下的高亮集合。`null` 场景（不在导览中）一律空集合。 */
+export function sceneHighlightFocus(
+  scene: ScenePreset | null | undefined,
+  depth: LodLevel,
+): SceneHighlightFocus {
+  return highlightFocusOf(scene?.highlightAssemblyIds, depth)
 }
 
 /**
@@ -91,7 +109,30 @@ export function sceneHighlightSet(
   generation: string,
   tourStopIdx: number,
   depth: LodLevel,
+  lens?: LensViewState | null,
 ): Set<string> | null {
-  const focus = sceneHighlightFocus(activeTourScene(mode, generation, tourStopIdx), depth)
+  const focus =
+    mode === 'lens'
+      ? lensHighlightFocus(mode, generation, lens, depth)
+      : sceneHighlightFocus(activeTourScene(mode, generation, tourStopIdx), depth)
   return focus.sceneHighlightIds.length > 0 ? new Set(focus.sceneHighlightIds) : null
+}
+
+/**
+ * 切面章节点名的硬件（v1.6）——与导览走**同一套折叠**，因此高亮观感（`highlightKindOf`
+ * 的 scene 通道、更低的自发光、instanced 路径的混色）全部免费继承，零新颜色。
+ *
+ * ★ 章节 pin 死了代际：正在渲染的系统与章节的 `systemId` 不一致时一律空集合。
+ *   这种不一致理论上进不来（`setGeneration` 会把 `chapterIdx` 清成 -1），
+ *   但比较模式的右视口渲染的确实是另一代，守一道成本为零。
+ */
+export function lensHighlightFocus(
+  mode: string,
+  generation: string,
+  lens: LensViewState | null | undefined,
+  depth: LodLevel,
+): SceneHighlightFocus {
+  const chapter = activeLensChapter(mode, lens)
+  if (!chapter || chapter.systemId !== generation) return EMPTY_FOCUS
+  return highlightFocusOf(chapter.highlightAssemblyIds, depth)
 }

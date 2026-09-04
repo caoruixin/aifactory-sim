@@ -21,16 +21,18 @@ import {
   childrenOf,
   systemById,
 } from '../../data'
-import type { AssemblyNode, Claim, Connection, HardwareComponent } from '../../data/types'
+import type { AssemblyNode, Connection, HardwareComponent } from '../../data/types'
 import { componentReuseGroups } from '../../lib/componentReuse'
 import { LEVEL_LABEL, canDrillInto, levelOfFocus, rackContainerOf } from '../../lib/drill'
 import { planeColor } from '../../lib/palette'
 import { planeLabel } from '../../lib/planeLabel'
-import { plainText } from '../../lib/richText'
-import { hasSpecLabel, specLabel } from '../../lib/specLabel'
 import { detailIdOf, useFactoryStore } from '../../store'
-import { EvidenceChip, MetaChip, StatusChip } from '../ui/Chips'
+import { MetaChip, StatusChip } from '../ui/Chips'
+// Section / ClaimRow 已提取到 ui/（v1.6 W-B）：切面章节面板要出同一套证据行，
+// 就地再写一遍必然分叉。DOM 与 class 与提取前逐字相同。
+import ClaimRow from '../ui/ClaimRow'
 import RichText from '../ui/RichText'
+import Section from '../ui/Section'
 
 export default function DetailPanel() {
   const detailId = useFactoryStore(detailIdOf)
@@ -210,81 +212,6 @@ export default function DetailPanel() {
 }
 
 // ─────────────────────────── 子块 ───────────────────────────
-
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <section>
-      <h3 className="text-[11px] font-semibold tracking-widest text-dim uppercase">{title}</h3>
-      <div className="mt-1.5">{children}</div>
-    </section>
-  )
-}
-
-function formatValue(claim: Claim): string {
-  if (claim.value === null) return '官方未公布'
-  if (typeof claim.value === 'boolean') return claim.value ? '是' : '否'
-  if (typeof claim.value === 'number') return claim.value.toLocaleString('zh-CN')
-  return claim.value
-}
-
-function ClaimRow({
-  name,
-  specKey,
-  claim,
-}: {
-  /** 没有 `specKey` 时（如「每个上级里的数量」）直接用这个显示名。 */
-  name: string
-  /**
-   * 内容包里的原始规格键。给了它就查 `lib/specLabel.ts` 换成中文标签，
-   * 同时把原 key 挂到 `<dt title>`——键名是 `compare.ts` 跨代配对的依据、不能改，
-   * 但懂行的人仍然要能一眼对回内容包。查不到标签时回落显示键名本身（并保留等宽字体，
-   * 让「这是个未翻译的标识符」这件事一眼可见）。
-   */
-  specKey?: string
-  claim: Claim
-}) {
-  const source = sourceById(claim.sourceId)
-  const unknown = claim.value === null
-  const labelled = specKey !== undefined && hasSpecLabel(specKey)
-  const display = specKey !== undefined ? specLabel(specKey) : name
-  return (
-    <div className="px-2.5 py-2">
-      <div className="flex items-baseline justify-between gap-2">
-        <dt
-          className={`text-[11px] break-all text-dim ${labelled ? '' : 'font-mono'}`}
-          title={specKey}
-        >
-          {display}
-        </dt>
-        <dd className={`text-right text-sm font-medium ${unknown ? 'text-dim italic' : ''}`}>
-          {formatValue(claim)}
-          {claim.unit && !unknown ? <span className="ml-0.5 text-xs text-dim">{claim.unit}</span> : null}
-        </dd>
-      </div>
-      <div className="mt-1 flex flex-wrap items-center gap-1.5">
-        <EvidenceChip evidence={claim.evidence} />
-        <StatusChip status={claim.status} />
-        {/* title= 放不下 <strong>，用 plainText 去掉成对的 `**`（locator 里也会出现粗体）。 */}
-        <span className="text-[11px] text-dim" title={plainText(claim.locator) || undefined}>
-          {source ? source.title : claim.sourceId}
-          {' · '}
-          {claim.asOf}
-        </span>
-      </div>
-      {claim.locator ? (
-        <p className="mt-1 text-[11px] leading-snug text-dim">
-          出处：
-          <RichText text={claim.locator} />
-        </p>
-      ) : null}
-      {claim.note ? (
-        <p className="mt-1 text-[11px] leading-snug text-warn">
-          <RichText text={claim.note} />
-        </p>
-      ) : null}
-    </div>
-  )
-}
 
 function Position({ node }: { node: AssemblyNode }) {
   const rackId = rackContainerOf(node.id)

@@ -12,6 +12,9 @@
  *   这件事根本不需要渲染层再管一次。现在的规则只有一条：**非退化 + 平面开关打开就画**，
  *   默认视觉秩序交给导览场景 preset（`scene.gb300.cluster-overview` 已收窄为
  *   scaleout/power/cooling）与用户自己的开关；
+ * - **强调集合的唯一裁决者是 `lib/connectionEmphasis.ts`**（v1.6）：数据流当前步与
+ *   切面章节动线（`LensChapter.highlightConnectionIds`）会同时存在，优先级写在那个纯函数里，
+ *   降级路径的连接列表走同一个入口。以下这条讲的是**视觉参数**，不是「谁被强调」的判定；
  * - **当前步骤强调 + 其余退让**（v1.1 B3）：播放中（或 `reducedMotion` 下——那时没有
  *   移动粒子，这就是主要反馈）当前 `FlowStep` 引用的线加粗 ×1.8 并拉满不透明度，
  *   同屏其余线降到 0.35。只改 opacity/linewidth/color，**不翻转 transparent**
@@ -39,6 +42,7 @@ import { invalidate } from '@react-three/fiber'
 import { useEffect, useMemo } from 'react'
 import { assemblyById, episodeOf } from '../../data'
 import type { LodLevel, NetworkPlane } from '../../data/types'
+import { connectionEmphasis } from '../../lib/connectionEmphasis'
 import type { ResolvedLayout, Vec3 } from '../../lib/layout'
 import { FLOW_EMPHASIS, planeColor } from '../../lib/palette'
 import { routeConnections, stackStubLabels } from '../../lib/routing'
@@ -72,6 +76,11 @@ export default function ConnectionLayer({
   const flow = useFactoryStore((s) => s.flow)
   const reducedMotion = useFactoryStore((s) => s.reducedMotion)
   const select = useFactoryStore((s) => s.select)
+  // 窄订阅：切面只需要「模式 + 哪一章」两个标量，整个订 `s.lens` 会让每次
+  // setLens 都重建对象引用（这里是 3D 层，重渲染代价比 DOM 面板高）。
+  const mode = useFactoryStore((s) => s.mode)
+  const lensId = useFactoryStore((s) => s.lens.lensId)
+  const lensChapterIdx = useFactoryStore((s) => s.lens.chapterIdx)
 
   // containment 由调用方 memo 化（`SceneRoot` 已 useMemo），这里**整对象透传 + 整对象入依赖**：
   // 拆成 rootAssemblyId 再重建 `{rootAssemblyId}` 会在新增字段（如 margin）时静默丢数据——
@@ -81,23 +90,36 @@ export default function ConnectionLayer({
     [systemId, layout, depth, exploded, containment],
   )
 
-  // 当前步骤的高亮只对**该系统自己的**剧本有意义：换代际后 GB300 的连接 ID
-  // 在这个系统里根本不存在，硬查会一条都点不亮（还会误导人以为数据错了）。
-  const activeConnectionIds = useMemo(() => {
-    const episode = episodeOf(systemId, flow.episodeIdx)
-    const step = episode?.steps[flow.stepIdx]
-    return new Set(step ? step.connectionIds : [])
-  }, [systemId, flow.episodeIdx, flow.stepIdx])
+  /**
+   * 强调哪几条线由 `lib/connectionEmphasis.ts` 一处裁决（数据流当前步 vs 切面章节动线），
+   * 降级路径的连接列表走同一个函数——两边不可能再点亮不同的集合。
+   *
+   * 当前步骤的高亮只对**该系统自己的**剧本有意义：换代际后 GB300 的连接 ID 在这个系统里
+   * 根本不存在，硬查会一条都点不亮（还会误导人以为数据错了）；切面章节同理，
+   * 因此把 `systemId` 一并传进去让纯函数守这条。
+   */
+  const emphasis = useMemo(() => {
+    const step = episodeOf(systemId, flow.episodeIdx)?.steps[flow.stepIdx]
+    return connectionEmphasis({
+      mode,
+      lens: { lensId, chapterIdx: lensChapterIdx },
+      stepConnectionIds: step?.connectionIds ?? [],
+      flowPlaying: flow.playing,
+      reducedMotion,
+      systemId,
+    })
+  }, [systemId, flow.episodeIdx, flow.stepIdx, flow.playing, reducedMotion, mode, lensId, lensChapterIdx])
+
+  const activeConnectionIds = useMemo(() => new Set(emphasis.connectionIds), [emphasis])
 
   /**
    * 退让只在「这一屏**确实画得出**被强调的那条线」时才发生。
    *
    * 不能只看 `activeConnectionIds.size > 0`：prefill 引用的 `gpu-nvswitch` 在集群深度是
    * 退化边（根本没有路由），那时把其余线全压到 0.35 就是「无缘无故整屏变暗、却没有任何
-   * 一条线被点亮」。逻辑层步骤（`connectionIds` 为空）同理。
+   * 一条线被点亮」。逻辑层步骤（`connectionIds` 为空）与切面章节的跨深度动线同理。
    */
-  const emphasize =
-    (flow.playing || reducedMotion) && routes.some((r) => activeConnectionIds.has(r.connectionId))
+  const emphasize = emphasis.dim && routes.some((r) => activeConnectionIds.has(r.connectionId))
 
   const byPlane = useMemo(() => {
     const allowed = planeFilter ? new Set(planeFilter) : null
@@ -133,10 +155,12 @@ export default function ConnectionLayer({
     return stackStubLabels(visible)
   }, [routes, planeFilter, planes, showStubLabels])
 
-  // demand 帧循环下，store 驱动的重渲染（平面开关、步骤切换）不会自动触发 WebGL 重绘。
+  // demand 帧循环下，store 驱动的重渲染（平面开关、步骤切换、**切面换章**）不会自动
+  // 触发 WebGL 重绘。`emphasis` 入依赖 = 切面章节切换也一定补帧（哪怕两章点亮的是同
+  // 一组连接，dim/来源变了画面也变）。
   useEffect(() => {
     invalidate()
-  }, [planes, byPlane, activeConnectionIds, emphasize, stubLabelPositions])
+  }, [planes, byPlane, activeConnectionIds, emphasis, emphasize, stubLabelPositions])
 
   return (
     <group name="connection-layer">

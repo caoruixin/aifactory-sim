@@ -18,7 +18,13 @@ import {
   highlightKindOf,
 } from './palette'
 import type { HighlightKind } from './palette'
-import { activeTourScene, sceneHighlightFocus, sceneHighlightSet } from './sceneHighlight'
+import { lensChapterAt } from './lens'
+import {
+  activeTourScene,
+  lensHighlightFocus,
+  sceneHighlightFocus,
+  sceneHighlightSet,
+} from './sceneHighlight'
 
 const GB300 = 'sys.gb300-nvl72'
 const VR = 'sys.vera-rubin-nvl72'
@@ -144,6 +150,47 @@ describe('sceneHighlightSet：store 三字段 + 深度 → 渲染端集合', () 
     // 背板不占 U 位但确实是机架级节点，同样在集合里
     expect(set!.has('asm.gb300.nvlink-backplane')).toBe(true)
     expect(set!.has('asm.gb300.power-shelf')).toBe(false)
+  })
+})
+
+describe('切面章节高亮（v1.6）：与导览共用 scene 通道与同一套折叠', () => {
+  const NETWORK = 'lens.network'
+  const CH0 = lensChapterAt(NETWORK, 0)! // GB300 rack：托盘 + 交换托盘 + 背板
+
+  it('lens 模式 + 有效章节 → 折叠后的集合', () => {
+    const set = sceneHighlightSet('lens', CH0.systemId, -1, 'rack', { lensId: NETWORK, chapterIdx: 0 })
+    expect(set).not.toBeNull()
+    for (const id of CH0.highlightAssemblyIds) expect(set!.has(id), id).toBe(true)
+  })
+
+  it('板级件在机架深度折叠到所在托盘（与导览同一个 visibleAncestorAt）', () => {
+    // 存储切面第 2 章点名 E1.S 缓存盘这类板级件
+    const chapter = lensChapterAt('lens.storage', 1)!
+    const focus = lensHighlightFocus('lens', chapter.systemId, { lensId: 'lens.storage', chapterIdx: 1 }, 'rack')
+    expect(focus.chipIds).toEqual(chapter.highlightAssemblyIds)
+    for (const id of focus.sceneHighlightIds) {
+      expect(assemblyById(id), id).toBeDefined()
+      expect(assemblyById(id)!.systemId).toBe(chapter.systemId)
+    }
+  })
+
+  it('非 lens 模式 / 无章节 / 未传 lens → null（渲染端完全跳过）', () => {
+    expect(sceneHighlightSet('explore', GB300, -1, 'rack', { lensId: NETWORK, chapterIdx: 0 })).toBeNull()
+    expect(sceneHighlightSet('lens', GB300, -1, 'rack', { lensId: NETWORK, chapterIdx: -1 })).toBeNull()
+    expect(sceneHighlightSet('lens', GB300, -1, 'rack')).toBeNull()
+    expect(sceneHighlightSet('lens', GB300, -1, 'rack', null)).toBeNull()
+  })
+
+  it('★ 渲染的代际与章节 pin 的代际不符 → 空集合（比较模式右视口不会乱点亮）', () => {
+    expect(sceneHighlightSet('lens', VR, -1, 'rack', { lensId: NETWORK, chapterIdx: 0 })).toBeNull()
+  })
+
+  it('★ lens 模式下不会误用导览站号（两条叙事互斥，走的是两个分支）', () => {
+    const tourIdx = scenesOfSystem(GB300).findIndex((s) => s.id === 'scene.gb300.learn-plane-power')
+    const set = sceneHighlightSet('lens', GB300, tourIdx, 'rack', { lensId: NETWORK, chapterIdx: 0 })
+    // 导览站点名的是电源架/母排，切面第 1 章点名的是 NVLink 三件——不能串
+    expect(set!.has('asm.gb300.power-shelf')).toBe(false)
+    expect(set!.has('asm.gb300.nvswitch-tray')).toBe(true)
   })
 })
 

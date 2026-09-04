@@ -8,14 +8,18 @@
 import { Link } from 'react-router-dom'
 import { FACTORY_PACK, systemById } from '../../data'
 import { LEVEL_LABEL, crumbsOf } from '../../lib/drill'
+// 代际短名（去厂商前缀与「（预测）」后缀）与切面章节副行共用一个出处，见 lib/lens.ts。
+import { DEFAULT_LENS_ID, shortSystemName } from '../../lib/lens'
 import { plainText } from '../../lib/richText'
 import { focusIdOf, useFactoryStore } from '../../store'
 import { StatusChip } from '../ui/Chips'
 
-/** 代际按钮上的短名：去掉厂商前缀与「（预测）」后缀，塞得进一行。 */
-function shortName(name: string): string {
-  return name.replace(/^NVIDIA\s+/, '').replace(/（预测）$/, '')
-}
+/** 模式按钮：切面（v1.6）不走 `setMode`——进切面必须同时把章节播下去，见 `store.setLens`。 */
+const MODE_BUTTONS = [
+  { id: 'explore', label: '探索' },
+  { id: 'compare', label: '比较' },
+  { id: 'lens', label: '切面' },
+] as const
 
 /**
  * 顶部小字警示条：按 `status × capacityPolicy` 出文案（v1.3）。
@@ -49,6 +53,10 @@ export default function BreadcrumbBar() {
   const drillUp = useFactoryStore((s) => s.drillUp)
   const setGeneration = useFactoryStore((s) => s.setGeneration)
   const setMode = useFactoryStore((s) => s.setMode)
+  const setLens = useFactoryStore((s) => s.setLens)
+  // 窄订阅：只取切面的两个标量字段（E2E/深链锚点 + 续读用），不整个订 `s.lens`。
+  const lensId = useFactoryStore((s) => s.lens.lensId)
+  const lensChapterIdx = useFactoryStore((s) => s.lens.chapterIdx)
   const focusId = useFactoryStore(focusIdOf)
 
   const system = systemById(generation)
@@ -79,7 +87,7 @@ export default function BreadcrumbBar() {
                     : 'border-line text-dim hover:border-accent/50 hover:text-fg'
                 }`}
               >
-                {shortName(s.name)}
+                {shortSystemName(s.name)}
                 <StatusChip status={s.status} />
               </button>
             )
@@ -89,20 +97,22 @@ export default function BreadcrumbBar() {
         <span aria-hidden className="h-4 w-px bg-line" />
 
         <div role="group" aria-label="模式切换" className="flex items-center gap-1">
-          {(['explore', 'compare'] as const).map((m) => (
+          {MODE_BUTTONS.map((m) => (
             <button
-              key={m}
+              key={m.id}
               type="button"
-              data-mode={m}
-              aria-pressed={mode === m}
-              onClick={() => setMode(m)}
+              data-mode={m.id}
+              aria-pressed={mode === m.id}
+              // 切面：`setLens` 续读上次读到的那一章（没有历史就进第一条切面的第 1 章），
+              // 它一次性把代际/层级/焦点/平面全部落地——只 setMode 会进到一个空壳。
+              onClick={() => (m.id === 'lens' ? setLens(lensId ?? DEFAULT_LENS_ID) : setMode(m.id))}
               className={`rounded-md border px-2 py-1 text-xs transition-colors ${
-                mode === m
+                mode === m.id
                   ? 'border-accent bg-accent/10 font-medium text-accent'
                   : 'border-line text-dim hover:border-accent/50 hover:text-fg'
               }`}
             >
-              {m === 'explore' ? '探索' : '比较'}
+              {m.label}
             </button>
           ))}
         </div>
@@ -166,13 +176,15 @@ export default function BreadcrumbBar() {
         </div>
       </div>
 
-      {/* 深链与 E2E 用：当前焦点/代际/模式写进 DOM，不依赖 3D */}
+      {/* 深链与 E2E 用：当前焦点/代际/模式/切面章节写进 DOM，不依赖 3D */}
       <span
         hidden
         data-focus-id={focusId ?? ''}
         data-level={level}
         data-generation={generation}
         data-mode={mode}
+        data-lens-id={lensId ?? ''}
+        data-lens-chapter={lensChapterIdx}
       />
     </div>
   )

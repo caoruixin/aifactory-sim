@@ -14,6 +14,7 @@
 
 import { useMemo, useState } from 'react'
 import { connectionById, episodeOf } from '../../data'
+import { emphasizedConnectionIds } from '../../lib/connectionEmphasis'
 import { sceneHighlightSet } from '../../lib/sceneHighlight'
 import { useFactoryStore } from '../../store'
 import SegmentedTabs from '../ui/SegmentedTabs'
@@ -38,11 +39,32 @@ export default function Fallback2D() {
   const select = useFactoryStore((s) => s.select)
   const flow = useFactoryStore((s) => s.flow)
   const tourStopIdx = useFactoryStore((s) => s.tourStopIdx)
+  const reducedMotion = useFactoryStore((s) => s.reducedMotion)
+  // 窄订阅：切面只需要这两个标量（同 SceneRoot / ConnectionLayer 的做法）。
+  const lensId = useFactoryStore((s) => s.lens.lensId)
+  const lensChapterIdx = useFactoryStore((s) => s.lens.chapterIdx)
 
   const episode = episodeOf(generation, flow.episodeIdx)
   const step = episode?.steps[flow.stepIdx]
 
-  const activeConnectionIds = useMemo(() => new Set(step?.connectionIds ?? []), [step])
+  /**
+   * 强调集合与 3D 的 `ConnectionLayer` **共用同一个纯函数**（v1.6）：
+   * 数据流当前步 vs 切面章节动线的优先级只有一处裁决，因此 `?gl=off` 下连接列表整行
+   * `data-active` 的集合恒等于 3D 里被加粗的那一组——降级不是另一套逻辑。
+   * `ConnectionListTable` 本身零改动。
+   */
+  const activeConnectionIds = useMemo(
+    () =>
+      emphasizedConnectionIds({
+        mode,
+        lens: { lensId, chapterIdx: lensChapterIdx },
+        stepConnectionIds: step?.connectionIds ?? [],
+        flowPlaying: flow.playing,
+        reducedMotion,
+        systemId: generation,
+      }),
+    [mode, lensId, lensChapterIdx, step, flow.playing, reducedMotion, generation],
+  )
 
   // 结构图的高亮集合：步骤显式点亮的部件 + 它引用的每条连接的两端——
   // 与 ConnectionLayer 里「当前步骤加粗对应连接」是同一份数据源（FlowStep），
@@ -60,9 +82,9 @@ export default function Fallback2D() {
   }, [activeConnectionIds, step])
 
   /**
-   * 导览当前站点名的硬件（v1.3 W2）——与 3D 的 `SceneRoot` **共用同一个纯函数**，
-   * 于是 `?gl=off`、探测不到 WebGL、移动端降级这三条路径下导览站同样有高亮，
-   * 而不是像 v1.2 那样降级视图只认数据流。
+   * 导览当前站（v1.3 W2）/ 切面当前章（v1.6）点名的硬件——与 3D 的 `SceneRoot`
+   * **共用同一个纯函数**，于是 `?gl=off`、探测不到 WebGL、移动端降级这三条路径下
+   * 导览站与切面章同样有高亮，而不是像 v1.2 那样降级视图只认数据流。
    *
    * ★ 折叠深度固定取 `'rack'`：结构图画的就是机架立面（只有带 rackU 的档位），
    *   因此把「板级件」折叠到它所在的托盘正好对上图上的粒度。集群级件
@@ -70,8 +92,8 @@ export default function Fallback2D() {
    *   自然不产生标记——这是正确行为，不是漏标。
    */
   const sceneAssemblyIds = useMemo(
-    () => sceneHighlightSet(mode, generation, tourStopIdx, 'rack'),
-    [mode, generation, tourStopIdx],
+    () => sceneHighlightSet(mode, generation, tourStopIdx, 'rack', { lensId, chapterIdx: lensChapterIdx }),
+    [mode, generation, tourStopIdx, lensId, lensChapterIdx],
   )
 
   const compareMode = mode === 'compare'

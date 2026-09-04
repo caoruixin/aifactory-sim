@@ -16,6 +16,14 @@ import { FACTORY_PACK, sceneById } from './data'
 import type { LodLevel, NetworkPlane } from './data/types'
 import type { DrillState } from './lib/drill'
 import { initialDrillState, nextState } from './lib/drill'
+import type { LensViewState } from './lib/lens'
+import {
+  DEFAULT_LENS_ID,
+  chapterPlaneFlags,
+  lensChapterAt,
+  lensChapterCount,
+  resolveLensId,
+} from './lib/lens'
 import { PLANE_ORDER } from './lib/palette'
 import { detectWebGL } from './lib/webgl'
 
@@ -24,7 +32,7 @@ export type PlaneFlags = Record<NetworkPlane, boolean>
 /** 'unknown' = 尚未探测；'failed' = 运行期 context lost 或初始化抛错。 */
 export type GlStatus = 'unknown' | 'webgl2' | 'webgl' | 'none' | 'failed'
 
-export type ExplorerMode = 'explore' | 'compare' | 'tour'
+export type ExplorerMode = 'explore' | 'compare' | 'tour' | 'lens'
 
 export const DEFAULT_SYSTEM_ID = FACTORY_PACK.systems[0]?.id ?? 'sys.gb300-nvl72'
 /** 比较模式的默认右侧代际：内容包里的第二个系统（没有第二个就退回默认）。 */
@@ -52,6 +60,51 @@ function otherSystemThan(systemId: string, preferred: string): string {
   return FACTORY_PACK.systems.find((s) => s.id !== systemId)?.id ?? systemId
 }
 
+/**
+ * 切面章节 → **一次原子 set** 的完整状态补丁（v1.6）。
+ *
+ * ★ 为什么必须是一个补丁而不是「先 setGeneration 再 applyScene 再 setPlanes」：
+ *   `useCameraRig` 的导航效果 A 依赖 `[level, focusPath, systemId]`，任何把这三者分两次
+ *   写进 store 的写法都会触发**两次相机飞行**——跨代章节（网络切面第 3/6 章）表现为
+ *   「先飞到新代际的机房总览，再飞向本章焦点」的双段闪跳。这里在同一次 set 里把
+ *   下钻状态、代际、平面、模式、章节序号全部落地，相机只飞一次。
+ *
+ * ★ 换代收尾照抄 `setGeneration` 的语义（`applyScene` 当年漏掉的那几项）：
+ *   flow 停播 + stepIdx 归零（旧代际的连接 ID 在新系统里不存在）、hover 清空、
+ *   compare 右侧经 `otherSystemThan` 清洗（否则跨代章节会让比较视图左右同代）。
+ *
+ * 返回 null = 章节不存在（未知 lens / 序号越界）：调用方保持状态不变。
+ */
+function lensChapterPatch(s: FactoryState, lensId: string, chapterIdx: number): Partial<FactoryState> | null {
+  const chapter = lensChapterAt(lensId, chapterIdx)
+  if (!chapter) return null
+
+  const genChanged = s.generation !== chapter.systemId
+  // 换代时下钻的基点必须是**新系统的根**：章节可能不给焦点（纯叙事章），
+  // 那时 `applyScene` 只改层级、保留 focusPath——拿旧代际的 focusPath 会指向另一棵树。
+  const base: DrillState = genChanged ? initialDrillState(chapter.systemId) : s
+  const drill = nextState(base, {
+    type: 'applyScene',
+    level: chapter.lodLevel,
+    focusAssemblyId: chapter.focusAssemblyId,
+  })
+  const right = otherSystemThan(chapter.systemId, s.compare.right)
+
+  return {
+    ...drill,
+    generation: chapter.systemId,
+    planes: chapterPlaneFlags(chapter),
+    mode: 'lens',
+    // 切面与导览互斥：进切面必然离开导览站，否则左栏换掉了、tourStopIdx 还留着，
+    // 3D 的场景高亮通道会与切面高亮通道同时开火。
+    tourStopIdx: -1,
+    lens: { lensId, chapterIdx },
+    hoveredId: genChanged ? null : s.hoveredId,
+    flow: genChanged ? { ...s.flow, stepIdx: 0, playing: false } : s.flow,
+    compare: right === s.compare.right ? s.compare : { ...s.compare, right },
+  }
+}
+
 /** 默认全开：先让用户看到「六个平面同时存在」，再靠开关做减法。 */
 export function defaultPlanes(): PlaneFlags {
   return PLANE_ORDER.reduce((acc, p) => {
@@ -75,6 +128,13 @@ export interface FactoryState extends DrillState {
    */
   flow: { episodeIdx: number; stepIdx: number; playing: boolean; speed: number }
   tourStopIdx: number
+  /**
+   * 领域切面状态（v1.6）。`chapterIdx = -1` = 有 lens 但没有激活章节
+   *（手动换代后的显式空态：模式仍是 'lens'，左栏还在，右栏出空态提示）。
+   *
+   * **不落盘**：它是一次会话内的临时视角，与 compare 同一档（partialize 白名单天然排除）。
+   */
+  lens: LensViewState
   reducedMotion: boolean
   glStatus: GlStatus
   /** 3D 首帧已出（或已确定走降级）。E2E 用容器上的 data-ready 等它。 */
@@ -87,6 +147,17 @@ export interface FactoryState extends DrillState {
   hover: (assemblyId: string | null) => void
   applyScene: (sceneId: string) => void
   setTourStop: (idx: number) => void
+  /**
+   * 进入某条切面（v1.6）。`lensId` 接受短名（`network`）或全 id（`lens.network`）。
+   *
+   * `chapterIdx` 省略时**续读**：同一条切面上次读到哪章就回哪章，换一条切面从第 0 章起。
+   * 显式给序号的场合有两个：代际对照 `crossRefs` 跳转、`?lens=&chapter=` 深链
+   * ——两者都必须一次落地（见 `lensChapterPatch` 的相机双飞注释），因此不拆成两个 action。
+   * 未知 lens / 越界序号：状态不变。
+   */
+  setLens: (lensId: string, chapterIdx?: number) => void
+  /** 切到本切面的第 idx 章（一次原子 set）。序号越界或没有当前切面时状态不变。 */
+  setLensChapter: (idx: number) => void
   togglePlane: (plane: NetworkPlane) => void
   setPlanes: (planes: Partial<PlaneFlags>) => void
   setMode: (mode: ExplorerMode) => void
@@ -209,6 +280,7 @@ export const useFactoryStore = create<FactoryState>()(
       compare: { right: DEFAULT_COMPARE_RIGHT_ID, showDiffOnly: false },
       flow: { episodeIdx: 0, stepIdx: 0, playing: false, speed: 1 },
       tourStopIdx: -1,
+      lens: { lensId: null, chapterIdx: -1 },
       reducedMotion: prefersReducedMotion(),
       glStatus: initialGlStatus(),
       ready: false,
@@ -244,6 +316,25 @@ export const useFactoryStore = create<FactoryState>()(
       },
       setTourStop: (idx) => set({ tourStopIdx: idx }),
 
+      setLens: (lensId, chapterIdx) =>
+        set((s) => {
+          const id = resolveLensId(lensId)
+          if (!id) return s
+          // 续读：同一条切面保留上次的章节，换切面（或上次没有章节）从头开始。
+          const resume = s.lens.lensId === id && s.lens.chapterIdx >= 0 ? s.lens.chapterIdx : 0
+          const idx = chapterIdx ?? resume
+          return lensChapterPatch(s, id, idx) ?? s
+        }),
+
+      setLensChapter: (idx) =>
+        set((s) => {
+          // 没有当前切面时（例如 `?mode=lens` 单独出现）回落到默认切面，
+          // 这样左栏列出的第一条切面点进去就能用，而不是静默无反应。
+          const id = s.lens.lensId ?? (lensChapterCount(DEFAULT_LENS_ID) > 0 ? DEFAULT_LENS_ID : null)
+          if (!id) return s
+          return lensChapterPatch(s, id, idx) ?? s
+        }),
+
       togglePlane: (plane) => set((s) => ({ planes: { ...s.planes, [plane]: !s.planes[plane] } })),
       setPlanes: (patch) => set((s) => ({ planes: { ...s.planes, ...patch } })),
       setMode: (mode) => set({ mode }),
@@ -259,6 +350,10 @@ export const useFactoryStore = create<FactoryState>()(
             generation: systemId,
             hoveredId: null,
             tourStopIdx: -1,
+            // 切面章节 pin 死了代际：手动换代等于宣告本章视角失效。
+            // 清序号而**不清 lensId、不改 mode**——左栏还在切面里，右栏出显式空态，
+            // 用户点任意一章即可继续（悄悄退回 explore 会让人以为界面自己乱跳）。
+            lens: s.lens.chapterIdx === -1 ? s.lens : { ...s.lens, chapterIdx: -1 },
             flow: { ...s.flow, stepIdx: 0, playing: false },
             compare: { ...s.compare, right: otherSystemThan(systemId, s.compare.right) },
           }

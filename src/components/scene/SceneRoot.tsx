@@ -626,6 +626,10 @@ export default function SceneRoot({
   const reducedMotion = useFactoryStore((s) => s.reducedMotion)
   const mode = useFactoryStore((s) => s.mode)
   const tourStopIdx = useFactoryStore((s) => s.tourStopIdx)
+  // 窄订阅：切面高亮只用得上「哪条切面 + 第几章」两个标量（同 tourStopIdx 的做法），
+  // 整个订 `s.lens` 会因为对象引用变化把整棵 3D 树白白重渲染一次。
+  const lensId = useFactoryStore((s) => s.lens.lensId)
+  const lensChapterIdx = useFactoryStore((s) => s.lens.chapterIdx)
 
   const generation = systemId ?? storeGeneration
   const level = levelProp ?? storeLevel
@@ -694,20 +698,25 @@ export default function SceneRoot({
     diff === null && flowPlaying && !reducedMotion && isLocalPhysicalStep(currentStep)
 
   /**
-   * 导览当前站点名的硬件（v1.3 W2）。与 `flowHighlight` 同一个模式：派生值现算不入 store。
+   * 导览当前站（v1.3 W2）/ 切面当前章（v1.6）点名的硬件。与 `flowHighlight` 同一个模式：
+   * 派生值现算不入 store。
    *
-   * ★ 生效条件（`mode === 'tour'` + 当前站有 highlightAssemblyIds）折在
-   *   `sceneHighlightSet` 里，`Fallback2D` 走同一个入口——「?gl=off 与移动端降级路径
-   *   也要有场景高亮」这条要求靠共用纯函数保证，而不是两处各写一遍判断。
+   * ★ 生效条件（`mode === 'tour'` + 当前站有 highlightAssemblyIds；`mode === 'lens'` +
+   *   当前章 pin 的代际就是这一屏）折在 `sceneHighlightSet` 里，`Fallback2D` 走同一个入口
+   *   ——「?gl=off 与移动端降级路径也要有讲解高亮」这条要求靠共用纯函数保证，
+   *   而不是两处各写一遍判断。导览与切面共用同一个 scene 通道（两者互斥）。
    *
-   * ★ 比较模式（diff !== null）恒为 null：那边不挂导览、也不该有讲解高亮。
+   * ★ 比较模式（diff !== null）恒为 null：那边不挂导览/切面、也不该有讲解高亮。
    *   比较双视口的右侧 systemId 也不是 store 的 generation，场景序号对不上。
    */
   const sceneHighlight = useMemo(() => {
     if (diff !== null) return null
     if (systemId !== undefined && systemId !== storeGeneration) return null
-    return sceneHighlightSet(mode, generation, tourStopIdx, depth)
-  }, [diff, systemId, storeGeneration, mode, generation, tourStopIdx, depth])
+    return sceneHighlightSet(mode, generation, tourStopIdx, depth, {
+      lensId,
+      chapterIdx: lensChapterIdx,
+    })
+  }, [diff, systemId, storeGeneration, mode, generation, tourStopIdx, depth, lensId, lensChapterIdx])
 
   return (
     <>

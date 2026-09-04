@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { FACTORY_PACK } from './data'
+import { DEFAULT_LENS_ID, activeLensChapter, lensChapterAt } from './lib/lens'
 import {
   DEFAULT_COMPARE_RIGHT_ID,
   DEFAULT_SYSTEM_ID,
@@ -56,6 +57,9 @@ describe('store 转移', () => {
       glStatus: 'unknown',
       ready: false,
       compare: { right: DEFAULT_COMPARE_RIGHT_ID, showDiffOnly: false },
+      // 切面状态不落盘也不被 reset() 清，跨用例残留会污染「续读」与空态断言。
+      lens: { lensId: null, chapterIdx: -1 },
+      flow: { episodeIdx: 0, stepIdx: 0, playing: false, speed: 1 },
     })
   })
 
@@ -287,6 +291,143 @@ describe('store 转移', () => {
     const before = useFactoryStore.getState()
     useFactoryStore.getState().swapCompareSides()
     expect(useFactoryStore.getState()).toBe(before)
+  })
+
+  // ─────────── 领域切面（v1.6 W-B：一次原子 set / 换代收尾 / 与导览互斥） ───────────
+
+  it('setLens：进入切面 → 模式、代际、层级、焦点、平面、章节序号一次到位', () => {
+    useFactoryStore.getState().setLens('lens.network')
+    const s = useFactoryStore.getState()
+    const chapter = lensChapterAt('lens.network', 0)!
+    expect(s.mode).toBe('lens')
+    expect(s.lens).toEqual({ lensId: 'lens.network', chapterIdx: 0 })
+    expect(s.generation).toBe(chapter.systemId)
+    expect(s.level).toBe(chapter.lodLevel)
+    expect(focusIdOf(s)).toBe(chapter.focusAssemblyId)
+    for (const [plane, on] of Object.entries(s.planes)) {
+      expect(on, plane).toBe(chapter.planes.includes(plane as never))
+    }
+  })
+
+  it('setLens 接受深链短名，并在同一条切面上「续读」上次的章节', () => {
+    useFactoryStore.getState().setLens('network', 3)
+    expect(useFactoryStore.getState().lens.chapterIdx).toBe(3)
+    // 离开又回来：不带序号 → 回到第 3 章
+    useFactoryStore.getState().setMode('explore')
+    useFactoryStore.getState().setLens('network')
+    expect(useFactoryStore.getState().lens.chapterIdx).toBe(3)
+    // 换一条切面 → 从第 0 章起
+    useFactoryStore.getState().setLens('storage')
+    expect(useFactoryStore.getState().lens).toEqual({ lensId: 'lens.storage', chapterIdx: 0 })
+  })
+
+  it('未知切面 / 越界章节序号不改变任何状态', () => {
+    useFactoryStore.getState().setLens('lens.network')
+    const before = useFactoryStore.getState()
+    useFactoryStore.getState().setLens('lens.nope')
+    expect(useFactoryStore.getState()).toBe(before)
+    useFactoryStore.getState().setLensChapter(99)
+    expect(useFactoryStore.getState()).toBe(before)
+    useFactoryStore.getState().setLensChapter(-1)
+    expect(useFactoryStore.getState()).toBe(before)
+  })
+
+  it('★ setLensChapter 是**一次** set：跨代章节的代际+层级+焦点同批落地（相机只飞一次）', () => {
+    useFactoryStore.getState().setLens('lens.network', 0)
+    expect(useFactoryStore.getState().generation).toBe('sys.gb300-nvl72')
+
+    const seen: { generation: string; level: string; focus: string | null }[] = []
+    const unsub = useFactoryStore.subscribe((s) =>
+      seen.push({ generation: s.generation, level: s.level, focus: focusIdOf(s) }),
+    )
+    // 第 3 章 pin 在 Vera Rubin（跨代）
+    useFactoryStore.getState().setLensChapter(2)
+    unsub()
+
+    const chapter = lensChapterAt('lens.network', 2)!
+    expect(chapter.systemId).toBe('sys.vera-rubin-nvl72')
+    expect(seen).toHaveLength(1) // ★ 只有一次状态转移，不存在「先换代再落焦点」的中间态
+    expect(seen[0]).toEqual({
+      generation: chapter.systemId,
+      level: chapter.lodLevel,
+      focus: chapter.focusAssemblyId,
+    })
+  })
+
+  it('★ 跨代章节的换代收尾：flow 停播、hover 清空、compare 右侧避开同代', () => {
+    useFactoryStore.getState().setLens('lens.network', 0)
+    useFactoryStore.getState().setFlow({ playing: true, stepIdx: 3 })
+    useFactoryStore.getState().hover(RACK)
+    useFactoryStore.getState().setCompare({ right: 'sys.vera-rubin-nvl72' })
+
+    useFactoryStore.getState().setLensChapter(2) // → Vera Rubin
+    const s = useFactoryStore.getState()
+    expect(s.generation).toBe('sys.vera-rubin-nvl72')
+    expect(s.flow.playing).toBe(false)
+    expect(s.flow.stepIdx).toBe(0)
+    expect(s.hoveredId).toBeNull()
+    expect(s.compare.right).not.toBe('sys.vera-rubin-nvl72')
+    expect(FACTORY_PACK.systems.some((x) => x.id === s.compare.right)).toBe(true)
+  })
+
+  it('同代章节之间切换不打断播放（只有换代才收尾）', () => {
+    useFactoryStore.getState().setLens('lens.network', 0)
+    useFactoryStore.getState().setFlow({ playing: true, stepIdx: 2 })
+    useFactoryStore.getState().setLensChapter(1) // 同为 GB300
+    const s = useFactoryStore.getState()
+    expect(s.generation).toBe('sys.gb300-nvl72')
+    expect(s.flow.playing).toBe(true)
+    expect(s.flow.stepIdx).toBe(2)
+  })
+
+  it('★ 切面与导览互斥：进切面清掉导览站号，进导览站不残留切面高亮', () => {
+    useFactoryStore.getState().applyScene('scene.gb300.learn-plane-nvlink')
+    expect(useFactoryStore.getState().tourStopIdx).toBeGreaterThanOrEqual(0)
+
+    useFactoryStore.getState().setLens('lens.network')
+    expect(useFactoryStore.getState().mode).toBe('lens')
+    expect(useFactoryStore.getState().tourStopIdx).toBe(-1)
+
+    useFactoryStore.getState().applyScene('scene.gb300.learn-plane-nvlink')
+    expect(useFactoryStore.getState().mode).toBe('tour')
+    // 序号还在（续读靠它），但 mode 已经不是 lens ⇒ activeLensChapter 判定为「不在切面中」
+    expect(activeLensChapter(useFactoryStore.getState().mode, useFactoryStore.getState().lens)).toBeNull()
+  })
+
+  it('★ 手动换代：章节序号清成 -1（显式空态），lensId 与 mode 保持不变', () => {
+    useFactoryStore.getState().setLens('lens.network', 1)
+    useFactoryStore.getState().setGeneration('sys.groq3-lpx')
+    const s = useFactoryStore.getState()
+    expect(s.mode).toBe('lens')
+    expect(s.lens).toEqual({ lensId: 'lens.network', chapterIdx: -1 })
+    expect(activeLensChapter(s.mode, s.lens)).toBeNull()
+    // 再点任意一章即可恢复（代际随章节回到 pin 的那一代）
+    useFactoryStore.getState().setLensChapter(1)
+    expect(useFactoryStore.getState().generation).toBe(lensChapterAt('lens.network', 1)!.systemId)
+  })
+
+  it('没有当前切面时 setLensChapter 回落到默认切面（?mode=lens 单独出现的兜底）', () => {
+    expect(useFactoryStore.getState().lens.lensId).toBeNull()
+    useFactoryStore.getState().setLensChapter(0)
+    expect(useFactoryStore.getState().lens.lensId).toBe(DEFAULT_LENS_ID)
+  })
+
+  it('reset 退出切面（mode 回 explore），但保留 lensId 供下次续读', () => {
+    useFactoryStore.getState().setLens('lens.storage', 2)
+    useFactoryStore.getState().reset()
+    const s = useFactoryStore.getState()
+    expect(s.mode).toBe('explore')
+    expect(activeLensChapter(s.mode, s.lens)).toBeNull()
+    expect(s.lens.lensId).toBe('lens.storage')
+  })
+
+  it('lens 不落盘（partialize 白名单只有三项）', () => {
+    useFactoryStore.getState().setLens('lens.network', 2)
+    const raw = JSON.stringify(sanitizePersisted({ ...useFactoryStore.getState() }))
+    expect(raw).not.toContain('lens.network')
+    expect(Object.keys(sanitizePersisted({})).sort()).toEqual(
+      ['generation', 'planes', 'reducedMotion'].sort(),
+    )
   })
 
   it('glStatus / ready 可被 3D 层回写', () => {

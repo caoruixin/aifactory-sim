@@ -22,6 +22,8 @@ import CapacityPanel from '../components/panels/CapacityPanel'
 import ComparePanel from '../components/panels/ComparePanel'
 import DetailPanel from '../components/panels/DetailPanel'
 import FlowBar from '../components/panels/FlowBar'
+import LensChapterPanel from '../components/panels/LensChapterPanel'
+import LensPanel from '../components/panels/LensPanel'
 import TourPanel from '../components/panels/TourPanel'
 import Fallback2D from '../components/fallback/Fallback2D'
 import MobileFactoryView from '../components/mobile/MobileFactoryView'
@@ -54,6 +56,8 @@ export default function FactoryPage() {
 
   const degraded = glStatus === 'none' || glStatus === 'failed'
   const compareMode = mode === 'compare'
+  /** 切面模式：左右两栏换成切面面板，中央 3D 与底部步骤条不动（同 compare 的换栏结构）。 */
+  const lensMode = mode === 'lens'
   /**
    * 这一屏根本不会挂 `<Canvas>`，因此**没有 `onCreated` 会来置 `ready`**：
    *   - 降级路径（`?gl=off`、探测不到 WebGL、运行期 context lost）；
@@ -104,7 +108,7 @@ export default function FactoryPage() {
 
           <div className="grid min-h-0 grid-cols-1 lg:grid-cols-[248px_1fr_380px]">
             <aside className="min-h-0 border-line bg-panel lg:border-r">
-              <TourPanel />
+              {lensMode ? <LensPanel /> : <TourPanel />}
             </aside>
 
             {/* flex 列而不是让子元素 h-full：降级提示条与产能卡各占自己的高度，
@@ -140,6 +144,8 @@ export default function FactoryPage() {
             <aside className="flex min-h-0 flex-col border-line bg-panel lg:border-l">
               {compareMode ? (
                 <ComparePanel />
+              ) : lensMode ? (
+                <LensChapterPanel />
               ) : (
                 <>
                   <div className="flex shrink-0 gap-1 border-b border-line px-3 py-1.5">
@@ -180,8 +186,10 @@ export default function FactoryPage() {
           </div>
 
           {/* 「本步涉及」chip 点击 = 选中 + 把右栏切到部件详情：用户停在「产能粗估」
-              tab 时只 select 是看不到东西的（tab 是这里的本地 state，所以动作下传）。 */}
-          <FlowBar onInspectAssembly={() => setTab('detail')} />
+              tab 时只 select 是看不到东西的（tab 是这里的本地 state，所以动作下传）。
+              ★ 切面模式下右栏根本没有这两个 tab（换成了章节面板），因此不下传回调——
+              切一个不存在的 tab 只会在退出切面时把用户莫名其妙地扔到详情页。 */}
+          <FlowBar onInspectAssembly={lensMode ? undefined : () => setTab('detail')} />
         </>
       )}
     </main>
