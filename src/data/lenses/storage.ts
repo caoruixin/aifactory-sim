@@ -219,7 +219,7 @@ export const STORAGE_LENS: DomainLens = {
       narration:
         '① 你应该看到什么：代际切到 HGX B300 的机架——服务器里的本地 NVMe 数据盘与 BlueField-3 亮起，' +
         '蓝线通向机架外的共享存储。这一代是「KV 分层」被官方点名的一代。' +
-        '② 谁连谁 + 关键数字：KV cache 的层级是 **HBM → 本地 NVMe（L1）→ 共享存储（L2）**，' +
+        '② 谁连谁 + 关键数字：KV cache 的层级是 **HBM → 锁页主机内存 → 本地 NVMe（L1）→ 共享存储（L2）**，' +
         'KVBM 管块的分配与驱逐、NIXL 管搬运。官方原句就在这一代的 RA 里：**「分布式推理把 KV cache 卸载到' +
         '高速网络存储」是点名的未来负载**，本地盘按推理 ≥1 TB/插槽、训练 ≥2 TB/插槽配。' +
         '这笔账的行业参照：Mooncake（Kimi 的 serving 平台，FAST 25 最佳论文）用分层 KV 换来**有效请求容量 ' +
@@ -235,14 +235,15 @@ export const STORAGE_LENS: DomainLens = {
       highlightConnectionIds: ['con.hgx.bf3-converged', 'con.hgx.converged-storage'],
       chain: [
         {
+          // v1.6.1 ④：补上 cpu-memory 一环（KVBM 文档 tiers 原句里的 pinned host memory）。
           id: 'kvbm-tiering',
-          hardwareRoleKeys: ['gpu-hbm', 'cache-storage'],
+          hardwareRoleKeys: ['gpu-hbm', 'cpu-memory', 'cache-storage'],
           techniqueId: 'tech.kvbm',
           phases: ['kv-write', 'decode'],
           metrics: ['ttft', 'kv-hit'],
           narrative:
-            'KVBM 把 KV 当分层内存里的块管：**HBM 只是第一层**，装不下的推到本地盘——' +
-            '命中远端层虽慢于 HBM，但比重算 prefill 便宜得多。',
+            'KVBM 把 KV 当分层内存里的块管：**HBM 只是第一层**，装不下的先落锁页主机内存、' +
+            '再推到本地盘——命中远端层虽慢于 HBM，但比重算 prefill 便宜得多。',
         },
         {
           id: 'nixl-restore',

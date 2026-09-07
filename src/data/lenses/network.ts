@@ -382,7 +382,13 @@ export const NETWORK_LENS: DomainLens = {
       lodLevel: 'cluster',
       focusAssemblyId: 'asm.gb300.facility',
       planes: ['mgmt'],
-      highlightAssemblyIds: ['asm.gb300.oob-fabric-switch', 'asm.gb300.inrack-mgmt-switch'],
+      highlightAssemblyIds: [
+        'asm.gb300.oob-fabric-switch',
+        'asm.gb300.inrack-mgmt-switch',
+        'asm.gb300.mgmt-node',
+      ],
+      // v1.6.1 ④：只点亮管理节点本体与其带外连接——带内那条（con.gb300.mgmt-node-converged）
+      // 走 business 平面，本章 planes 只有 mgmt，不加进来。
       highlightConnectionIds: ['con.gb300.inrack-oob-uplink', 'con.gb300.mgmt-node-oob'],
       chain: [
         {
@@ -394,6 +400,17 @@ export const NETWORK_LENS: DomainLens = {
           narrative:
             '硬件直达指标、中间没有 serving 技术：带外网让「机器挂了还能救回来」——' +
             '**数据面全瘫时仍能上电、刷固件、看日志**，MTTR 的下限由它决定。',
+        },
+        {
+          id: 'ctrl-plane-dual-homing',
+          hardwareRoleKeys: ['control-plane-node'],
+          techniqueId: null,
+          phases: [],
+          metrics: ['mttr'],
+          narrative:
+            '12 台控制面管理节点是**双归属**的：日常经带内网（每台 4× ConnectX-7 单口 200 Gb/s，' +
+            '走汇聚交换机）下发调度、拉镜像、收指标；同时各留带外口进这张管理网——' +
+            '带内瘫了，编排面还能被够着，这是 MTTR 账本里常被漏掉的一层。',
         },
       ],
       keyFigures: [
