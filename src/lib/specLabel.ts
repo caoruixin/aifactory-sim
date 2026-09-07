@@ -107,6 +107,7 @@ export const SPEC_LABELS: Record<string, string> = {
   delayOutlook: '延期风险（媒体报道）',
   denseFp4UpliftVsBlackwell: 'FP4 稠密算力提升（对比 Blackwell，厂商宣称）',
   diesPerPackage: 'die 数量（每封装）',
+  dimmsPerServer: 'DIMM 数量（每台服务器）',
   distributionForm: '配电形态',
   distributionVoltageV: '机房配电电压等级',
   domainScope: 'NVLink 域的范围',

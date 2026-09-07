@@ -538,6 +538,38 @@ export const VERA_RUBIN_COMPONENTS: HardwareComponent[] = [
     },
   },
   {
+    // v1.6.1：CPU 侧内存实体（照 cmp.gb300.lpddr5x 先例；kind 'memory' 的理由见 types.ts）。
+    // 口径分工照 HBM 先例：vera-cpu 组件保留每托盘口径行（3 TB），本组件挂整机口径。
+    id: 'cmp.rubin.lpddr5x',
+    kind: 'memory',
+    name: 'LPDDR5X CPU 内存',
+    vendor: 'NVIDIA / 存储厂商',
+    status: 'announced',
+    summary: 'Vera CPU 旁的低功耗内存，整机 54 TB，经 NVLink-C2C 与 Rubin GPU 一致寻址。',
+    presalesNote:
+      '对照 GB300 讲增量最有力：CPU 内存 17 → 54 TB（超过 3 倍），MoE 冷专家与 KV 分层的「CPU 侧腹地」大了三倍。' +
+      '折算口径要会讲：54 ÷ 18 托盘 = 3 TB/托盘 = 每托盘 2 颗 Vera × 1.5 TB——与官方规格表每超级芯片' +
+      '「Up to 1.5 TB LPDDR5X」一列正好闭合。',
+    visual: { shape: 'chip-stack', colorToken: null },
+    imageUrl: null,
+    sourceIds: [VR_PAGE],
+    specs: {
+      cpuMemoryTB: vr<number>(54, 'TB', VR_PAGE, '规格表 CPU Memory 行，「54 TB LPDDR5X」'),
+      memoryBandwidthTBs: vr<number>(
+        1.2,
+        'TB/s',
+        VR_PAGE,
+        'Vera CPU 产品页，「up to 1.2 terabytes per second (TB/s) of LPDDR5X memory bandwidth」',
+        '与 cmp.rubin.vera-cpu 的同名行同源同值（每颗 CPU 口径）。',
+      ),
+      modulesPerCpu: vrNull(
+        '颗',
+        VR_PAGE,
+        'NVIDIA 未公布每颗 Vera 配套的 LPDDR 颗粒数量；3D 场景中围绕 CPU 摆放的颗数为视觉示意。',
+      ),
+    },
+  },
+  {
     id: 'cmp.rubin.compute-tray',
     kind: 'tray',
     name: 'Vera Rubin 计算托盘',
@@ -1388,6 +1420,21 @@ export const VERA_RUBIN_ASSEMBLIES: AssemblyNode[] = [
     lodLevel: 'board',
     rackU: null,
     note: '⚠️ 堆栈数量 8 为 3D 视觉示意；官方只说明是 12-Hi 堆栈，未公布每卡堆栈数。',
+  },
+  {
+    id: 'asm.rubin.lpddr',
+    systemId: SYSTEM_ID,
+    parentId: 'asm.rubin.vera-cpu',
+    componentId: 'cmp.rubin.lpddr5x',
+    roleKey: 'cpu-memory',
+    label: 'LPDDR5X CPU 内存',
+    count: 8,
+    countClaim: null,
+    lodLevel: 'board',
+    rackU: null,
+    note:
+      '⚠️ 颗数 8 为 3D 视觉示意，NVIDIA 未公布每颗 Vera 的内存颗粒数；' +
+      '官方口径 54 ÷ 18 = 3 TB/托盘（每托盘 2 颗 Vera × 1.5 TB，与规格表每超级芯片 1.5 TB 闭合）。',
   },
   {
     id: 'asm.rubin.nic-board',

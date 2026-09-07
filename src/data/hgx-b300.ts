@@ -973,6 +973,48 @@ export const HGX_B300_COMPONENTS: HardwareComponent[] = [
     },
   },
   {
+    // v1.6.1：主机内存实体（kind 'memory' 的理由见 types.ts）。⚠️ 措辞纪律：
+    // RA Table 2 只给下限（≥2 TB、≥500 GB/s），不写 DDR5/具体容量；x86 独立地址空间，
+    // GB300 的「37 TB 快内存」话术一句不能用。规格与 cmp.hgx.host-cpu 同源同句双挂。
+    id: 'cmp.hgx.host-memory',
+    kind: 'memory',
+    name: '主机内存（DIMM）',
+    vendor: 'OEM 选型',
+    status: 'shipping',
+    summary:
+      '挂在两颗 x86 主机 CPU 内存控制器下的系统内存。RA 只给下限：两插槽合计 ≥2 TB 容量、' +
+      '≥500 GB/s 带宽，具体 DIMM 规格与数量由 OEM 选型。',
+    presalesNote:
+      '★ 与 GB300 那代的本质差别就在这一层：主机内存与显存是**两个独立地址空间**，' +
+      'GPU 要经 PCIe 拷贝才能用它——「CPU 内存当显存延伸」这类 NVL72 话术在 HGX 上一句都不能用。' +
+      '但它依然重要：KV cache 从 HBM 卸载出来的第一站就是锁页主机内存，' +
+      'RA 的容量与带宽下限正是为这类 I/O 兜底的。',
+    visual: { shape: 'chip-stack', colorToken: null },
+    imageUrl: null,
+    sourceIds: [HGX_RA],
+    specs: {
+      minSystemMemoryTB: hgx<number>(
+        2,
+        'TB',
+        HGX_RA,
+        'Components 节 Table 2「System memory (total across all CPU sockets) | Minimum of 2TB system memory.」',
+        '与 cmp.hgx.host-cpu 的同名行同源同句。这是下限要求，不是实配容量。',
+      ),
+      minMemoryBandwidthGBs: hgx<number>(
+        500,
+        'GB/s',
+        HGX_RA,
+        'Components 节 Table 2「System memory ... Minimum of 500GB/s memory bandwidth.」',
+        '与 cmp.hgx.host-cpu 的同名行同源同句。这是下限要求，不是实配带宽。',
+      ),
+      dimmsPerServer: hgxNull(
+        '条',
+        HGX_RA,
+        'RA 不指定 DIMM 数量、代际与单条容量（均属 OEM 选型空间）；3D 场景中的颗数为视觉示意。',
+      ),
+    },
+  },
+  {
     id: 'cmp.hgx.hbm3e',
     kind: 'hbm',
     name: 'HBM3E 堆栈（12-Hi）',
@@ -1844,6 +1886,21 @@ export const HGX_B300_ASSEMBLIES: AssemblyNode[] = [
     note:
       '★ 注意它挂在**服务器**下、不在 HGX 基板上——CPU 是 OEM 主机板的一部分，' +
       '与基板之间是 PCIe Gen5 ×16（不是 NVLink-C2C）。这与 GB300 NVL72 的 Grace 超级芯片是两种拓扑。',
+  },
+  {
+    id: 'asm.hgx.host-memory',
+    systemId: SYSTEM_ID,
+    parentId: 'asm.hgx.host-cpu',
+    componentId: 'cmp.hgx.host-memory',
+    roleKey: 'cpu-memory',
+    label: '主机内存（DIMM）',
+    count: 8,
+    countClaim: null,
+    lodLevel: 'board',
+    rackU: null,
+    note:
+      '⚠️ 颗数 8 为 3D 视觉示意，RA 不指定 DIMM 数量与规格；' +
+      '官方口径只有两插槽合计 ≥2 TB 容量、≥500 GB/s 带宽这两条下限。',
   },
   {
     id: 'asm.hgx.bf3-dpu',

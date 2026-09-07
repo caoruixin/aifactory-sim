@@ -1377,6 +1377,7 @@ describe('HGX B300：NVLink 服务器域（v1.4 W-C）', () => {
       'asm.hgx.rack-pdu',
       'asm.hgx.air-handler',
       'asm.hgx.local-nvme',
+      'asm.hgx.host-memory',
     ]) {
       const node = assemblyById(id)!
       expect(node.countClaim, `${id} 是示意数量，不该有 countClaim`).toBeNull()
@@ -1746,5 +1747,56 @@ describe('v1.6 切面与技术注册表：事实锁', () => {
     const crossNode = ch6.keyFigures.find((f) => f.key === 'crossNodeScaleout')!
     expect(crossNode.claim.note).toContain('单向')
     expect(crossNode.claim.note).toContain('不可直接相除')
+  })
+})
+
+describe('v1.6.1 CPU 内存实体：跨代锁', () => {
+  it('★ 范围锁：roleKey cpu-memory 恰好存在于 {gb300, vera-rubin, hgx} 三代，各一个节点', () => {
+    const nodes = FACTORY_PACK.assemblies.filter((a) => a.roleKey === 'cpu-memory')
+    expect(nodes.length).toBe(3)
+    expect(nodes.map((n) => n.systemId).sort()).toEqual([
+      'sys.gb300-nvl72',
+      'sys.hgx-b300',
+      'sys.vera-rubin-nvl72',
+    ])
+    // NVL576（SOCAMM 仅分析师来源）与 Groq（按机架容量登记）不建——缺席由 comparisons removed 行交代
+    for (const node of nodes) {
+      expect(componentById(node.componentId)!.kind, `${node.id} 必须是 memory 而非 hbm`).toBe('memory')
+      expect(node.countClaim, `${node.id} 颗数是视觉示意`).toBeNull()
+      expect(node.note, `${node.id} 缺「为什么是示意」的说明`).not.toBeNull()
+    }
+  })
+
+  it('★ VR 54 TB 同源同值 + 3 × 18 闭合锁', () => {
+    const mem = componentById('cmp.rubin.lpddr5x')!
+    expect(mem.kind).toBe('memory')
+    expect(mem.specs.cpuMemoryTB!.value).toBe(54)
+    expect(mem.specs.cpuMemoryTB!.value).toBe(VERA_RUBIN_SYSTEM.keySpecs.cpuMemoryTB!.value)
+    expect(mem.specs.cpuMemoryTB!.sourceId).toBe(VERA_RUBIN_SYSTEM.keySpecs.cpuMemoryTB!.sourceId)
+    // 折算闭合：每托盘 3 TB × 18 托盘 = 整机 54 TB（对照 GB300 的 17 ≠ 1 × 18 不闭合留痕）
+    const vera = componentById('cmp.rubin.vera-cpu')!
+    expect((vera.specs.lpddr5PerTrayTB!.value as number) * 18).toBe(54)
+    // 带宽行与 vera-cpu 同源同值（每颗 CPU 口径）
+    expect(mem.specs.memoryBandwidthTBs!.value).toBe(vera.specs.memoryBandwidthTBs!.value)
+    expect(mem.specs.memoryBandwidthTBs!.sourceId).toBe(vera.specs.memoryBandwidthTBs!.sourceId)
+    expect(mem.specs.modulesPerCpu!.value).toBeNull()
+    expect(assemblyById('asm.rubin.lpddr')!.parentId).toBe('asm.rubin.vera-cpu')
+  })
+
+  it('★ HGX 同源同句锁：host-memory 双挂下限与 host-cpu 逐字段一致，且措辞不越界', () => {
+    const mem = componentById('cmp.hgx.host-memory')!
+    const cpu = componentById('cmp.hgx.host-cpu')!
+    expect(mem.kind).toBe('memory')
+    for (const key of ['minSystemMemoryTB', 'minMemoryBandwidthGBs'] as const) {
+      expect(mem.specs[key]!.value, key).toBe(cpu.specs[key]!.value)
+      expect(mem.specs[key]!.sourceId, key).toBe(cpu.specs[key]!.sourceId)
+      expect(mem.specs[key]!.locator, `${key} 必须与 host-cpu 同句引用`).toBe(cpu.specs[key]!.locator)
+    }
+    expect(mem.specs.dimmsPerServer!.value, 'RA 不指定 DIMM 数量，不编数').toBeNull()
+    // 措辞纪律：RA 只给下限，禁写 DDR5/具体容量；「37 TB 快内存」话术一句不能用
+    const prose = `${mem.name}${mem.summary}${mem.presalesNote}`
+    expect(prose).not.toContain('DDR5')
+    expect(prose).not.toContain('37 TB')
+    expect(assemblyById('asm.hgx.host-memory')!.parentId).toBe('asm.hgx.host-cpu')
   })
 })

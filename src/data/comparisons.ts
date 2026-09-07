@@ -71,13 +71,14 @@ export const COMPARISONS: ComparisonDefinition[] = [
         narrative: '⚠️ 同上，「未收录」不等于「没有」：官方未公布该层配置，本项目不猜。',
       },
       {
-        // v1.6.1 ②：GB300 侧先落 CPU 内存实体；VR 侧实体在 ③ 落地后本行自动转
-        // changed，届时换成 17 → 54 TB 的终态文案。
+        // v1.6.1 ③：两侧均有 CPU 内存实体 ⇒ changed 行。
         roleKey: 'cpu-memory',
-        label: 'CPU 内存（LPDDR）',
+        label: 'CPU 内存（LPDDR5X）',
         narrative:
-          '⚠️ 「未收录」不等于「没有」：Vera Rubin 官方规格表明确给了 54 TB CPU 内存，' +
-          '本项目的 3D 实体尚未落到 VR 侧——这一行是建模进度差异，不是产品差异。',
+          '★ 17 → 54 TB（超过 3 倍），是这一代对 MoE 推理最实在的升级之一：冷专家与 KV 分层的' +
+          '「CPU 侧腹地」大了三倍，带宽也从整机 14 TB/s 涨到每颗 Vera 1.2 TB/s 的口径' +
+          '（⚠️ 两代带宽口径不同——GB300 是整机聚合值、Vera 是每颗 CPU 值，不能直接相除）。' +
+          '两代都经 NVLink-C2C 与 GPU 一致寻址，这个卖点没变。',
       },
       {
         // v1.6 W-A：GB300 侧新增了 L3 对象存储（存储切面建模），VR 侧未建 ⇒ removed 行。
@@ -164,6 +165,15 @@ export const COMPARISONS: ComparisonDefinition[] = [
         label: 'North/South DPU',
         narrative: '⚠️ 同上：来源文章未涉及 DPU 与 North/South 网络。',
       },
+      {
+        // v1.6.1 ③：VR 侧有 CPU 内存实体、NVL576 侧不建（SOCAMM 仅分析师来源）⇒ removed 行。
+        roleKey: 'cpu-memory',
+        label: 'CPU 内存',
+        narrative:
+          '⚠️ 「未收录」不等于「没有」：SemiAnalysis 提到 Rubin Ultra 托盘用 SOCAMM 内存模组，' +
+          '但没有给出任何容量/带宽数字，NVIDIA 官方规格表也还没出——按证据纪律本项目不为' +
+          'NVL576 建 CPU 内存实体。这一行是资料缺口，不是产品差异。',
+      },
     ],
     sourceIds: [
       'src.nvidia-vera-rubin-page',
@@ -242,6 +252,15 @@ export const COMPARISONS: ComparisonDefinition[] = [
         label: 'HBM 显存堆栈',
         narrative:
           '★ 又一条「真的没有」：LP30 不带 HBM，工作集全在 500 MB 片上 SRAM 里，机架级 DRAM（12 TB DDR5）挂在托盘的 fabric expansion logic 与主机 CPU 上，属于第二层容量而不是 decode 主路径。客户问「LPX 能装多大模型」时，答案不能按显存算，要按「切到多少颗 LPU 上」算。',
+      },
+      {
+        // v1.6.1 ③：VR 侧有 CPU 内存实体、LPX 侧不建颗粒 ⇒ removed 行。
+        roleKey: 'cpu-memory',
+        label: 'CPU 内存',
+        narrative:
+          '⚠️ 「未收录」不等于「没有」：LPX 官方给了整机架 12 TB DDR5（经主机 CPU 与 fabric ' +
+          'expansion logic 挂载），本项目已按机架容量口径登记在相应组件的 specs 里，' +
+          '未再单独建内存颗粒实体——官方没有公布它的颗粒/模组形态。这一行是建模粒度差异，不是产品差异。',
       },
       {
         roleKey: 'scaleout-nic',
@@ -346,6 +365,15 @@ export const COMPARISONS: ComparisonDefinition[] = [
           '⚠️ 「未收录」不等于「没有」：这一层是**行业通行架构的建模示意**（存储切面教学用，' +
           '只在 GB300 与 HGX 两代建模），NVL576 的来源文章只谈 scale-up 网络，更不涉及存储选型' +
           '——这一行是建模范围差异，不是产品差异。',
+      },
+      {
+        // v1.6.1 ③：GB300 侧有 CPU 内存实体、NVL576 侧不建（SOCAMM 仅分析师来源）⇒ removed 行。
+        roleKey: 'cpu-memory',
+        label: 'CPU 内存',
+        narrative:
+          '⚠️ 「未收录」不等于「没有」：SemiAnalysis 提到 Rubin Ultra 托盘用 SOCAMM 内存模组，' +
+          '但没有任何容量/带宽数字，官方规格表也未发布——本项目不为 NVL576 建 CPU 内存实体。' +
+          '这一行是资料缺口，不是产品差异。',
       },
     ],
     sourceIds: [
@@ -474,6 +502,17 @@ export const COMPARISONS: ComparisonDefinition[] = [
           '**「快内存」话术在 HGX 上一句都不能用。**' +
           '⚠️ HGX 侧型号由 OEM 选型，RA 只给下限（≥48 核/插槽、推荐 56、≥2 TB 内存、≥500 GB/s 带宽、' +
           'balanced PCIe topology）——最后那条最容易被 OEM 配置单踩坑。',
+      },
+      {
+        // v1.6.1 ③：两侧均有 CPU 内存实体 ⇒ changed 行。
+        roleKey: 'cpu-memory',
+        label: 'CPU 内存',
+        narrative:
+          '★ 这一行变的不是数字，是**地址空间**：GB300 的 17 TB LPDDR5X 经 NVLink-C2C 与显存一致寻址' +
+          '（GPU 可直接访问）；HGX 的主机内存（DIMM）与显存是两个独立地址空间，GPU 要经 PCIe 拷贝。' +
+          '⚠️ 数字口径也不同级：左侧 17 TB 是官方实值，右侧 ≥2 TB / ≥500 GB/s 只是 RA 给 OEM 的**下限**' +
+          '——不能读成「17 TB → 2 TB 缩水」。KV cache 卸载两边都要经这一层，但 HGX 上它只是锁页拷贝的' +
+          '中转站，不是显存的延伸。',
       },
       {
         roleKey: 'scaleout-nic',
