@@ -1,8 +1,30 @@
 # v1.6.1 小批次：CPU 内存 3D 实体 + 存储 L2 命名法 + 叙事补齐
 
-> 状态：**计划已固化，待实施**（2026-09-08）。
-> 基线：main `5e65f55`，门禁基线 **822 单测 / E2E 54 passed + 54 skipped / 18 张截图基线**。
-> 本批独立于 PLAN-v1.7（未评审草案，勿动）。
+> 状态：**已实施完成 ✅**（2026-09-08，未部署——部署待用户明确要求）。
+> 提交序列：`3216de6` 计划固化 → `52f83f8` ① 存储 L2 显示名 → `bc461ae` ② 基建+GB300 →
+> `86d52b3` ③ VR+HGX+comparisons → `5a0a685` ④ 叙事补齐 → `e7eed2a` ⑤ E2E 收口。
+> 终态门禁：**828 单测（822 → +6）/ E2E 54 passed + 54 skipped 连跑三遍全绿 /
+> typecheck / build 每提交全绿**。基线 17 张（仓库实际张数；计划头写 18 系笔误）
+> 全量重拍（`--update-snapshots=all`），翻 7 张逐张像素差异定界目检，其余逐字节不变。
+>
+> 实施期订正与留痕（详见各提交）：
+> ① **compare.test 机制锁的先红后补**：GB300 侧先落 `cpu-memory` 后，gb300↔vera 的
+>   removed 行缺 narrative 即红（计划只预见了 specLabel.test 一类）。② 内先落过渡性
+>   removed 行（「未收录…」），③ VR 实体落地行自动转 changed 后换 17→54 终态文案。
+> ② **GB300 CPU 内存带宽行核到了官方数**：产品页规格表实访核得
+>   「CPU Memory | Bandwidth：17 TB LPDDR5X | 14 TB/s」，按「核到即建」落
+>   `memoryBandwidthTBs` 14 TB/s（计划写「核不到不建」，实际核到了）。
+> ③ **预期翻 9 张实翻 7 张**：fallback-structure 与 report-page 字节未变——改动
+>   （板级颗粒/比较行）不落在这两张的截图区域内，非缺漏（report 页内容断言用例全绿）。
+> ④ **lpx-rack 前置遗留基线漂移**：重拍出确定性 diff，像素定界证明全在顶栏
+>   （y 15–71，x 207–1359），系 `2ec1b1e` 挪警示条时仅重拍 nvl576-cluster、
+>   lpx-rack 的顶栏变化在 2% 容差内未显红所致，**非本批引入**。本批按「必须逐字节
+>   不变」保留旧字节；建议后续批次做一次全量基线刷新将其收口。
+> 手工走查（headless Playwright 实测）全过：`?lens=storage&chapter=3` 层级句 +
+> 主机内存 chip 可点选出详情（双下限 + 同源同句留痕 + 独立地址空间措辞）；
+> `?lens=network&chapter=5` 管理节点被点亮、「双归属」行在位；比较模式 GB300↔VR
+> 「规格变化 12→13」徽章 + cpu-memory 行文案；`?gl=off` 降级列表含 LPDDR5X 新节点
+> 与「L2 共享存储」新 label；GB300/VR/HGX 板级颗粒摆位与 explode 逐张目检无碰撞。
 
 ## 已拍板裁决（不重新讨论）
 
