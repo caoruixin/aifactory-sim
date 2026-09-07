@@ -1611,7 +1611,7 @@ export const HGX_B300_ASSEMBLIES: AssemblyNode[] = [
     parentId: 'asm.hgx.facility',
     componentId: 'cmp.shared.storage-array',
     roleKey: 'external-storage',
-    label: '外部存储集群',
+    label: 'L2 共享存储（外部存储集群）',
     count: 1,
     countClaim: null,
     lodLevel: 'cluster',
@@ -2193,7 +2193,7 @@ export const HGX_B300_CONNECTIONS: Connection[] = [
     protocol: '以太网 / RoCE 存储 fabric',
     bandwidth: null,
     direction: 'bidirectional',
-    label: '汇聚交换层 ↔ 外部存储',
+    label: '汇聚交换层 ↔ L2 共享存储',
     summary:
       '32 节点设计点给出的存储侧连接是「32x 100G/200G connections for storage (minimum 12.5Gb bandwidth per GPU)」。' +
       '★ 这一代对存储有个特别值得说的前瞻：官方点名「分布式推理把 KV cache 卸载到高速网络存储」' +

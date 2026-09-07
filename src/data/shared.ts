@@ -288,7 +288,7 @@ export const SHARED_COMPONENTS: HardwareComponent[] = [
   {
     id: 'cmp.shared.storage-array',
     kind: 'storage',
-    name: '外部存储集群',
+    name: 'L2 共享存储（外部存储集群）',
     vendor: '第三方存储厂商',
     status: 'shipping',
     summary: '通过 North/South 汇聚网提供训练数据集、模型权重与检查点的高吞吐共享存储。',

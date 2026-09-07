@@ -1641,6 +1641,20 @@ describe('v1.6 切面与技术注册表：事实锁', () => {
     }
   })
 
+  it('★ v1.6.1 存储层级命名法：storage-array 名以「L2 共享存储」开头、object-storage 名以「L3 对象存储」开头（组件与全部装配 label）', () => {
+    expect(componentById('cmp.shared.storage-array')!.name.startsWith('L2 共享存储')).toBe(true)
+    expect(componentById('cmp.shared.object-storage')!.name.startsWith('L3 对象存储')).toBe(true)
+    const l2Nodes = FACTORY_PACK.assemblies.filter((a) => a.componentId === 'cmp.shared.storage-array')
+    expect(l2Nodes.length, '四套系统各挂一个 L2 共享存储装配').toBe(4)
+    for (const node of l2Nodes) {
+      expect(node.label.startsWith('L2 共享存储'), `${node.id} 的 label 未带 L2 前缀`).toBe(true)
+    }
+    const l3Nodes = FACTORY_PACK.assemblies.filter((a) => a.componentId === 'cmp.shared.object-storage')
+    for (const node of l3Nodes) {
+      expect(node.label.startsWith('L3 对象存储'), `${node.id} 的 label 未带 L3 前缀`).toBe(true)
+    }
+  })
+
   it('★ 厂商数字纪律：WEKA/VAST 恒 vendor_claim、Mooncake/Model Streamer 恒 benchmark（figures 内）', () => {
     const vendorOnly = new Set(['src.weka-materials', 'src.vast-materials'])
     const benchOnly = new Set(['src.mooncake-fast25', 'src.runai-model-streamer'])
