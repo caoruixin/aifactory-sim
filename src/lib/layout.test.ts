@@ -162,6 +162,14 @@ describe('托盘内板级摆位与 explode', () => {
     expect(spreadAfter).toBeGreaterThan(spreadBefore)
   })
 
+  it('CPU 内存颗粒摆 8 颗且 explode 时向两侧散开（v1.6.1）', () => {
+    const mem = layout.get('asm.gb300.lpddr')!
+    expect(mem.slots.length).toBe(8)
+    const spreadBefore = Math.max(...mem.slots.map((p) => Math.abs(p[0])))
+    const spreadAfter = Math.max(...mem.explodedSlots.map((p) => Math.abs(p[0])))
+    expect(spreadAfter).toBeGreaterThan(spreadBefore)
+  })
+
   it('未声明 explode 规则的节点保持原位（且不是同一个数组引用）', () => {
     const tray = layout.get('asm.gb300.compute-tray')!
     expect(tray.explodedSlots).toEqual(tray.slots)

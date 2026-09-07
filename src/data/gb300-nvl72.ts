@@ -315,6 +315,43 @@ export const GB300_COMPONENTS: HardwareComponent[] = [
     },
   },
   {
+    // v1.6.1：CPU 侧内存独立建实体（kind: 'memory'，绝不复用 'hbm'——理由见 types.ts）。
+    // 口径分工照 HBM 先例：grace-cpu 组件保留每托盘口径行（1 TB），本组件挂整机口径。
+    id: 'cmp.gb300.lpddr5x',
+    kind: 'memory',
+    name: 'LPDDR5X CPU 内存',
+    vendor: 'NVIDIA / 存储厂商',
+    status: 'shipping',
+    summary:
+      '焊在 Grace CPU 旁的低功耗内存。经 NVLink-C2C，GPU 可以直接寻址这片内存——它与 HBM 合起来构成官方口径的 37 TB「快内存」。',
+    presalesNote:
+      '讲这块内存的关键词是「一致寻址」：它不是普通服务器里「CPU 自己的内存」，而是 GPU 经 NVLink-C2C 可直接访问的扩展内存池。超大 MoE 模型把冷专家放 CPU 侧、KV Cache 分层卸载（HBM → 主机内存 → NVMe）都以这一层为前提。对照 HGX B300：x86 主机内存与 GPU 是独立地址空间，走 PCIe 拷贝，没有这个卖点。',
+    visual: { shape: 'chip-stack', colorToken: null },
+    imageUrl: null,
+    sourceIds: [RA_SOURCE, GB300_PAGE_SOURCE],
+    specs: {
+      cpuMemoryTB: pageSpec<number>(
+        17,
+        'TB',
+        '产品页规格表 CPU Memory | Bandwidth，「17 TB LPDDR5X」',
+        '⚠️ 官方口径不闭合：参考架构 Table 1 写每托盘「1TB aggregated LPDDR5 CPU main memory」' +
+          '（RA 原文即写 LPDDR5，不带 X），1 TB × 18 托盘 = 18 TB，与产品页整机 17 TB 相差 1 TB，' +
+          'NVIDIA 未解释差异。本项目主值取产品页 17 TB，两处口径均留痕。',
+      ),
+      memoryBandwidthTBs: pageSpec<number>(
+        14,
+        'TB/s',
+        '产品页规格表 CPU Memory | Bandwidth，「17 TB LPDDR5X | 14 TB/s」',
+        '整机 CPU 内存聚合带宽口径。',
+      ),
+      modulesPerCpu: notPublished(
+        '颗',
+        GB300_PAGE_SOURCE,
+        'NVIDIA 未公布每颗 Grace 配套的 LPDDR 颗粒数量；3D 场景中围绕 CPU 摆放的颗数为视觉示意，不代表实际封装。',
+      ),
+    },
+  },
+  {
     id: 'cmp.gb300.compute-tray',
     kind: 'tray',
     name: 'GB300 NVL 计算托盘',
@@ -1154,6 +1191,19 @@ export const GB300_ASSEMBLIES: AssemblyNode[] = [
     lodLevel: 'board',
     rackU: null,
     note: '⚠️ 堆栈数量 8 为 3D 视觉示意，NVIDIA 未公布 B300 的 HBM 堆栈数；官方公布的是单卡 288 GB 这一容量口径。',
+  },
+  {
+    id: 'asm.gb300.lpddr',
+    systemId: SYSTEM_ID,
+    parentId: 'asm.gb300.grace-cpu',
+    componentId: 'cmp.gb300.lpddr5x',
+    roleKey: 'cpu-memory',
+    label: 'LPDDR5X CPU 内存',
+    count: 8,
+    countClaim: null,
+    lodLevel: 'board',
+    rackU: null,
+    note: '⚠️ 颗数 8 为 3D 视觉示意，NVIDIA 未公布每颗 Grace 的内存颗粒数；官方口径每托盘合计 1 TB。',
   },
   {
     id: 'asm.gb300.mezz-board',

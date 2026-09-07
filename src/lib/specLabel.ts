@@ -215,6 +215,7 @@ export const SPEC_LABELS: Record<string, string> = {
   model: '型号',
   modelNameConflict: '型号：官方两种写法并存',
   moduleFormFactor: '光模块形态（NPO / CPO）',
+  modulesPerCpu: '内存颗粒数量（每颗 CPU）',
   mounting: '安装位置',
   mountingPlace: '安装位置',
   namingHistory: '命名沿革（官方改名留痕）',

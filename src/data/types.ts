@@ -124,6 +124,15 @@ export type NonGpuComponentKind =
    * （`pack.test.ts` 另有运行期断言兜底），产能估算也因此不会误把 LPU 当 GPU 用。
    */
   | 'lpu'
+  /**
+   * CPU 侧内存（LPDDR / DIMM）——v1.6.1 新增。
+   *
+   * ⚠️ 必须新开 `'memory'` 而**绝不复用 `'hbm'`**：`FlowLayer.tsx` 按
+   * `kind === 'hbm'` 给「权重常驻显存」画常亮微光（跨代通用逻辑，不认组件 id），
+   * 复用会让 CPU 内存在 flow 播放时跟着发光——CPU 内存里放的是冷专家/KV 分层，
+   * 不是常驻权重，教学语义完全不同。
+   */
+  | 'memory'
   | 'tray'
   | 'rack'
   | 'switch'

@@ -71,6 +71,15 @@ export const COMPARISONS: ComparisonDefinition[] = [
         narrative: '⚠️ 同上，「未收录」不等于「没有」：官方未公布该层配置，本项目不猜。',
       },
       {
+        // v1.6.1 ②：GB300 侧先落 CPU 内存实体；VR 侧实体在 ③ 落地后本行自动转
+        // changed，届时换成 17 → 54 TB 的终态文案。
+        roleKey: 'cpu-memory',
+        label: 'CPU 内存（LPDDR）',
+        narrative:
+          '⚠️ 「未收录」不等于「没有」：Vera Rubin 官方规格表明确给了 54 TB CPU 内存，' +
+          '本项目的 3D 实体尚未落到 VR 侧——这一行是建模进度差异，不是产品差异。',
+      },
+      {
         // v1.6 W-A：GB300 侧新增了 L3 对象存储（存储切面建模），VR 侧未建 ⇒ removed 行。
         roleKey: 'object-storage',
         label: 'L3 对象存储（模型货仓）',

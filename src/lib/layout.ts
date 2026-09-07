@@ -273,6 +273,24 @@ const PLACEMENTS: Record<string, Placement> = {
     },
     explode: { lift: 0.028, spread: 1.9 },
   },
+  'cpu-memory': {
+    // v1.6.1：CPU 两侧各 4 颗内存颗粒（数量为视觉示意，见 asm.gb300.lpddr 的 note）。
+    // GB300 / Vera Rubin / HGX 三代 host-cpu 共用这一套摆位：相对 CPU 中心 x ±0.048
+    // （即便到 ±0.062 也不会与双 CPU 行距 x=±0.11 的邻位芯片相撞）。
+    size: [0.012, 0.012, 0.018],
+    slots: (count) => {
+      const half = Math.ceil(count / 2)
+      const out: Vec3[] = []
+      for (let i = 0; i < count; i += 1) {
+        const side = i < half ? -1 : 1
+        const k = i < half ? i : i - half
+        const n = i < half ? half : count - half
+        out.push([side * 0.048, 0.001, (k - (n - 1) / 2) * 0.022])
+      }
+      return out
+    },
+    explode: { lift: 0.028, spread: 1.9 },
+  },
   'nic-mezzanine': {
     size: [0.13, 0.005, 0.17],
     slots: (count) => row(count, 0.27, 0.003, -0.3),

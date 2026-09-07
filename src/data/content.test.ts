@@ -99,6 +99,24 @@ describe('GB300 NVL72：机架级数量', () => {
     expect(assemblyById('asm.gb300.power-shelf')!.count).toBe(8)
     expect(assemblyById('asm.gb300.inrack-mgmt-switch')!.count).toBe(2)
   })
+
+  it('★ v1.6.1 CPU 内存：整机 17 TB 与 keySpecs 同源同值、grace 每托盘 1 TB 口径不动、颗数恒视觉示意', () => {
+    const grace = componentById('cmp.gb300.grace-cpu')!
+    expect(grace.specs.lpddr5PerTrayTB!.value, 'CPU 组件的每托盘口径行不许动').toBe(1)
+    const mem = componentById('cmp.gb300.lpddr5x')!
+    expect(mem.kind, '绝不复用 hbm——FlowLayer 会给 hbm 画常亮微光').toBe('memory')
+    const sys = systemById(SYSTEM_ID)!
+    expect(mem.specs.cpuMemoryTB!.value).toBe(17)
+    expect(mem.specs.cpuMemoryTB!.value).toBe(sys.keySpecs.cpuMemoryTB!.value)
+    expect(mem.specs.cpuMemoryTB!.sourceId).toBe(sys.keySpecs.cpuMemoryTB!.sourceId)
+    expect(mem.specs.cpuMemoryTB!.note, '17 vs 18 TB 官方口径不闭合必须双留痕').toContain('18')
+    expect(mem.specs.modulesPerCpu!.value, '官方未公布颗数，不编数').toBeNull()
+    const node = assemblyById('asm.gb300.lpddr')!
+    expect(node.roleKey).toBe('cpu-memory')
+    expect(node.parentId).toBe('asm.gb300.grace-cpu')
+    expect(node.countClaim, '颗数是视觉示意，不该有 countClaim').toBeNull()
+    expect(node.note).toContain('视觉示意')
+  })
 })
 
 describe('GB300 NVL72：代际口径（最容易讲错的地方）', () => {
