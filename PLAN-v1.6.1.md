@@ -1,6 +1,10 @@
 # v1.6.1 小批次：CPU 内存 3D 实体 + 存储 L2 命名法 + 叙事补齐
 
-> 状态：**已实施完成 ✅**（2026-09-08，未部署——部署待用户明确要求）。
+> 状态：**已实施完成并部署 ✅**（2026-09-08）。main 与 gh-pages 均已推送，
+> 线上 <https://caoruixin.github.io/aifactory-sim/> 已验证：主 chunk 与 three-vendor
+> chunk 的 sha256 与本地 E2E 全绿构建逐字节一致；SPA 兜底页 body 即应用本体并引用
+> 新 chunk（GitHub Pages 对 404.html 恒回 404 状态码，属平台固定行为，功能正常）；
+> 线上冒烟：gl=off 树含 LPDDR5X 节点与「L2 共享存储」新 label、storage ch3 层级句在位。
 > 提交序列：`3216de6` 计划固化 → `52f83f8` ① 存储 L2 显示名 → `bc461ae` ② 基建+GB300 →
 > `86d52b3` ③ VR+HGX+comparisons → `5a0a685` ④ 叙事补齐 → `e7eed2a` ⑤ E2E 收口。
 > 终态门禁：**828 单测（822 → +6）/ E2E 54 passed + 54 skipped 连跑三遍全绿 /
