@@ -20,6 +20,8 @@ export interface RackElevationSvgProps {
   width?: number
   /** 每 U 的像素高度。 */
   uHeight?: number
+  /** Compact simulation overview fits the whole rack into the available canvas height. */
+  fitHeight?: boolean
   /**
    * B5 新增（Fallback2D 复用）：点击某一档位 = 选中该装配节点，与 3D/组件树同一动作。
    * 省略则退回 `/report` 的原始纯展示行为（不可点）。
@@ -45,6 +47,7 @@ export default function RackElevationSvg({
   systemId,
   width = 260,
   uHeight = 9,
+  fitHeight = false,
   onSelectAssembly,
   selectedId = null,
   highlightAssemblyIds,
@@ -68,14 +71,15 @@ export default function RackElevationSvg({
   }
 
   return (
-    <figure className="m-0">
+    <figure className={fitHeight ? 'm-0 flex h-full min-h-0 w-full flex-col items-center' : 'm-0'}>
+      <div className={fitHeight ? 'flex min-h-0 w-full flex-1 items-center justify-center gap-4' : undefined}>
       <svg
         width={width}
         height={height}
         viewBox={`0 0 ${width} ${height}`}
         role="img"
         aria-label={`${system?.name ?? systemId} 机架立面示意`}
-        className="max-w-full"
+        className={fitHeight ? 'h-full min-h-0 w-auto max-w-[42%] [&_text]:hidden' : 'max-w-full'}
       >
         {/* 机架外框 */}
         <rect
@@ -173,6 +177,17 @@ export default function RackElevationSvg({
           {system?.name ?? systemId} · {units}U（示意）
         </text>
       </svg>
+      {fitHeight && <ul className="max-h-full max-w-[55%] space-y-1 overflow-y-auto text-[11px]" aria-label="机架部件图例">
+        {rows.map(node => {
+          const component = componentById(node.componentId)
+          const active = highlightAssemblyIds?.has(node.id) || selectedId === node.id
+          return <li key={node.id}><button type="button" aria-label={`查看 ${node.label}`} onClick={() => onSelectAssembly?.(node.id)} className={`flex w-full items-center gap-2 rounded border px-2 py-1.5 text-left ${active ? 'border-accent bg-accent/10 text-accent' : 'border-line bg-panel hover:border-accent/50'}`}>
+            <span className="h-2 w-2 shrink-0 rounded-sm" style={{background:paletteColor(component?.visual.colorToken ?? null,'dim')}}/>
+            <span>{node.label} <span className="font-mono text-dim">×{node.count}</span></span>
+          </button></li>
+        })}
+      </ul>}
+      </div>
       <figcaption className="mt-1 text-[11px] leading-snug text-dim">
         ⚠️ U 位为示意占位：官方未公布逐 U 布局，图上只保证数量与不重叠。
       </figcaption>

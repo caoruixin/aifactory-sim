@@ -1,144 +1,76 @@
-/**
- * 产能粗估面板：参数控件 + 一到两张 `CapacityBands` 卡。
- *
- * 控件状态刻意留在本组件的 `useState` 里而不是全局 store——它是「问一个假设性问题」
- * 的临时输入，不影响 3D 场景，也不该被 URL 深链或 persist 带走。
- *
- * 比较模式下传两个 systemId，两张卡并排（用同一组模型/量化/负载参数，
- * 否则「对比」就没有意义了）。
- */
-
-import { useMemo, useState } from 'react'
-import { FACTORY_PACK } from '../../data'
-import { DEFAULT_WORKLOAD, capacityUnitWordingFor, estimateSystemCapacity } from '../../lib/capacity'
-import type { CapacityWorkload } from '../../lib/capacity'
+import { useEffect, useMemo, useState } from 'react'
+import { FACTORY_PACK, modelById } from '../../data'
+import { RUBIN_PROFILES } from '../../data/specifications'
+import { capacityUnitWordingFor, estimateSystemCapacity } from '../../lib/capacity'
+import { SCENARIO_PRESETS, encodeScenario, scenarioErrors } from '../../lib/scenario'
+import type { ScenarioInput } from '../../lib/scenario'
 import { QUANTS } from '../../lib/roofline'
-import type { QuantOption } from '../../lib/roofline'
+import { useScenarioStore } from '../../scenarioStore'
+import { useFactoryStore } from '../../store'
 import CapacityBands from './CapacityBands'
+import CapacityFeedback from './CapacityFeedback'
 
-/** 三档参考负载。数字是教学用的典型量级，不代表任何客户的真实业务画像。 */
-const WORKLOAD_PRESETS: { id: string; label: string; hint: string; workload: CapacityWorkload }[] = [
-  {
-    id: 'light',
-    label: '轻',
-    hint: '短问答：512 输入 / 1k 上下文 / 并发 8',
-    workload: { promptTokens: 512, avgContextTokens: 1024, batchPerReplica: 8 },
-  },
-  {
-    id: 'medium',
-    label: '中',
-    hint: '多轮对话：2k 输入 / 4k 上下文 / 并发 32',
-    workload: DEFAULT_WORKLOAD,
-  },
-  {
-    id: 'heavy',
-    label: '重',
-    hint: '长文档 / Agent：8k 输入 / 32k 上下文 / 并发 64',
-    workload: { promptTokens: 8192, avgContextTokens: 32_768, batchPerReplica: 64 },
-  },
-]
-
-export interface CapacityPanelProps {
-  /** 要出卡的系统（比较模式传两个）。 */
-  systemIds: string[]
-  /** 参与估算的机架数。 */
-  rackCount?: number
-  compact?: boolean
-}
-
-export default function CapacityPanel({ systemIds, rackCount = 1, compact = false }: CapacityPanelProps) {
-  const [modelId, setModelId] = useState(FACTORY_PACK.models[0]?.id ?? 'deepseek-v3')
-  const [quantId, setQuantId] = useState<QuantOption['id']>('fp8')
-  const [presetId, setPresetId] = useState('medium')
-  const [racks, setRacks] = useState(rackCount)
-
-  const workload = WORKLOAD_PRESETS.find((p) => p.id === presetId)!.workload
-  // 数量输入框的标签按域架构分型；比较模式下两个系统架构不同时用合并措辞。
-  const counterLabels = [...new Set(systemIds.map((id) => capacityUnitWordingFor(id).counterLabel))]
-  const counterLabel = counterLabels.length === 1 ? counterLabels[0] : '机架 / 服务器数'
-  const estimates = useMemo(
-    () =>
-      systemIds.map((systemId) =>
-        estimateSystemCapacity({ systemId, modelId, quantId, rackCount: racks, workload }),
-      ),
-    [systemIds, modelId, quantId, racks, workload],
-  )
-
-  return (
-    <div className="flex min-h-0 flex-col gap-2" data-capacity-panel="1">
-      {/* ── 参数控件 ── */}
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-lg border border-line bg-panel-2 px-2.5 py-2 text-xs">
-        <label className="flex items-center gap-1.5">
-          <span className="text-dim">模型</span>
-          <select
-            value={modelId}
-            onChange={(e) => setModelId(e.target.value)}
-            className="rounded-md border border-line bg-panel px-1.5 py-1"
-          >
-            {FACTORY_PACK.models.map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.name}（{m.activeParamsB}B 激活 / {m.totalParamsB}B 总参）
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <span className="flex items-center gap-1">
-          <span className="text-dim">精度</span>
-          {QUANTS.map((q) => (
-            <button
-              key={q.id}
-              type="button"
-              onClick={() => setQuantId(q.id)}
-              className={`rounded-md border px-1.5 py-1 font-mono ${
-                quantId === q.id ? 'border-accent bg-accent/10 text-accent' : 'border-line text-dim hover:border-accent/50'
-              }`}
-            >
-              {q.label}
-            </button>
-          ))}
-        </span>
-
-        <span className="flex items-center gap-1">
-          <span className="text-dim">负载</span>
-          {WORKLOAD_PRESETS.map((p) => (
-            <button
-              key={p.id}
-              type="button"
-              title={p.hint}
-              onClick={() => setPresetId(p.id)}
-              className={`rounded-md border px-1.5 py-1 ${
-                presetId === p.id ? 'border-accent bg-accent/10 text-accent' : 'border-line text-dim hover:border-accent/50'
-              }`}
-            >
-              {p.label}
-            </button>
-          ))}
-        </span>
-
-        <label className="flex items-center gap-1.5">
-          <span className="text-dim">{counterLabel}</span>
-          <input
-            type="number"
-            min={1}
-            max={64}
-            value={racks}
-            onChange={(e) => setRacks(Math.max(1, Math.min(64, Number(e.target.value) || 1)))}
-            className="w-14 rounded-md border border-line bg-panel px-1.5 py-1 font-mono"
-          />
-        </label>
-
-        <span className="ml-auto text-[11px] text-dim">
-          {WORKLOAD_PRESETS.find((p) => p.id === presetId)!.hint}
-        </span>
+export interface CapacityPanelProps { systemIds: string[]; rackCount?: number; compact?: boolean }
+export default function CapacityPanel({ systemIds, compact = false }: CapacityPanelProps) {
+  const input = useScenarioStore(s => s.input)
+  const setInput = useScenarioStore(s => s.setInput)
+  const reset = useScenarioStore(s => s.reset)
+  const [share, setShare] = useState('')
+  useEffect(()=>setShare(''),[input])
+  const model = modelById(input.modelId)
+  const errors = scenarioErrors(input, model)
+  const counterLabel = [...new Set(systemIds.map(id => capacityUnitWordingFor(id).counterLabel))].join(' / ')
+  const estimates = useMemo(() => systemIds.map(systemId => estimateSystemCapacity({
+    systemId, modelId:input.modelId, quantId:input.weightPrecision, scenario:input,
+  })), [systemIds,input])
+  const fieldClass = 'min-w-0 w-full scroll-mt-24 rounded border border-line bg-panel px-2 py-1.5 text-xs'
+  const activePreset = SCENARIO_PRESETS.find(p => Object.entries(p.values).every(([key,value]) => input[key as keyof ScenarioInput] === value))
+  const numeric: { key: 'cachedTokens'|'inputTokens'|'outputTokens'|'batch'|'unitCount'; label: string; min: number; max: number }[] = [
+    {key:'cachedTokens',label:'已有上下文',min:0,max:model?.contextK ? model.contextK*1024 : 131072},
+    {key:'inputTokens',label:'输入 tokens',min:1,max:131072}, {key:'outputTokens',label:'输出 tokens',min:1,max:131072},
+    {key:'batch',label:'每副本 batch',min:1,max:4096}, {key:'unitCount',label:counterLabel,min:1,max:64},
+  ]
+  const shareScenario = async () => {
+    const state = useFactoryStore.getState()
+    const url = new URL(import.meta.env.BASE_URL, window.location.origin)
+    url.searchParams.set('scenario',encodeScenario(input))
+    url.searchParams.set('gen',state.generation)
+    url.searchParams.set('mode',state.mode==='compare'?'compare':'explore')
+    url.searchParams.set('level',state.level)
+    if(state.focusPath.at(-1)) url.searchParams.set('focus',state.focusPath.at(-1)!)
+    url.searchParams.set('planes',Object.entries(state.planes).filter(([,on])=>on).map(([plane])=>plane).join(','))
+    if(state.reducedMotion) url.searchParams.set('motion','off')
+    if(state.glStatus==='none'||state.glStatus==='failed') url.searchParams.set('gl','off')
+    url.searchParams.set('simulation',useScenarioStore.getState().view)
+    if (state.mode === 'compare') url.searchParams.set('right',state.compare.right)
+    // A scene is portable independently of a tour/lens pin.
+    url.searchParams.delete('tour'); url.searchParams.delete('lens'); url.searchParams.delete('chapter')
+    setShare(url.href)
+    try { await navigator.clipboard.writeText(url.href) } catch { /* selectable URL remains available */ }
+  }
+  const editor = <div className="space-y-2 rounded-lg border border-line bg-panel-2 p-2.5 text-xs" data-scenario-input>
+      <label className="block">模型
+        <select aria-label="模型" className={fieldClass} value={input.modelId} onChange={e=>setInput({modelId:e.target.value})}>
+          {FACTORY_PACK.models.map(m=><option key={m.id} value={m.id}>{m.name}</option>)}
+        </select>
+      </label>
+      <div className="grid grid-cols-2 gap-2">
+        <label>权重精度<select aria-label="权重精度" className={fieldClass} value={input.weightPrecision} onChange={e=>setInput({weightPrecision:e.target.value as ScenarioInput['weightPrecision']})}>{QUANTS.map(q=><option key={q.id} value={q.id}>{q.label}</option>)}</select></label>
+        <label>计算精度<select aria-label="计算精度" className={fieldClass} value={input.computePrecision} onChange={e=>setInput({computePrecision:e.target.value as ScenarioInput['computePrecision']})}>{QUANTS.map(q=><option key={q.id} value={q.id}>{q.label}</option>)}</select></label>
+        <label>KV 精度<select aria-label="KV 精度" className={fieldClass} value={input.kvPrecision} onChange={e=>setInput({kvPrecision:e.target.value as ScenarioInput['kvPrecision']})}><option value="fp16">FP16</option><option value="fp8">FP8（假设支持）</option></select></label>
+        <label>单域 TP<select aria-label="单域 TP" className={fieldClass} value={input.tensorParallel} onChange={e=>setInput({tensorParallel:e.target.value==='auto'?'auto':Number(e.target.value) as 1|2|4|8})}><option value="auto">自动 · 最小合法值</option>{[1,2,4,8].map(n=><option key={n} value={n}>{n}</option>)}</select></label>
       </div>
-
-      {/* ── 卡片 ── */}
-      <div className={estimates.length > 1 ? 'grid gap-2 md:grid-cols-2' : ''}>
-        {estimates.map((est) => (
-          <CapacityBands key={est.systemId} estimate={est} compact={compact} />
-        ))}
-      </div>
+      <div className="flex items-center gap-2"><span>参考负载</span>{SCENARIO_PRESETS.map(p=><button type="button" key={p.id} aria-pressed={activePreset?.id===p.id} title={`${p.values.inputTokens} 输入 / ${p.values.outputTokens} 输出 / batch ${p.values.batch}`} onClick={()=>setInput(p.values)} className={`rounded border px-3 py-1 transition-colors ${activePreset?.id===p.id?'border-accent bg-accent/10 text-accent':'border-line hover:border-accent/50'}`}>{p.label}</button>)}{!activePreset && <span className="text-[10px] text-dim">自定义</span>}</div>
+      <div className="grid grid-cols-2 gap-2">{numeric.map(({key,label,min,max})=><label key={key}>{label}<input className={fieldClass} type="number" min={min} max={max} step={1} value={input[key]} onChange={e=>setInput({[key]: e.target.value==='' ? 0 : Number(e.target.value)})}/></label>)}</div>
+      <label className="block">Rubin 规格配置<select aria-label="Rubin 规格配置" className={fieldClass} value={input.hardwareProfile} onChange={e=>setInput({hardwareProfile:e.target.value as ScenarioInput['hardwareProfile']})}>{Object.entries(RUBIN_PROFILES).map(([id,p])=><option key={id} value={id}>{p.label}</option>)}</select></label>
+      <p className="text-dim">上下文合计 {input.cachedTokens+input.inputTokens+input.outputTokens} / {model ? model.contextK*1024 : '—'} tokens；已有 KV 假设已驻留。权重 / 计算 / KV 精度独立，需模型与内核支持。</p>
+      {errors.length>0 && <p role="alert" className="text-bad">{errors.join(' ')}</p>}
+      <div className="flex gap-3"><button type="button" className="text-accent underline" onClick={reset}>重置场景</button><button type="button" className="text-accent underline" onClick={shareScenario}>分享场景</button></div>
+      {share && <label className="block">场景链接（可复制）<input aria-label="场景链接" className={fieldClass} readOnly value={share} onFocus={e=>e.target.select()}/></label>}
     </div>
-  )
+  return <div className="flex min-w-0 flex-col gap-2" data-capacity-panel="1">
+    {!compact && estimates[0] && <CapacityFeedback estimate={estimates[0]}/>}
+    {compact ? <details className="rounded border border-line bg-panel-2 p-2 text-xs"><summary className="cursor-pointer text-accent">当前场景：{model?.name} · {input.weightPrecision.toUpperCase()} 权重 / {input.computePrecision.toUpperCase()} 计算 · batch {input.batch} · {input.unitCount} 个独立域 · 修改</summary><div className="mt-2">{editor}</div></details> : editor}
+    <div className={estimates.length>1?'grid gap-2 xl:grid-cols-2':''}>{estimates.map(est=><CapacityBands key={est.systemId} estimate={est} compact={compact}/>)}</div>
+  </div>
 }

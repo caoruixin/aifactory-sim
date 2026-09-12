@@ -340,21 +340,7 @@ export const VERA_RUBIN_COMPONENTS: HardwareComponent[] = [
     visual: { shape: 'chip', colorToken: 'accent' },
     imageUrl: 'https://www.nvidia.com/en-us/data-center/vera-rubin-nvl72/',
     sourceIds: [VR_PAGE, VR_GPU_BLOG, VR_PRESS],
-    mathSpecs: {
-      memoryGB: 288,
-      bandwidthTBs: 22,
-      fp8Tflops: 17500,
-      fp4Tflops: 35000,
-      tdpW: null,
-      derivation:
-        '显存 288 GB 与带宽 22 TB/s = 产品页规格表 Rubin GPU 列「288 GB HBM4 | 22 TB/s」（GPU 架构博客同值）；' +
-        'FP8 稠密 17,500 TFLOPS = 规格表「FP8/FP6 Training 17.5 PFLOPS」+ 脚注 2「Dense specification」；' +
-        'FP4 稠密 35,000 TFLOPS = 规格表「NVFP4 Training 35 PFLOPS」+ 同一脚注；' +
-        '⚠️ 更醒目的「NVFP4 Inference 50 PFLOPS」不采用，且理由是硬证据而非保守推断——' +
-        '数据手册 PDF 的脚注 1 明写「NVFP4 Inference specification is sparse.」（产品页脚注 1 没有这后半句，' +
-        '该行也不带脚注 2「Dense specification.」）；' +
-        'TDP 官方未公布，保持 null（官方唯一出现的 1800 W 属于另一款 NVL4 产品的 benchmark 假设）。',
-    },
+    mathSpecs: null, // 在内容包装配时从官方 Claim 派生；不另存数值。
     specs: {
       hbmPerGpuGB: vr<number>(
         288,

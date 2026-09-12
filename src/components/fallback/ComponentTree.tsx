@@ -25,6 +25,7 @@ export default function ComponentTree() {
 }
 
 function TreeNode({ node, depth }: { node: AssemblyNode; depth: number }) {
+  const onPath = useFactoryStore(s=>s.focusPath.includes(node.id))
   const selectedId = useFactoryStore((s) => s.selectedId)
   const select = useFactoryStore((s) => s.select)
   const drillTo = useFactoryStore((s) => s.drillTo)
@@ -37,10 +38,11 @@ function TreeNode({ node, depth }: { node: AssemblyNode; depth: number }) {
     <div style={{ marginLeft: depth === 0 ? 0 : 14 }}>
       <div
         className={`flex flex-wrap items-center gap-1.5 rounded border-l-2 py-1 pl-2 ${
-          selected ? 'border-accent bg-accent/10' : 'border-line hover:bg-panel-2'
+          selected || onPath ? 'border-accent bg-accent/10' : 'border-line hover:bg-panel-2'
         }`}
       >
         <button
+          aria-current={onPath ? 'location' : undefined}
           type="button"
           onClick={() => select(node.id)}
           onMouseEnter={() => hover(node.id)}

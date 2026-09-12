@@ -1,3 +1,4 @@
+import { useHardwarePack } from '../../hooks/useHardwarePack'
 /**
  * 比较模式的右栏：代际 diff 明细（纯 DOM，不依赖 3D）。
  *
@@ -29,7 +30,8 @@ export default function ComparePanel() {
   const setGeneration = useFactoryStore((s) => s.setGeneration)
   const swapCompareSides = useFactoryStore((s) => s.swapCompareSides)
 
-  const result = compareSystems(generation, compare.right)
+  const pack = useHardwarePack()
+  const result = compareSystems(generation, compare.right, pack)
   const rows = compare.showDiffOnly ? changedRows(result.rows) : result.rows
   const left = systemById(generation)
   const right = systemById(compare.right)
@@ -134,7 +136,7 @@ export default function ComparePanel() {
 
       {/* 组件里硬编码的文案同样按 `**` 写（与内容包同一套记法），一并走 RichText。 */}
       <p className="border-b border-line bg-panel-2 px-4 py-2 text-[11px] leading-relaxed text-warn">
-        <RichText text="⚠️ 「新增 / 未收录」只描述**本内容包收录了什么**，不代表产品上有没有这个部件；一侧官方未公布的规格计为「无法比较」而不是「变化」。" />
+        <RichText text="⚠️ 「新增 / 未收录」只描述**本内容包收录了什么**，不代表产品上有没有这个部件；一侧规格没有已确认的适用值时计为「无法比较」。" />
       </p>
 
       <ol className="divide-y divide-line">
@@ -200,13 +202,13 @@ function DiffRowItem({ row }: { row: DiffRow }) {
       {unknown.length > 0 ? (
         <details className="mt-1">
           <summary className="cursor-pointer text-[11px] text-dim hover:text-accent">
-            {unknown.length} 项无法比较（一侧官方未公布）
+            {unknown.length} 项无法比较（一侧无已确认适用值）
           </summary>
           <ul className="mt-1 space-y-0.5 text-[11px] text-dim">
             {unknown.map((d) => (
               <li key={d.key} title={d.key}>
-                {specLabel(d.key)}：{d.left?.value === null ? '左未公布' : String(d.left?.value)} /{' '}
-                {d.right?.value === null ? '右未公布' : String(d.right?.value)}
+                {specLabel(d.key)}：{d.left?.value === null ? '左待确认' : String(d.left?.value)} /{' '}
+                {d.right?.value === null ? '右待确认' : String(d.right?.value)}
               </li>
             ))}
           </ul>
@@ -242,7 +244,7 @@ function SideText({ side, name, total }: { side: string; name?: string; total?: 
 
 function SpecDeltaRow({ delta }: { delta: SpecDelta }) {
   const fmt = (v: unknown, unit: string | null | undefined) =>
-    v === null || v === undefined ? '未公布' : `${typeof v === 'number' ? v.toLocaleString('zh-CN') : v}${unit ?? ''}`
+    v === null || v === undefined ? '待确认' : `${typeof v === 'number' ? v.toLocaleString('zh-CN') : v}${unit ?? ''}`
   return (
     <div className="rounded-md border border-line px-2 py-1">
       <div className="flex items-baseline justify-between gap-2">

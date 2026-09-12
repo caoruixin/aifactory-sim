@@ -208,6 +208,7 @@ function KvTransferCalculator({ systemId }: { systemId: string }) {
 function ModelLoadCalculator({ systemId }: { systemId: string }) {
   const [modelId, setModelId] = useState(modelOptions[0]?.id ?? 'deepseek-v3')
   const [quantId, setQuantId] = useState<QuantOption['id']>('fp8')
+  const [pathMode, setPathMode] = useState<'direct'|'staged'|'pipeline'>('direct')
   const [assumed, setAssumed] = useState<Record<string, string>>({})
 
   const model = modelOptions.find((m) => m.id === modelId) ?? modelOptions[0]!
@@ -215,11 +216,11 @@ function ModelLoadCalculator({ systemId }: { systemId: string }) {
   const weightGB = weightMemoryGB(model.totalParamsB, quant.bytesPerParam)
 
   const ladder = useMemo(() => storageLadderOf(systemId), [systemId])
-  const segments: StorageSegmentInput[] = ladder.segments.map((seg) => ({
+  const segments: StorageSegmentInput[] = ladder.segments.filter(seg => pathMode !== 'direct' || ['shared-to-node','hbm-inject'].includes(seg.id)).map((seg) => ({
     ...seg,
     rate: withAssumedValue(seg.rate, assumed[seg.id] ?? ''),
   }))
-  const breakdown = modelLoadBreakdown(weightGB, segments)
+  const breakdown = modelLoadBreakdown(weightGB, segments, pathMode)
 
   return (
     <div className="flex flex-col gap-2">
@@ -256,8 +257,10 @@ function ModelLoadCalculator({ systemId }: { systemId: string }) {
         <span className="text-[11px] text-dim">权重体积 ≈ {weightGB.toLocaleString('zh-CN')} GB</span>
       </div>
 
+      <label className="text-xs">传输路径<select aria-label="传输路径" className="ml-2 rounded border border-line p-1" value={pathMode} onChange={e=>setPathMode(e.target.value as typeof pathMode)}><option value="direct">共享存储 → GPU 直达</option><option value="staged">对象 → 共享 → 本地 → GPU 分段暂存</option><option value="pipeline">同路径流水传输（理想重叠）</option></select></label>
+      <p className="text-[11px] text-dim">直达 / 流水按最慢链路，暂存按各段时间之和。流水未计填充、排空与争用；实际 DMA 带宽需输入已确认的配置。</p>
       <div className="flex flex-col gap-1">
-        {ladder.segments
+        {segments
           .filter((seg) => seg.rate.value === null)
           .map((seg) => (
             <AssumedValueField
@@ -292,7 +295,7 @@ function ModelLoadCalculator({ systemId }: { systemId: string }) {
           ))}
         </ul>
         <div className="flex items-baseline justify-between rounded-md border border-line bg-panel-2 px-2.5 py-2">
-          <span className="text-[11px] font-semibold text-dim uppercase">串行总时长</span>
+          <span className="text-[11px] font-semibold text-dim uppercase">{pathMode==='staged'?'分段暂存总时长':'路径瓶颈时间下限'}</span>
           <span className={`text-sm font-semibold ${breakdown.totalSeconds === null ? 'text-dim italic' : 'text-fg'}`}>
             {breakdown.totalSeconds === null
               ? '无法估算 · 至少一段官方带宽未公布（见上方⚠️假设值输入框）'
@@ -383,7 +386,7 @@ function KvRestoreCalculator({ systemId }: { systemId: string }) {
             </p>
             <div className="rounded-md border border-line px-2.5 py-2">
               <div className="flex items-baseline justify-between gap-2">
-                <span className="text-[11px] text-dim">重算 prefill（TTFT，MFU 低/中/高）</span>
+                <span className="text-[11px] text-dim">重算 prefill（参数计算，MFU 低/中/高）</span>
                 <span className={`text-right text-sm font-medium ${result.recomputeTtftMsBand === null ? 'text-dim italic' : ''}`}>
                   {result.recomputeTtftMsBand === null
                     ? '无法估算 · GPU 算力口径未知'

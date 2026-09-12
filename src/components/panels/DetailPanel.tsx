@@ -1,3 +1,6 @@
+import { useHardwarePack } from '../../hooks/useHardwarePack'
+import { RUBIN_PROFILES } from '../../data/specifications'
+import { useScenarioStore } from '../../scenarioStore'
 /**
  * 右栏详情面板——本批次的核心 UI，也是这个工具「学习价值」的落点。
  *
@@ -13,8 +16,6 @@
 
 import {
   assemblyById,
-  componentById,
-  connectionsOf,
   sourceById,
   totalInstances,
   ancestorsOf,
@@ -35,13 +36,15 @@ import RichText from '../ui/RichText'
 import Section from '../ui/Section'
 
 export default function DetailPanel() {
+  const hardwarePack = useHardwarePack()
+  const profile = useScenarioStore(s=>s.input.hardwareProfile)
   const detailId = useFactoryStore(detailIdOf)
   const select = useFactoryStore((s) => s.select)
   const drillTo = useFactoryStore((s) => s.drillTo)
   const hover = useFactoryStore((s) => s.hover)
 
   const node = detailId ? assemblyById(detailId) : undefined
-  const component = node ? componentById(node.componentId) : undefined
+  const component = node ? hardwarePack.components.find(c=>c.id===node.componentId) : undefined
 
   if (!node || !component) {
     return (
@@ -56,7 +59,7 @@ export default function DetailPanel() {
     )
   }
 
-  const connections = connectionsOf(node.id)
+  const connections = hardwarePack.connections.filter(c=>c.fromAssemblyId===node.id || c.toAssemblyId===node.id)
   const kids = childrenOf(node.id)
   const parent = node.parentId ? assemblyById(node.parentId) : undefined
   const drillable = canDrillInto(node.id)
@@ -116,7 +119,8 @@ export default function DetailPanel() {
         ) : null}
 
         {/* ── 规格表 ── */}
-        <Section title="官方规格">
+        <Section title="规格与核验">
+          {node.systemId==='sys.vera-rubin-nvl72' && <p className="mb-2 text-xs text-warn">当前带宽配置：{RUBIN_PROFILES[profile].label}；芯片接口峰值与系统有效带宽分列。</p>}
           {Object.keys(component.specs).length === 0 ? (
             <p className="text-xs text-dim">该组件在内容包中未登记规格项。</p>
           ) : (

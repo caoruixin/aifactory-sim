@@ -88,6 +88,18 @@ describe('modelLoadBreakdown：串行分段耗时', () => {
     expect(result.bottleneckId).toBeNull()
   })
 
+  it('同一条 100 GB 路径：暂存 12s，理想流水/直达下限 10s',()=>{
+    const segments=[{id:'ssd',label:'SSD',rate:rate({value:10})},{id:'dma',label:'PCIe DMA',rate:rate({value:50})}]
+    expect(modelLoadBreakdown(100,segments,'staged').totalSeconds).toBe(12)
+    for(const mode of ['direct','pipeline'] as const) {
+      const result=modelLoadBreakdown(100,segments,mode)
+      expect(result.totalSeconds).toBe(10);expect(result.bottleneckId).toBe('ssd')
+      expect(modelLoadBreakdown(100,[...segments,{id:'unknown',label:'?',rate:rate({value:null})}],mode).totalSeconds).toBeNull()
+    }
+  })
+  it.each([0,-1,Infinity,NaN])('无效带宽 %s 不会变成瞬时传输',value=>{
+    expect(toUnidirGBps(rate({value})).gbps).toBeNull()
+  })
   it('空分段数组：total/bottleneck 为 null，不是 0', () => {
     const result = modelLoadBreakdown(100, [])
     expect(result.totalSeconds).toBeNull()
@@ -159,10 +171,10 @@ describe('storageLadderOf：model-load 数据适配（GB300 pin）', () => {
     expect(seg.rate.unit).toBe('GBps')
   })
 
-  it('HBM 注入段取自该系统 GPU 组件的 mathSpecs.bandwidthTBs（GB300 = 8 TB/s）', () => {
+  it('DMA 入口缺少实际路径速率时保持未知，不能拿 HBM 带宽代替', () => {
     const seg = gb300.segments.find((s) => s.id === 'hbm-inject')!
-    expect(seg.rate.value).toBe(8)
-    expect(seg.rate.unit).toBe('TBps')
+    expect(seg.rate.value).toBeNull()
+    expect(seg.rate.unit).toBe('GBps')
   })
 
   it('官方没有的段（对象存储吞吐、本地缓存盘带宽）value: null', () => {

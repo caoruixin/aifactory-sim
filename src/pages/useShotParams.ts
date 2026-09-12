@@ -1,3 +1,5 @@
+import { decodeScenario } from '../lib/scenario'
+import { useScenarioStore } from '../scenarioStore'
 /**
  * URL 参数 → store 的**一次性**播种。
  *
@@ -56,7 +58,7 @@ export function parseShotParams(search: string): ShotParams {
     : null
 
   const rawPlanes = q.get('planes')
-  const planes = rawPlanes
+  const planes = rawPlanes !== null
     ? rawPlanes
         .split(',')
         .map((s) => s.trim())
@@ -219,6 +221,10 @@ export function useShotParams(): void {
     seeded.current = true
 
     const search = typeof window === 'undefined' ? '' : window.location.search
+    const scenario = decodeScenario(new URLSearchParams(search).get('scenario'))
+    if (scenario) useScenarioStore.getState().setInput(scenario)
+    const view=new URLSearchParams(search).get('simulation')
+    if(view==='load'||view==='explanation') useScenarioStore.getState().setPlayback({view,playing:false,elapsedMs:0})
     const params = parseShotParams(search)
     const store = useFactoryStore.getState()
 

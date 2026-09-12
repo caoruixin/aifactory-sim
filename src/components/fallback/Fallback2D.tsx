@@ -17,6 +17,8 @@ import { connectionById, episodeOf } from '../../data'
 import { emphasizedConnectionIds } from '../../lib/connectionEmphasis'
 import { sceneHighlightSet } from '../../lib/sceneHighlight'
 import { useFactoryStore } from '../../store'
+import { useScenarioStore } from '../../scenarioStore'
+import { useVisualPlayback } from '../../hooks/useVisualPlayback'
 import SegmentedTabs from '../ui/SegmentedTabs'
 import ComponentTree from './ComponentTree'
 import ConnectionListTable from './ConnectionListTable'
@@ -30,14 +32,17 @@ const TABS: readonly { id: FallbackTab; label: string }[] = [
   { id: 'connections', label: '连接列表' },
 ]
 
-export default function Fallback2D() {
+export default function Fallback2D({onInspectAssembly}: {onInspectAssembly?: (id:string)=>void} = {}) {
   const [tab, setTab] = useState<FallbackTab>('structure')
   const generation = useFactoryStore((s) => s.generation)
   const mode = useFactoryStore((s) => s.mode)
   const compareRight = useFactoryStore((s) => s.compare.right)
   const selectedId = useFactoryStore((s) => s.selectedId)
   const select = useFactoryStore((s) => s.select)
+  const inspect = (id:string) => {select(id);onInspectAssembly?.(id)}
   const flow = useFactoryStore((s) => s.flow)
+  const flowPlaying = useVisualPlayback()
+  const loadView = useScenarioStore(s => s.view === 'load')
   const tourStopIdx = useFactoryStore((s) => s.tourStopIdx)
   const reducedMotion = useFactoryStore((s) => s.reducedMotion)
   // 窄订阅：切面只需要这两个标量（同 SceneRoot / ConnectionLayer 的做法）。
@@ -59,11 +64,11 @@ export default function Fallback2D() {
         mode,
         lens: { lensId, chapterIdx: lensChapterIdx },
         stepConnectionIds: step?.connectionIds ?? [],
-        flowPlaying: flow.playing,
+        flowPlaying,
         reducedMotion,
         systemId: generation,
       }),
-    [mode, lensId, lensChapterIdx, step, flow.playing, reducedMotion, generation],
+    [mode, lensId, lensChapterIdx, step, flowPlaying, reducedMotion, generation],
   )
 
   // 结构图的高亮集合：步骤显式点亮的部件 + 它引用的每条连接的两端——
@@ -105,20 +110,21 @@ export default function Fallback2D() {
       </div>
       <div className="min-h-0 flex-1 overflow-auto">
         {tab === 'structure' ? (
-          <div className="flex flex-wrap items-start gap-6 p-4">
+          <div className={loadView && !compareMode ? 'h-full p-2' : 'flex flex-wrap items-start gap-6 p-4'}>
             <RackElevationSvg
+              fitHeight={loadView && !compareMode}
               systemId={generation}
               selectedId={selectedId}
               highlightAssemblyIds={activeAssemblyIds}
               sceneAssemblyIds={sceneAssemblyIds}
-              onSelectAssembly={select}
+              onSelectAssembly={inspect}
             />
             {compareMode ? (
               <RackElevationSvg
                 systemId={compareRight}
                 selectedId={selectedId}
                 highlightAssemblyIds={activeAssemblyIds}
-                onSelectAssembly={select}
+                onSelectAssembly={inspect}
               />
             ) : null}
           </div>

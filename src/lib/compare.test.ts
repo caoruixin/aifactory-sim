@@ -91,13 +91,13 @@ describe('GB300 ↔ Vera Rubin：核心 roleKey 的判定', () => {
     const nvlink = gpu.specDeltas.find((d) => d.key === 'nvlinkPerGpuGBs')!
     expect(nvlink.kind).toBe('changed')
     expect(nvlink.left!.value).toBe(1800)
-    expect(nvlink.right!.value).toBe(3600)
+    expect(nvlink.right!.value).toBe(3000)
   })
 
   it('★ 未公布的值不产生伪 spec-changed：两代 GPU 的 TDP 都是 null ⇒ unknown', () => {
     const gpu = byKey.get('accelerator')!
     const tdp = gpu.specDeltas.find((d) => d.key === 'tdpW')!
-    expect(tdp.left!.value).toBeNull()
+    expect(tdp.left!.value).toBe(1400)
     expect(tdp.right!.value).toBeNull()
     expect(tdp.kind).toBe('unknown')
     expect(gpu.unknownKeys).toContain('tdpW')

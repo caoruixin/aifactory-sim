@@ -157,6 +157,10 @@ const PLACEMENTS: Record<string, Placement> = {
   cdu: { size: [0.9, 2.0, 1.2], slots: () => [[-5.4, 1.0, 0]] },
   'facility-water-loop': { size: [0.34, 0.34, 13], slots: () => [[-7.0, 0.35, 0]] },
   'external-storage': { size: [1.3, 2.0, 1.1], slots: () => [[5.4, 1.0, 0]] },
+  // Independent POD resources face the compute row across an aisle. Sizes/spacing are schematic.
+  'agent-cpu-rack': { size: [0.8, 2.2, 1.2], slots: () => [[-1.8, 1.1, 3.4]] },
+  'kv-storage-rack': { size: [0.8, 2.2, 1.2], slots: () => [[0, 1.1, 3.4]] },
+  'pod-network-rack': { size: [0.8, 2.2, 1.2], slots: () => [[1.8, 1.1, 3.4]] },
   // L3 对象存储（v1.6）：贴在 external-storage（4.75~6.05）外侧再一层，读作
   // 「共享存储再往外是货仓」。x=6.9 半宽 0.65 ⇒ 6.25~7.55，与 external-storage 不重叠，
   // 也在 facility（半宽 14）之内；矮半头（1.6 vs 2.0）表达「更冷、更便宜」的层级感。

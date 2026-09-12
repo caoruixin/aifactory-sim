@@ -474,25 +474,7 @@ export const HGX_B300_COMPONENTS: HardwareComponent[] = [
      *   该列内部自洽（8 × 270 GB = 2,160 GB ≈ 整机 2.1 TB；8 × 7.7 = 61.6 ≈ 整机 62 TB/s），
      *   因此整套取同一列，绝不与 RA 的「288 GB / Up to 8 TB/s」混用。
      */
-    mathSpecs: {
-      memoryGB: 270,
-      bandwidthTBs: 7.7,
-      fp8Tflops: 4500,
-      fp4Tflops: 14000,
-      tdpW: 1100,
-      derivation:
-        '全部取自 Blackwell Ultra 数据手册第 5 页 Technical Specifications 的 **HGX B300 列**' +
-        '（同表 GB300 NVL72 列是另一组数字，本项目在 GB300 代际里单独建模，两者不混用）：' +
-        '显存 270 GB 与带宽 7.7 TB/s 直接取「GPU Memory | Bandwidth 270 GB HBM3E | 7.7 TB/s」；' +
-        'FP4 稠密 14,000 TFLOPS 取「FP4 Tensor Core 18 PFLOPS | 14 PFLOPS」+ 脚注 1「Specification in Sparse | Dense」的稠密值；' +
-        'FP8 稠密 4,500 TFLOPS = 「FP8/FP6 Tensor Core 9 PFLOPS」（脚注 2「Specification in sparse. Dense is ½ sparse spec shown.」）÷ 2；' +
-        'TDP 1,100 W 取「Max Thermal Design Power (TDP) | Configurable up to 1,100 W」——官方措辞是' +
-        '「configurable up to」（可配置上限），不是典型工况功率。' +
-        '⚠️ RA Table 1 的「288GB HBM3e / Up to 8TB/s」是另一套口径（芯片上限而非 HGX SKU 实配），' +
-        '不进产能数学，只作为规格 Claim 并列登记。' +
-        '⚠️ FP4 稠密取的是官方**单卡行**的 14 PFLOPS，不是整板 108 ÷ 8 = 13.5——' +
-        '这两个官方数字本身就不闭合（8 × 14 = 112 ≠ 108），本项目不互推，详见该 Claim 的 note。',
-    },
+    mathSpecs: null, // 在内容包装配时从官方 Claim 派生；不另存数值。
     specs: {
       hbmPerGpuGB: hgx<number>(
         270,

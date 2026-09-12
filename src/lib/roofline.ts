@@ -17,7 +17,7 @@
 import type { KVSpec } from '../data/types'
 
 export interface QuantOption {
-  id: 'fp16' | 'fp8' | 'int4'
+  id: 'fp16' | 'fp8' | 'int4' | 'nvfp4'
   label: string
   bytesPerParam: number
 }
@@ -25,13 +25,14 @@ export interface QuantOption {
 export const QUANTS: QuantOption[] = [
   { id: 'fp16', label: 'FP16/BF16', bytesPerParam: 2 },
   { id: 'fp8', label: 'FP8', bytesPerParam: 1 },
-  { id: 'int4', label: 'INT4/FP4', bytesPerParam: 0.5 },
+  { id: 'int4', label: 'INT4', bytesPerParam: 0.5 },
+  { id: 'nvfp4', label: 'NVFP4', bytesPerParam: 0.5625 },
 ]
 
 export const DEFAULT_MFU = 0.4 // prefill 算力利用率（经验值）
 export const DEFAULT_MBU = 0.6 // decode 带宽利用率（经验值）
 
-const KV_BYTES = 2 // KV 按 FP16 存储
+// NVFP4: 4 bits + FP8 scale per 16 values (0.5625 B/parameter); runtime padding is separate.
 
 /** 权重显存：参数量(B) × 每参数字节 = GB（1e9 × bytes ÷ 1e9）。 */
 export function weightMemoryGB(totalParamsB: number, bytesPerParam: number): number {
@@ -42,13 +43,13 @@ export function weightMemoryGB(totalParamsB: number, bytesPerParam: number): num
  * 每 token 全层合计的 KV 字节数。
  * 新型稀疏/线性注意力无公开参数时返回 null（不做伪精确估算）。
  */
-export function kvBytesPerToken(kv: KVSpec): number | null {
+export function kvBytesPerToken(kv: KVSpec, bytes = 2): number | null {
   switch (kv.kind) {
     case 'mha-gqa':
-      return 2 * kv.kvHeads * kv.headDim * kv.numLayers * KV_BYTES
+      return 2 * kv.kvHeads * kv.headDim * kv.numLayers * bytes
     case 'mla':
       // MLA 只缓存压缩后的 latent（如 DeepSeek 512+64=576 维），没有 K/V 两份
-      return kv.kvLatentDim * kv.numLayers * KV_BYTES
+      return kv.kvLatentDim * kv.numLayers * bytes
     case 'unsupported':
       return null
   }
@@ -93,18 +94,20 @@ export function minGpus(totalGB: number, gpuMemoryGB: number, usable = 0.9): num
 
 /**
  * 按所选量化取 GPU 算力口径：仅在官方公布了对应精度算力时切换（INT4/FP4 → fp4Tflops），
- * 其余（含 FP16——数据层没有官方 FP16 字段）回退 FP8 口径，`basis` 供 UI 标注「按 FP8 算力口径」。
+ * 每种计算精度使用对应的稠密规格；未知或 INT4 不回退。
  * 不编造硬件数字：GPU 两个字段都为 null 时原样透传 null。
  */
 export function tflopsForQuant(
-  gpu: { fp8Tflops: number | null; fp4Tflops: number | null },
+  gpu: { fp16Tflops?: number | null; fp8Tflops: number | null; fp4Tflops: number | null },
   quantId: QuantOption['id'],
-): { tflops: number | null; basis: 'fp8' | 'fp4' } {
-  if (quantId === 'int4' && gpu.fp4Tflops !== null) return { tflops: gpu.fp4Tflops, basis: 'fp4' }
-  return { tflops: gpu.fp8Tflops, basis: 'fp8' }
+): { tflops: number | null; basis: 'fp16' | 'fp8' | 'fp4' | null } {
+  if (quantId === 'fp16') return { tflops: gpu.fp16Tflops ?? null, basis: 'fp16' }
+  if (quantId === 'fp8') return { tflops: gpu.fp8Tflops, basis: 'fp8' }
+  if (quantId === 'nvfp4') return { tflops: gpu.fp4Tflops, basis: 'fp4' }
+  return { tflops: null, basis: null } // INT4 has no published, interchangeable NVFP4 compute rate.
 }
 
-/** TTFT 估算（ms）：prefill FLOPs ≈ 2 × 激活参数 × prompt tokens。算力未知 → null。 */
+/** 参数计算时间估算（ms），保留旧函数名兼容：prefill FLOPs ≈ 2 × 激活参数 × prompt tokens。算力未知 → null。 */
 export function estTTFTms(
   activeParamsB: number,
   promptTokens: number,

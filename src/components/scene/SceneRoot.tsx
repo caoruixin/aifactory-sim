@@ -41,6 +41,7 @@ import {
 import { sceneHighlightSet } from '../../lib/sceneHighlight'
 import type { ContainmentOptions } from '../../lib/routing'
 import { useFactoryStore } from '../../store'
+import { useVisualPlayback } from '../../hooks/useVisualPlayback'
 import ConnectionLayer from './ConnectionLayer'
 import FlowLayer from './FlowLayer'
 import { ShapeMesh, ShellMesh, surfaceStyleFor, useTransparencyProgramSync } from './GenericShapes'
@@ -622,7 +623,7 @@ export default function SceneRoot({
   const storeFocusPath = useFactoryStore((s) => s.focusPath)
   const flowEpisodeIdx = useFactoryStore((s) => s.flow.episodeIdx)
   const flowStepIdx = useFactoryStore((s) => s.flow.stepIdx)
-  const flowPlaying = useFactoryStore((s) => s.flow.playing)
+  const flowPlaying = useVisualPlayback()
   const reducedMotion = useFactoryStore((s) => s.reducedMotion)
   const mode = useFactoryStore((s) => s.mode)
   const tourStopIdx = useFactoryStore((s) => s.tourStopIdx)

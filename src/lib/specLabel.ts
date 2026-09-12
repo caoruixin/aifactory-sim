@@ -28,6 +28,19 @@
  * 按字母序排列，方便和 `specLabel.test.ts` 的覆盖断言逐条对照。
  */
 export const SPEC_LABELS: Record<string, string> = {
+  breakoutPorts400G: 'Breakout 后 400G 逻辑端口',
+  fp16DenseTflops: '单 GPU FP16/BF16 稠密算力',
+  hbmArchitectureGB: 'HBM 架构 / RA 容量口径',
+  memoryCapacityGB: '模块内存容量',
+  pcieBidirectionalGBs: '单 GPU PCIe 双向合计带宽',
+  scaleOutPerGpuTBs: '单 GPU scale-out 双向合计带宽',
+  uplinkPorts100G: '100GbE 上联物理接口',
+  moduleConfiguration: '模块配置与范围',
+  networkBandwidthTbs: '模块网络能力',
+  asicBandwidthTbs: '单 ASIC 交换能力',
+  serdesLanes: 'SerDes 通道数量',
+  serdesSpeedGbs: '每通道 SerDes 速率',
+
   acceleratorCount: '加速器数量（每机架）',
   aggregateBandwidthGBs: '交换芯片聚合带宽（单向口径）',
   aggregateBandwidthGbs: '网络聚合带宽（每颗 DPU）',
@@ -267,6 +280,8 @@ export const SPEC_LABELS: Record<string, string> = {
   perGpuNetworkGbs: '每 GPU 的对外网络带宽',
   perNodeStorageBandwidthGBs: '存储带宽上限（每计算节点）',
   perStackCapacityGB: '单个 HBM 堆栈容量',
+  trayBandwidthUpperTBs: '交换托盘带宽（博客上限配置）',
+  switchingThroughputTbs: '厂商交换吞吐口径',
   portCount: '端口数',
   portSpeedGbs: '单端口速率',
   portType: '端口形态',

@@ -165,7 +165,7 @@ describe('totalDurationSeconds', () => {
 
 describe('flowStepFocus：当前步骤 ↔ 参与硬件（v1.1 B1）', () => {
   const idxOf = (stepId: string) => episode.steps.findIndex((s) => s.id === stepId)
-  const KV_WRITE = idxOf('flow.gb300.moe-inference.kv-write')
+  const KV_WRITE = idxOf('flow.gb300.moe-inference.prefill-kv-write')
   const INGRESS = idxOf('flow.gb300.moe-inference.business-ingress')
   const PREFILL = idxOf('flow.gb300.moe-inference.prefill')
 
@@ -223,7 +223,7 @@ describe('flowStepFocus：当前步骤 ↔ 参与硬件（v1.1 B1）', () => {
   it('逻辑层步骤的高亮按内容包实际数据逐个点名（不再假设「逻辑层 = 空高亮」）', () => {
     const GATEWAY = idxOf('flow.gb300.moe-inference.gateway')
     const BILLING = idxOf('flow.gb300.moe-inference.billing')
-    const ROUTER = idxOf('flow.gb300.moe-inference.moe-router')
+    const ROUTER = idxOf('flow.gb300.moe-inference.prefill-router')
 
     // 网关鉴权 / 计费日志：真的发生在机架之外，不该标注任何机架内硬件
     expect(flowStepFocus(episode, GATEWAY, 'rack')).toEqual({ chipIds: [], sceneHighlightIds: [] })
@@ -231,7 +231,7 @@ describe('flowStepFocus：当前步骤 ↔ 参与硬件（v1.1 B1）', () => {
 
     // Router：逻辑层步骤，但 description 原文说它「发生在 Token 所在的那张 GPU 上」
     expect(episode.steps[ROUTER]!.logicalOnly).toBe(true)
-    expect(flowStepFocus(episode, ROUTER, 'board').chipIds).toEqual(['asm.gb300.b300-gpu'])
+    expect(flowStepFocus(episode, ROUTER, 'board').chipIds).toContain('asm.gb300.b300-gpu')
     expect(flowStepFocus(episode, ROUTER, 'rack').sceneHighlightIds).toEqual([
       'asm.gb300.compute-tray',
     ])
@@ -254,7 +254,7 @@ describe('isLocalPhysicalStep：本地物理动作（v1.2 F2）', () => {
   const stepOf = (id: string) => episode.steps.find((s) => s.id === id)
 
   it('kv-write 命中：有硬件动作，但一条网络链路都不走', () => {
-    expect(isLocalPhysicalStep(stepOf('flow.gb300.moe-inference.kv-write'))).toBe(true)
+    expect(isLocalPhysicalStep(stepOf('flow.gb300.moe-inference.prefill-kv-write'))).toBe(true)
   })
 
   it('带连接的物理步骤不算（它们本来就有粒子在跑）', () => {
@@ -266,7 +266,7 @@ describe('isLocalPhysicalStep：本地物理动作（v1.2 F2）', () => {
     expect(isLocalPhysicalStep(stepOf('flow.gb300.moe-inference.gateway'))).toBe(false)
     expect(isLocalPhysicalStep(stepOf('flow.gb300.moe-inference.billing'))).toBe(false)
     // moe-router 有了高亮，但仍然是逻辑层 ⇒ 不脉冲
-    expect(isLocalPhysicalStep(stepOf('flow.gb300.moe-inference.moe-router'))).toBe(false)
+    expect(isLocalPhysicalStep(stepOf('flow.gb300.moe-inference.prefill-router'))).toBe(false)
   })
 
   it('null / undefined 一律 false，不抛错', () => {
@@ -274,15 +274,15 @@ describe('isLocalPhysicalStep：本地物理动作（v1.2 F2）', () => {
     expect(isLocalPhysicalStep(undefined)).toBe(false)
   })
 
-  it('★ 无剧本的代际（Vera Rubin）查不到当前步 → false，不抛错', () => {
+  it('Vera Rubin 新剧本的请求入口为逻辑步骤', () => {
     const noEpisode = FACTORY_PACK.flows.find((f) => f.systemId === 'sys.vera-rubin-nvl72')
-    expect(noEpisode).toBeUndefined()
+    expect(noEpisode).toBeDefined()
     expect(isLocalPhysicalStep(noEpisode?.steps[0])).toBe(false)
   })
 
-  it('全 10 步里恰好命中 1 步（kv-write），不会顺手把别的步骤也点着', () => {
+  it('两次层循环中的专家计算和 KV 读写属于本地物理步骤', () => {
     const hits = episode.steps.filter((s) => isLocalPhysicalStep(s)).map((s) => s.id)
-    expect(hits).toEqual(['flow.gb300.moe-inference.kv-write'])
+    expect(hits).toEqual(['prefill-experts','prefill-kv-write','decode-experts','decode-kv-write'].map(id=>`flow.gb300.moe-inference.${id}`))
   })
 })
 

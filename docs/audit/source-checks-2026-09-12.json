@@ -1,0 +1,239 @@
+{
+  "sources": [
+    {
+      "url": "https://blogs.nvidia.com/blog/gigawatt-ai-factories-ocp-vera-rubin/",
+      "retrievedOn": "2026-09-12",
+      "characters": 13504,
+      "contentSha256": "e552e7704139f33290ccd7e877506cea7a5249fbe694e9a386d5913fafc158b7",
+      "method": "Firecrawl primary-page extraction; claim locator / table and scope review",
+      "warning": null,
+      "error": null
+    },
+    {
+      "url": "https://dam-cdn.nvd.orangelogic.com/AssetLink/56p68o47y6f1yucpubl0ump1c0aif422.pdf",
+      "retrievedOn": "2026-09-12",
+      "characters": 20283,
+      "contentSha256": "0569935bfff76f86f178c46fa57bf7442714a69be9a3fee3a36395dfe555888d",
+      "method": "Firecrawl primary-page extraction; claim locator / table and scope review",
+      "warning": null,
+      "error": null
+    },
+    {
+      "url": "https://developer.nvidia.com/blog/inside-nvidia-blackwell-ultra-the-chip-powering-the-ai-factory-era/",
+      "retrievedOn": "2026-09-12",
+      "characters": 36162,
+      "contentSha256": "0a78a08d85e7b738bf88832cdf02e4fa0700ab9e75143fc22f41c375f5d8aa26",
+      "method": "Firecrawl primary-page extraction; claim locator / table and scope review",
+      "warning": "This scrape job was throttled at your current concurrency limit. If you'd like to scrape faster, you can upgrade your plan.",
+      "error": null
+    },
+    {
+      "url": "https://developer.nvidia.com/blog/inside-nvidia-rubin-gpu-architecture-powering-the-era-of-agentic-ai/",
+      "retrievedOn": "2026-09-12",
+      "characters": 35215,
+      "contentSha256": "155bfc503b835766c06279e03581a700665bb4589bae9e26241fb40f9f4f1918",
+      "method": "Firecrawl primary-page extraction; claim locator / table and scope review",
+      "warning": null,
+      "error": null
+    },
+    {
+      "url": "https://developer.nvidia.com/blog/inside-the-nvidia-rubin-platform-six-new-chips-one-ai-supercomputer/",
+      "retrievedOn": "2026-09-12",
+      "characters": 135566,
+      "contentSha256": "c521deda8a488719d520d58cfa6ef7814123f16d31982300d3971b29e926103d",
+      "method": "Firecrawl primary-page extraction; claim locator / table and scope review",
+      "warning": null,
+      "error": null
+    },
+    {
+      "url": "https://developer.nvidia.com/blog/nvidia-vera-rubin-pod-seven-chips-five-rack-scale-systems-one-ai-supercomputer/",
+      "retrievedOn": "2026-09-12",
+      "characters": 42654,
+      "contentSha256": "8a902b748a9e5d96d3c85ad52cafb895898f73cfb647bd6dd7c2c5278f2e079e",
+      "method": "Firecrawl primary-page extraction; claim locator / table and scope review",
+      "warning": null,
+      "error": null
+    },
+    {
+      "url": "https://docs.nvidia.com/enterprise-reference-architectures/hgx-ai-factory/latest/components.html",
+      "retrievedOn": "2026-09-12",
+      "characters": 15415,
+      "contentSha256": "db8c2613e9272833b8646ac6ef028b79c5d60c732d4f62adf159f1c48bee323b",
+      "method": "Firecrawl primary-page extraction; claim locator / table and scope review",
+      "warning": null,
+      "error": null
+    },
+    {
+      "url": "https://docs.nvidia.com/enterprise-reference-architectures/nvl72-ai-factory/latest/components.html",
+      "retrievedOn": "2026-09-12",
+      "characters": 15431,
+      "contentSha256": "3b472707a60b8d42e7bfa47e065bc2f7acf7f64ba65b726a50fe3bb3e5c81ee2",
+      "method": "Firecrawl primary-page extraction; claim locator / table and scope review",
+      "warning": null,
+      "error": null
+    },
+    {
+      "url": "https://nvidianews.nvidia.com/news/rubin-platform-ai-supercomputer",
+      "retrievedOn": "2026-09-12",
+      "characters": 26891,
+      "contentSha256": "eb45312119a7de7ea3fddfa260d2126eb5a2abeba9d6b93150b2030e7b20f597",
+      "method": "Firecrawl primary-page extraction; claim locator / table and scope review",
+      "warning": null,
+      "error": null
+    },
+    {
+      "url": "https://resources.nvidia.com/en-us-blackwell-architecture/blackwell-ultra-datasheet",
+      "retrievedOn": "2026-09-12",
+      "characters": 3957,
+      "contentSha256": "63dba64446bd4d05b0b387c21c1ea76e88e99a5974a3259c1a9b077502ea548a",
+      "method": "Firecrawl primary-page extraction; claim locator / table and scope review",
+      "warning": null,
+      "error": null
+    },
+    {
+      "url": "https://www.nvidia.com/en-us/data-center/dgx-vera-rubin-nvl72/",
+      "retrievedOn": "2026-09-12",
+      "characters": 21921,
+      "contentSha256": "969f6aa1af754eab2b2ad246dd40c3fbe7c111b7f9c4d9e6e0ab1aa0291eec50",
+      "method": "Firecrawl primary-page extraction; claim locator / table and scope review",
+      "warning": null,
+      "error": null
+    },
+    {
+      "url": "https://www.nvidia.com/en-us/data-center/gb300-nvl72/",
+      "retrievedOn": "2026-09-12",
+      "characters": 19878,
+      "contentSha256": "d38846fc2b76629fe44be3dfb4757b1be6c2ef2ee12763dc893374ff79be62fe",
+      "method": "Firecrawl primary-page extraction; claim locator / table and scope review",
+      "warning": null,
+      "error": null
+    },
+    {
+      "url": "https://www.nvidia.com/en-us/data-center/hgx/",
+      "retrievedOn": "2026-09-12",
+      "characters": 13327,
+      "contentSha256": "0ed487cefe903d157f37418d5dce005d2955cd5e21e4d2d2b073cd753785dcea",
+      "method": "Firecrawl primary-page extraction; claim locator / table and scope review",
+      "warning": null,
+      "error": null
+    },
+    {
+      "url": "https://www.nvidia.com/en-us/data-center/vera-rubin-nvl72/",
+      "retrievedOn": "2026-09-12",
+      "characters": 14213,
+      "contentSha256": "1bb3cb633e2b4b1f28232899e34d7282a70f6e442371b1e5d976ae0e7291d467",
+      "method": "Firecrawl primary-page extraction; claim locator / table and scope review",
+      "warning": null,
+      "error": null
+    },
+    {
+      "url": "https://docs.nvidia.com/enterprise-reference-architectures/nvl72-ai-factory/latest/abstract.html",
+      "retrievedOn": "2026-09-12",
+      "characters": 2588,
+      "contentSha256": "62ae48eb480c1aae28a47422d9418e3d3a6adf4e68e05b2c8eb031d92a35c8f2",
+      "method": "Firecrawl primary-page extraction; claim locator / table and scope review",
+      "warning": null,
+      "error": null
+    },
+    {
+      "url": "https://docs.nvidia.com/enterprise-reference-architectures/nvl72-ai-factory/latest/overview.html",
+      "retrievedOn": "2026-09-12",
+      "characters": 3067,
+      "contentSha256": "6c32b559a7b64dbca22c77db3c0d01a7f53dbc0419d44bcbb176346a88959fdb",
+      "method": "Firecrawl primary-page extraction; claim locator / table and scope review",
+      "warning": null,
+      "error": null
+    },
+    {
+      "url": "https://docs.nvidia.com/enterprise-reference-architectures/nvl72-ai-factory/latest/networking-hardware.html",
+      "retrievedOn": "2026-09-12",
+      "characters": 5374,
+      "contentSha256": "f0f07109758f180226e1ce9b196c2ea69f533ab76b95659b92a2e51c1aa92d53",
+      "method": "Firecrawl primary-page extraction; claim locator / table and scope review",
+      "warning": null,
+      "error": null
+    },
+    {
+      "url": "https://docs.nvidia.com/enterprise-reference-architectures/nvl72-ai-factory/latest/networking-physical-topologies.html",
+      "retrievedOn": "2026-09-12",
+      "characters": 6928,
+      "contentSha256": "5667c6c330ee313838b974bec29733ebb237a0ecc61d724322a3e38fd1df5e72",
+      "method": "Firecrawl primary-page extraction; claim locator / table and scope review",
+      "warning": null,
+      "error": null
+    },
+    {
+      "url": "https://docs.nvidia.com/enterprise-reference-architectures/nvl72-ai-factory/latest/network-logical-architecture.html",
+      "retrievedOn": "2026-09-12",
+      "characters": 22846,
+      "contentSha256": "2c702124ad70af6d251b8baf4f47bc9d3b4943a1805fbd75f7e35029719c0a11",
+      "method": "Firecrawl primary-page extraction; claim locator / table and scope review",
+      "warning": null,
+      "error": null
+    },
+    {
+      "url": "https://docs.nvidia.com/enterprise-reference-architectures/nvl72-ai-factory/latest/appendix-node-configurations.html",
+      "retrievedOn": "2026-09-12",
+      "characters": 8569,
+      "contentSha256": "00546f1a5fdc572cb74c1400157196fe7204819276832bd0b27a0cc0e4ea005d",
+      "method": "Firecrawl primary-page extraction; claim locator / table and scope review",
+      "warning": null,
+      "error": null
+    },
+    {
+      "url": "https://docs.nvidia.com/enterprise-reference-architectures/hgx-ai-factory/latest/abstract.html",
+      "retrievedOn": "2026-09-12",
+      "characters": 1720,
+      "contentSha256": "48c87a8eaec6b9db4736293efcb57d9ad2bec85dd56f55ecb83fef3a9d375768",
+      "method": "Firecrawl primary-page extraction; claim locator / table and scope review",
+      "warning": null,
+      "error": null
+    },
+    {
+      "url": "https://docs.nvidia.com/enterprise-reference-architectures/hgx-ai-factory/latest/overview.html",
+      "retrievedOn": "2026-09-12",
+      "characters": 2832,
+      "contentSha256": "1c2c049459a23bd61064f74ce4edadeb01ab665758b75364b6c36870986ab789",
+      "method": "Firecrawl primary-page extraction; claim locator / table and scope review",
+      "warning": null,
+      "error": null
+    },
+    {
+      "url": "https://docs.nvidia.com/enterprise-reference-architectures/hgx-ai-factory/latest/networking-hardware.html",
+      "retrievedOn": "2026-09-12",
+      "characters": 4907,
+      "contentSha256": "09f4f83d37b277fe17e8e16fe1ee12730604851d761bd6b101be55b042741fe6",
+      "method": "Firecrawl primary-page extraction; claim locator / table and scope review",
+      "warning": null,
+      "error": null
+    },
+    {
+      "url": "https://docs.nvidia.com/enterprise-reference-architectures/hgx-ai-factory/latest/networking-physical-topologies.html",
+      "retrievedOn": "2026-09-12",
+      "characters": 9880,
+      "contentSha256": "30975eeef5323dd3a1e1a7c03dac6bdcfc22a7f6c2eff4b864d596c0313566fa",
+      "method": "Firecrawl primary-page extraction; claim locator / table and scope review",
+      "warning": null,
+      "error": null
+    },
+    {
+      "url": "https://docs.nvidia.com/enterprise-reference-architectures/hgx-ai-factory/latest/network-logical-architecture.html",
+      "retrievedOn": "2026-09-12",
+      "characters": 18130,
+      "contentSha256": "5d6107bd4c51ee32f123906ea097e00af570305d37de74fec9c82807fa0ae1e9",
+      "method": "Firecrawl primary-page extraction; claim locator / table and scope review",
+      "warning": null,
+      "error": null
+    },
+    {
+      "url": "https://docs.nvidia.com/enterprise-reference-architectures/hgx-ai-factory/latest/appendix-node-configurations.html",
+      "retrievedOn": "2026-09-12",
+      "characters": 5804,
+      "contentSha256": "6eb24c1fa944ab9df8d7e3d72ac74534625597bb5bd7f7634a33b3e80926e6ae",
+      "method": "Firecrawl primary-page extraction; claim locator / table and scope review",
+      "warning": null,
+      "error": null
+    }
+  ],
+  "note": "原始文本用于内部逐条回查；未把全文作为应用内容重新分发。补充手册和模型卡的出处见 Claim 清单及实施说明。"
+}

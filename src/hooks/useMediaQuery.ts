@@ -41,7 +41,7 @@ export function useMediaQuery(query: string): boolean {
 }
 
 /** 与 `FactoryCanvas` 的 dpr 判定、Tailwind `md` 断点对齐：768px 以下算移动端。 */
-export const MOBILE_BREAKPOINT_QUERY = '(max-width: 767px)'
+export const MOBILE_BREAKPOINT_QUERY = '(max-width: 1199px)'
 
 export function useIsMobile(): boolean {
   return useMediaQuery(MOBILE_BREAKPOINT_QUERY)

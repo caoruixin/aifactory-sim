@@ -1,5 +1,9 @@
+import { applyClaimReview } from './claimReview'
+import { requestFlows } from './requestFlows'
+import { addPodModules } from './podModules'
+import { applyReviewedSpecifications } from './specifications'
 import { COMPARISONS } from './comparisons'
-import { FLOWS } from './flows'
+import { refreshNarratives } from './reviewedNarratives'
 import {
   GB300_ASSEMBLIES,
   GB300_COMPONENTS,
@@ -62,8 +66,8 @@ import type {
  * ⚠️ 顺序有意义：`systems[0]` 是默认代际（GB300，唯一 shipping 的一代），
  * `scenes` 也按系统分组排列——`store.applyScene` 与 `TourPanel` 都按「系统内序号」取用。
  */
-export const FACTORY_PACK: FactoryContentPack = {
-  version: '0.2.0',
+export const FACTORY_PACK: FactoryContentPack = structuredClone<FactoryContentPack>({
+  version: '0.3.0',
   generatedAsOf: '2026-08',
   sources: SOURCES,
   // ⚠️ 追加只能加在**尾部**：`systems[0]` 是默认代际，`systems[1]` 是比较模式的默认右侧，
@@ -97,7 +101,7 @@ export const FACTORY_PACK: FactoryContentPack = {
     ...GROQ3_LPX_CONNECTIONS,
     ...HGX_B300_CONNECTIONS,
   ],
-  flows: FLOWS,
+  flows: [],
   comparisons: COMPARISONS,
   scenes: [
     ...GB300_SCENES,
@@ -110,7 +114,13 @@ export const FACTORY_PACK: FactoryContentPack = {
   // v1.6 W-A：切面学习板块的两个新集合（跨代实体，不属于任何系统文件）
   techniques: TECHNIQUES,
   lenses: [NETWORK_LENS, STORAGE_LENS],
-}
+})
+
+applyReviewedSpecifications(FACTORY_PACK)
+addPodModules(FACTORY_PACK)
+FACTORY_PACK.flows = requestFlows(FACTORY_PACK)
+refreshNarratives(FACTORY_PACK)
+applyClaimReview(FACTORY_PACK)
 
 // ─────────────────────────── byId 索引 ───────────────────────────
 // 模块级构建一次即可：内容包是不可变的静态数据。

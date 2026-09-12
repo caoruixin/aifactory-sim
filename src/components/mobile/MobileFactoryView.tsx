@@ -1,3 +1,9 @@
+import { encodeScenario } from '../../lib/scenario'
+import { useScenarioStore } from '../../scenarioStore'
+import { Link } from 'react-router-dom'
+import TourPanel from '../panels/TourPanel'
+import FlowBar from '../panels/FlowBar'
+import { ProcessTabs, ResourceOverlay, LoadSimulationPanel } from '../panels/SimulationPanel'
 /**
  * 移动端主视图（`md` / 768px 以下）。
  *
@@ -37,6 +43,8 @@ import Fallback2D from '../fallback/Fallback2D'
 const FactoryCanvas = lazy(() => import('../scene/FactoryCanvas'))
 
 export default function MobileFactoryView() {
+  const scenario = useScenarioStore(s=>s.input)
+  const simulationView = useScenarioStore(s=>s.view)
   const generation = useFactoryStore((s) => s.generation)
   const mode = useFactoryStore((s) => s.mode)
   const level = useFactoryStore((s) => s.level)
@@ -58,6 +66,9 @@ export default function MobileFactoryView() {
   const setLensChapter = useFactoryStore((s) => s.setLensChapter)
   const setMode = useFactoryStore((s) => s.setMode)
 
+  const [capacityOpen,setCapacityOpen] = useState(false)
+  const [navigationOpen,setNavigationOpen] = useState(false)
+  const [processOpen,setProcessOpen] = useState(false)
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [lensDrawerOpen, setLensDrawerOpen] = useState(false)
 
@@ -88,6 +99,8 @@ export default function MobileFactoryView() {
 
   const stopIdx = tourStopIdx >= 0 && tourStopIdx < scenes.length ? tourStopIdx : 0
   const activeScene = scenes[stopIdx]
+  const showingTourStop = mode === 'tour' && tourStopIdx >= 0 && activeScene?.lodLevel === level &&
+    (!activeScene.focusAssemblyId || activeScene.focusAssemblyId === focusId)
 
   const goStop = (idx: number) => {
     const clamped = Math.max(0, Math.min(scenes.length - 1, idx))
@@ -162,6 +175,13 @@ export default function MobileFactoryView() {
         </div>
       </header>
 
+      <div className="relative shrink-0 [&:has([data-simulation-resources])]:h-20"><ResourceOverlay /></div>
+      <nav className="flex shrink-0 flex-wrap items-center gap-2 border-b border-line bg-panel px-3 py-1.5 text-xs">
+        <button type="button" onClick={()=>setNavigationOpen(true)}>组件与导览</button>
+        <button type="button" onClick={()=>setCapacityOpen(true)}>产能与场景</button>
+        <button type="button" onClick={()=>setProcessOpen(true)}>流程与负载</button>
+        <Link to={`/report?scenario=${encodeURIComponent(encodeScenario(scenario))}&gen=${encodeURIComponent(generation)}`} className="text-accent underline">报告</Link>
+      </nav>
       {/*
         ── 切面入口行（v1.6 W-D）──
         lens 未激活：只有两个入口按钮（网络/存储），点了就 `setLens` 续读上次章节。
@@ -217,12 +237,12 @@ export default function MobileFactoryView() {
       ) : (
         <>
           {/* ── 3D / 降级画布 ── */}
-          <div className="relative h-[38vh] shrink-0 border-b border-line bg-ink">
+          <div className={`relative shrink-0 border-b border-line bg-ink ${simulationView==='load'?'h-[30vh]':'h-[38vh]'}`}>
             {degraded ? (
-              <Fallback2D />
+              <Fallback2D onInspectAssembly={() => setDrawerOpen(true)} />
             ) : (
               <ErrorBoundary
-                fallback={<Fallback2D />}
+                fallback={<Fallback2D onInspectAssembly={() => setDrawerOpen(true)} />}
                 onError={() => setGlStatus('failed')}
               >
                 <Suspense
@@ -238,7 +258,12 @@ export default function MobileFactoryView() {
             )}
           </div>
 
-          {lensModeActive ? (
+          {simulationView==='load' ? (
+            <div className="min-h-0 flex-1 overflow-y-auto" data-mobile-load-inline>
+              {!processOpen && <ProcessTabs/>}
+              <LoadSimulationPanel/>
+            </div>
+          ) : lensModeActive ? (
             <>
               {/* ── 切面：上一章 / 下一章 + 章标题 + 代际徽章（复用 data-lens-prev/next 语义）── */}
               <div
@@ -334,11 +359,16 @@ export default function MobileFactoryView() {
               {/* ── 导览：上一站 / 下一站 ── */}
               <div
                 className="shrink-0 border-b border-line bg-panel px-3 py-2"
-                data-tour-stop={stopIdx}
+                data-tour-stop={showingTourStop ? stopIdx : -1}
                 data-tour-total={scenes.length}
               >
                 {scenes.length === 0 ? (
                   <p className="text-xs text-dim">该代际暂无导览场景。</p>
+                ) : !showingTourStop ? (
+                  <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                    <span className="text-dim">当前浏览：{focusNode?.label ?? '机房'}</span>
+                    <button type="button" className="text-accent underline" onClick={()=>goStop(stopIdx)}>返回导览第 {stopIdx+1} 站</button>
+                  </div>
                 ) : (
                   <>
                     <div className="flex items-center gap-2">
@@ -414,6 +444,9 @@ export default function MobileFactoryView() {
         </>
       )}
 
+      <Drawer open={capacityOpen} onClose={()=>setCapacityOpen(false)} title="产能与场景"><div className="p-3"><CapacityPanel systemIds={compareMode?[generation,compare.right]:[generation]}/></div></Drawer>
+      <Drawer open={navigationOpen} onClose={()=>setNavigationOpen(false)} title="组件与导览"><TourPanel onInspectAssembly={()=>setDrawerOpen(true)}/></Drawer>
+      <Drawer open={processOpen} onClose={()=>setProcessOpen(false)} title="流程与负载"><ProcessTabs onViewChange={view=>{if(view==='load')setProcessOpen(false)}}/>{simulationView==='explanation' && <FlowBar onInspectAssembly={()=>{setProcessOpen(false);setDrawerOpen(true)}}/>}</Drawer>
       <Drawer open={drawerOpen} onClose={() => setDrawerOpen(false)} title="部件详情" side="bottom">
         {detailId ? <DetailPanel /> : <p className="p-4 text-sm text-dim">未选中任何部件。</p>}
       </Drawer>

@@ -1,3 +1,5 @@
+import { claimSourceUrl } from '../../data/sourceLinks'
+import { claimDisposition, VERIFICATION_LABELS } from '../../data/verification'
 /**
  * 一行「可溯源数字」：值 + 单位 + 证据徽章 + 状态 + 出处 + locator + note。
  * 从 `DetailPanel` 提取（DOM 与 class 逐字不变），因为它是整个项目最重要的 UI 约定：
@@ -8,7 +10,7 @@
  *   - `LensChapterPanel`（v1.6）：章节 `keyFigures` 与技术卡 `figures`
  *     （`FigureRow` 自带中文 `label`，**不进 specLabel 体系**——这些数字不参与跨代规格配对）。
  *
- * `value === null` 一律显示「官方未公布」，绝不编数（null 传播是本项目的硬纪律）。
+ * `value === null` 显示具体待确认原因，绝不编数（null 传播是本项目的硬纪律）。
  */
 
 import { sourceById } from '../../data'
@@ -19,10 +21,10 @@ import { EvidenceChip, StatusChip } from './Chips'
 import RichText from './RichText'
 
 export function formatClaimValue(claim: Claim): string {
-  if (claim.value === null) return '官方未公布'
+  if (claim.value === null) return VERIFICATION_LABELS[claimDisposition(claim)]
   if (typeof claim.value === 'boolean') return claim.value ? '是' : '否'
   if (typeof claim.value === 'number') return claim.value.toLocaleString('zh-CN')
-  return claim.value
+  return plainText(claim.value)
 }
 
 export interface ClaimRowProps {
@@ -61,12 +63,14 @@ export default function ClaimRow({ name, specKey, claim }: ClaimRowProps) {
         <EvidenceChip evidence={claim.evidence} />
         <StatusChip status={claim.status} />
         {/* title= 放不下 <strong>，用 plainText 去掉成对的 `**`（locator 里也会出现粗体）。 */}
-        <span className="text-[11px] text-dim" title={plainText(claim.locator) || undefined}>
+        <a href={claimSourceUrl(claim,source) ?? undefined} target="_blank" rel="noreferrer" className="text-[11px] text-accent underline" title={plainText(claim.locator) || undefined}>
           {source ? source.title : claim.sourceId}
           {' · '}
           {claim.asOf}
-        </span>
+        </a>
+        <span className="text-[10px] text-dim">{VERIFICATION_LABELS[claimDisposition(claim)]}{claim.review ? ` · ${claim.review.date}` : null}</span>
       </div>
+      {claim.review && claimDisposition(claim)!=='reviewed' && <p className="mt-1 text-[11px] text-dim">{claim.review.reason}</p>}
       {claim.locator ? (
         <p className="mt-1 text-[11px] leading-snug text-dim">
           出处：

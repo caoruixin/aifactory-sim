@@ -9,6 +9,7 @@
  * 4. caveats 恒非空，首条常驻显示，其余折叠。
  */
 
+import ClaimRow from '../ui/ClaimRow'
 import type { CapacityEstimate, Band, CapacityRefusalReasonCode } from '../../lib/capacity'
 import { capacityUnitWordingFor } from '../../lib/capacity'
 import { MetaChip } from '../ui/Chips'
@@ -39,7 +40,7 @@ function fmtTokens(v: number): string {
 }
 
 function fmtMs(v: number): string {
-  if (v >= 1000) return `${(v / 1000).toFixed(2)} s`
+  if (v >= 1000) return v.toFixed(0)
   if (v >= 10) return v.toFixed(0)
   return v.toFixed(1)
 }
@@ -125,6 +126,7 @@ export default function CapacityBands({ estimate, compact = false }: CapacityBan
         </p>
       </header>
 
+      <p className="px-3 py-2 text-[11px] leading-relaxed text-warn">{estimate.caveats[0]}</p>
       {refused ? (
         <div className="space-y-2 px-3 py-3">
           <p className="text-sm leading-relaxed text-bad">
@@ -154,12 +156,50 @@ export default function CapacityBands({ estimate, compact = false }: CapacityBan
         </div>
       ) : (
         <>
+          <div>
+            <BandRow
+              label="Decode 吞吐估算"
+              band={estimate.tokensPerSec}
+              unit="tokens/s"
+              format={fmtTokens}
+              hint="decode 阶段：batch ÷ 步长 × 副本数。区间来自 MBU 0.5/0.6/0.7。"
+              nullNote={
+                estimate.feasible
+                  ? '模型的 KV cache 口径未知，decode 步长无从计算。'
+                  : '单副本所需 GPU 数超过可用 GPU 数，先解决装得下的问题。'
+              }
+            />
+            <BandRow
+              label="Prefill 计算时间"
+              band={estimate.ttftMs}
+              unit="ms"
+              format={fmtMs}
+              lowerIsBetter
+              hint="prefill 参数计算：2 × 激活参数 × 输入 tokens × batch ÷ (TP × 稠密算力 × MFU)。"
+            />
+            <BandRow
+              label="Decode 步长估算"
+              band={estimate.tpotMs}
+              unit="ms"
+              format={fmtMs}
+              lowerIsBetter
+              hint="decode 取算力与显存读写时间的较大值；MoE 使用 batch 专家并集，KV 按并行方式分配。"
+            />
+            <BandRow
+              label="能效"
+              band={estimate.tokensPerWatt}
+              unit="tokens/s/W"
+              format={(v) => v.toFixed(2)}
+              hint={`Decode 吞吐估算 ÷ (官方${unit.unitPowerLabel} × ${unit.counterLabel})。未计入 CDU、机架外交换与 PUE。`}
+              nullNote={`该系统的${unit.unitPowerLabel}尚无已确认的适用值，可能取决于配置；暂不估算能效。`}
+            />
+          </div>
           <div className="grid grid-cols-2 gap-x-3 border-b border-line px-3 py-2 text-xs">
             <Fact label="单副本 GPU 数" value={`${estimate.gpusPerReplica ?? '—'} 张`} hint="按显存下限推导（含 10% 运行开销，留 10% 余量）" />
             <Fact
               label="并发副本数"
               value={estimate.feasible ? `${estimate.replicas}` : '装不下'}
-              hint="floor(GPU 总数 ÷ 单副本 GPU 数)"
+              hint="floor(每域 GPU 数 ÷ TP) × 独立域数"
               bad={!estimate.feasible}
             />
             {!compact && estimate.memory ? (
@@ -175,51 +215,13 @@ export default function CapacityBands({ estimate, compact = false }: CapacityBan
             ) : null}
           </div>
 
-          <div>
-            <BandRow
-              label="集群吞吐"
-              band={estimate.tokensPerSec}
-              unit="tokens/s"
-              format={fmtTokens}
-              hint="decode 阶段：batch ÷ 步长 × 副本数。区间来自 MBU 0.5/0.6/0.7。"
-              nullNote={
-                estimate.feasible
-                  ? '模型的 KV cache 口径未知，decode 步长无从计算。'
-                  : '单副本所需 GPU 数超过可用 GPU 数，先解决装得下的问题。'
-              }
-            />
-            <BandRow
-              label="TTFT（首 token）"
-              band={estimate.ttftMs}
-              unit="ms"
-              format={fmtMs}
-              lowerIsBetter
-              hint="prefill 算力瓶颈：2 × 激活参数 × prompt tokens ÷ (稠密算力 × MFU)。"
-            />
-            <BandRow
-              label="TPOT（每 token）"
-              band={estimate.tpotMs}
-              unit="ms"
-              format={fmtMs}
-              lowerIsBetter
-              hint="decode 带宽瓶颈：(激活权重 + batch 份 KV) ÷ (显存带宽 × MBU)。"
-            />
-            <BandRow
-              label="能效"
-              band={estimate.tokensPerWatt}
-              unit="tokens/s/W"
-              format={(v) => v.toFixed(2)}
-              hint={`集群吞吐 ÷ (官方${unit.unitPowerLabel} × ${unit.counterLabel})。未计入 CDU、机架外交换与 PUE。`}
-              nullNote={`该系统的${unit.unitPowerLabel}官方未公布，本项目不编数。`}
-            />
-          </div>
+          {estimate.allocation && <p className="border-b border-line px-3 py-2 text-[11px] text-dim">{estimate.allocation.domains} 个独立域 × {estimate.allocation.gpusPerDomain} GPU · 闲置 {estimate.allocation.idleGpus} GPU<br/>峰值每 GPU {estimate.allocation.peakPerGpuGB.toFixed(1)} GB（KV {estimate.allocation.kvPerGpuGB.toFixed(1)} GB）</p>}
+          {estimate.decode && <p className="px-3 py-2 text-[11px] text-dim">当前瓶颈：{estimate.decode.bottleneck==='memory'?'显存带宽':'计算'}；decode 算力 {estimate.decode.computeMs.toFixed(2)} ms / 读写 {estimate.decode.memoryMs.toFixed(2)} ms。<br/>MoE batch 权重并集：{estimate.decode.minWeightParamsB.toFixed(1)}–{estimate.decode.maxWeightParamsB.toFixed(1)}B，期望 {estimate.decode.expectedWeightParamsB.toFixed(1)}B。</p>}
+
         </>
       )}
 
       <div className="mt-auto border-t border-line px-3 py-2">
-        <p className="text-[11px] leading-relaxed text-warn">
-          <RichText text={estimate.caveats[0]} />
-        </p>
         {estimate.caveats.length > 1 ? (
           <details className="mt-1">
             <summary className="cursor-pointer text-[11px] text-dim hover:text-accent">
@@ -233,12 +235,7 @@ export default function CapacityBands({ estimate, compact = false }: CapacityBan
               ))}
             </ul>
             {estimate.evidence.inputClaims.length > 0 ? (
-              <p className="mt-1.5 text-[11px] leading-relaxed text-dim">
-                <span className="font-semibold">用到的官方数据：</span>
-                {estimate.evidence.inputClaims
-                  .map((c) => `${c.label}${c.claim.value === null ? '（未公布）' : `＝${c.claim.value}${c.claim.unit ?? ''}`}`)
-                  .join('；')}
-              </p>
+              <dl>{estimate.evidence.inputClaims.map((c,i)=><ClaimRow key={i} name={c.label} claim={c.claim}/>)}</dl>
             ) : null}
             <p className="mt-1 text-[11px] leading-relaxed text-dim">
               <span className="font-semibold">估算方法：</span>

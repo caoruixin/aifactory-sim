@@ -52,9 +52,9 @@ describe('kvTransferRungsOf：HGX pin 三档数据适配', () => {
     expect(rungs.map((r) => r.id)).toEqual(['nvlink-domain', 'cross-node-ethernet', 'storage-fabric'])
   })
 
-  it('NVLink 域内档：14.4 TB/s，标注为双向合计口径', () => {
+  it('NVLink 一对端点：1.8 TB/s，标注为双向合计口径', () => {
     const r = rungs.find((x) => x.id === 'nvlink-domain')!
-    expect(r.rate.value).toBe(14.4)
+    expect(r.rate.value).toBe(1.8)
     expect(r.rate.unit).toBe('TBps')
     expect(r.rate.direction).toBe('bidirectional')
   })

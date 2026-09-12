@@ -20,6 +20,7 @@ import { useEffect, useMemo, useRef } from 'react'
 import { CAMERA_FOV } from '../../lib/cameraPresets'
 import { palette } from '../../lib/palette'
 import { useFactoryStore } from '../../store'
+import { useVisualPlayback } from '../../hooks/useVisualPlayback'
 import { ErrorBoundary } from '../ErrorBoundary'
 import CameraRig from './CameraRig'
 import SceneRoot from './SceneRoot'
@@ -32,7 +33,8 @@ export interface FactoryCanvasProps {
 export default function FactoryCanvas({ interactive = true }: FactoryCanvasProps = {}) {
   const setGlStatus = useFactoryStore((s) => s.setGlStatus)
   const setReady = useFactoryStore((s) => s.setReady)
-  const playing = useFactoryStore((s) => s.flow.playing)
+  const playing = useVisualPlayback()
+  const reducedMotion = useFactoryStore(s => s.reducedMotion)
   const setFlow = useFactoryStore((s) => s.setFlow)
   const cleanupRef = useRef<(() => void) | null>(null)
 
@@ -63,7 +65,7 @@ export default function FactoryCanvas({ interactive = true }: FactoryCanvasProps
       fallback={null}
     >
       <Canvas
-        frameloop={playing ? 'always' : 'demand'}
+        frameloop={playing && !reducedMotion ? 'always' : 'demand'}
         dpr={dpr}
         shadows={false}
         flat

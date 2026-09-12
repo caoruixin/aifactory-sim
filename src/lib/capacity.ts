@@ -1,23 +1,12 @@
 /**
- * 系统级 token 产能**粗估**（纯函数，零 three 导入）。
- *
- * 这一层做的事只有一件：把 `roofline.ts` 的单卡数学，按内容包里的**官方**系统参数
- * （GPU 数量、机架功率）放大到「一个机架/一组机架能出多少 token」的量级感，
- * 并且在任何一处官方数据缺失时**明确拒绝出数**而不是编一个看起来很像的数字。
- *
- * ★ 三条不可让步的规则
- * 1. **不存在「峰值 FLOPS → tokens/s」的直接换算路径**。吞吐只能从 decode 步长
- *    （带宽瓶颈）推导；prefill 只影响 TTFT。谁要是想「1080 PFLOPS ÷ 每 token FLOPs」
- *    得出一个漂亮数字，那个数字与真实服务能力没有任何关系。
- * 2. **拒绝门按序执行**（forecast 系统 → GPU 官方数学参数缺失 → KV 口径未知），
- *    命中即降级，绝不用分析师估算或作者记忆补齐。
- * 3. `caveats` 恒非空，且**首条固定**是「这是粗估区间，不是可承诺产能」。
- *    UI 无论怎么排版都必须把它显示出来。
- *
- * 不做（二期再说）：goodput/SLA、成本/TCO、跨机架张量并行、chunked prefill、
- * 投机解码、MoE 专家并行的通信建模。
+ * 教学用计算时间 / 吞吐估算，纯函数。规格来自带出处的 Claim。
+ * 单个副本只使用一个 NVLink 域内的合法 TP=1/2/4/8；decode 取算力与显存带宽约束的较大值。
+ * 未知规格、无法部署与仅可定性演示的系统明确拒绝出数；不推导端到端 TTFT 或生产服务能力。
+ * 通信、调度、排队、attention 额外 FLOPs、投机解码及成本不在模型范围内。
  */
 
+import { DEFAULT_SCENARIO, resolveHardwareProfile, scenarioErrors, kvGBPerGpu, expertCoverage } from './scenario'
+import type { ScenarioInput } from './scenario'
 import { FACTORY_PACK, modelById, systemById } from '../data'
 import type {
   Claim,
@@ -31,11 +20,7 @@ import {
   DEFAULT_MBU,
   DEFAULT_MFU,
   QUANTS,
-  estStepMs,
   estTTFTms,
-  kvBytesPerToken,
-  memoryBreakdown,
-  minGpus,
   tflopsForQuant,
   tokensPerSecond,
 } from './roofline'
@@ -89,6 +74,7 @@ export interface CapacityInput {
   modelId: string
   quantId: QuantOption['id']
   workload?: CapacityWorkload
+  scenario?: ScenarioInput
 }
 
 // ─────────────────────────── 输出 ───────────────────────────
@@ -115,6 +101,8 @@ export interface CapacityEvidence {
  * 做业务判断（那是给人看的兜底展示用的）。
  */
 export type CapacityRefusalReasonCode =
+  | 'invalid-scenario'
+  | 'unsupported-kv'
   | 'unknown-system'
   | 'unknown-model'
   | 'unknown-quant'
@@ -152,8 +140,8 @@ export interface CapacityEstimate {
   /** 参与估算的 GPU 总数 = 每机架 GPU 数 × rackCount。 */
   totalGpus: number | null
   memory: MemoryBreakdown | null
-  /** 算力口径（FP16 没有官方字段，会回退到 FP8 口径并在 caveat 里说明）。 */
-  basis: 'fp8' | 'fp4' | null
+  /** 与所选计算精度匹配的稠密算力口径；不跨精度回退。 */
+  basis: 'fp16' | 'fp8' | 'fp4' | null
   ttftMs: Band | null
   tpotMs: Band | null
   tokensPerSec: Band | null
@@ -161,14 +149,17 @@ export interface CapacityEstimate {
   tokensPerWatt: Band | null
   caveats: string[]
   evidence: CapacityEvidence
+  scenario: ScenarioInput
+  allocation: { domains: number; gpusPerDomain: number; replicasPerDomain: number; idleGpus: number; peakPerGpuGB: number; kvPerGpuGB: number; kvDivisor: number } | null
+  decode: { computeMs: number; memoryMs: number; firstMemoryMs: number; lastMemoryMs: number; firstStepMs: number; lastStepMs: number; bottleneck: 'compute' | 'memory'; expectedWeightParamsB: number; minWeightParamsB: number; maxWeightParamsB: number; expectedExperts: number | null } | null
 }
 
 /** caveats 的固定首条。UI 与测试都引用这个常量，不要各写各的。 */
 export const CAPACITY_HEADLINE_CAVEAT =
-  '粗估区间（roofline 示意），非实测/可承诺产能：只建模「prefill 吃算力、decode 吃显存带宽」两条主线。'
+  '计算时间 / 吞吐估算，非实测或端到端 TTFT；不含通信、排队和调度。MFU 30–50%，MBU 50–70%。'
 
 const METHOD_CAVEAT =
-  `区间来自利用率假设：MFU ${MFU_BAND.low}/${MFU_BAND.mid}/${MFU_BAND.high}（影响 TTFT）、` +
+  `区间来自利用率假设：MFU ${MFU_BAND.low}/${MFU_BAND.mid}/${MFU_BAND.high}（影响 prefill / decode 计算）、` +
   `MBU ${MBU_BAND.low}/${MBU_BAND.mid}/${MBU_BAND.high}（影响 TPOT 与吞吐）。时延区间方向相反：low = 高利用率 = 更快。`
 
 const NOT_MODELED_CAVEAT =
@@ -200,6 +191,10 @@ const MATH_BACKING_SPEC_KEYS = [
   'memoryBandwidthTBs',
   'fp4DenseTflopsPerGpu',
   'fp8DenseTflopsPerGpu',
+  'fp8DenseTflops',
+  'fp16DenseTflops',
+  'fp4DenseTflops',
+  'hbmBandwidthTBs',
 ] as const
 
 function refusal(
@@ -302,9 +297,9 @@ export function capacityUnitWordingFor(
  *   1. `capacityPolicy !== 'standard'`（`analyst-modeled`：如 Rubin Ultra NVL576，
  *      已官宣但结构主要来自第三方分析师；`paired-only`：只在配对系统里有产能语义）
  *      → **永不出数**，`missing` 恒为空数组；
- *   2. GPU 的 `mathSpecs` 为 null 或关键字段缺失（如 Vera Rubin 的 HBM4 官方未公布）
+ *   2. 从当前规格 Claim 派生的数学参数缺失
  *      → 拒绝并点名缺什么；
- *   3. 模型 KV 口径 `unsupported` → TPOT/吞吐降级为 null（TTFT 仍可出，prefill 不依赖 KV）。
+ *   3. 模型 KV 口径 `unsupported` → 无法判定显存可部署，拒绝出数。
  * 每个拒绝分支都带一个稳定的 `reasonCode`（见 `CapacityRefusalReasonCode`），
  * UI 按它分支渲染，不要用 `reason` 文本做业务判断。
  */
@@ -312,23 +307,32 @@ export function estimateSystemCapacity(
   input: CapacityInput,
   pack: FactoryContentPack = FACTORY_PACK,
 ): CapacityEstimate {
-  const rackCount = Math.max(1, Math.floor(input.rackCount ?? 1))
-  const workload = input.workload ?? DEFAULT_WORKLOAD
+  const legacy = input.workload ?? DEFAULT_WORKLOAD
+  const scenario: ScenarioInput = input.scenario ?? { ...DEFAULT_SCENARIO,
+    modelId: input.modelId, weightPrecision: input.quantId, computePrecision: input.quantId,
+    unitCount: input.rackCount ?? 1, inputTokens: legacy.promptTokens,
+    cachedTokens: Math.max(0, legacy.avgContextTokens - legacy.promptTokens), batch: legacy.batchPerReplica }
+  const rackCount = scenario.unitCount
+  const workload = { promptTokens: scenario.inputTokens,
+    avgContextTokens: scenario.cachedTokens + scenario.inputTokens + Math.max(0, scenario.outputTokens - 1), batchPerReplica: scenario.batch }
   const usePack = pack === FACTORY_PACK
   const system = usePack ? systemById(input.systemId) : pack.systems.find((s) => s.id === input.systemId)
   const unit = capacityUnitWording(system?.architecture)
   const model: ModelSpec | undefined = usePack
-    ? modelById(input.modelId)
-    : pack.models.find((m) => m.id === input.modelId)
-  const quant = QUANT_BY_ID[input.quantId]
+    ? modelById(scenario.modelId)
+    : pack.models.find((m) => m.id === scenario.modelId)
+  const quant = QUANT_BY_ID[scenario.weightPrecision]
 
   const base = {
     systemId: input.systemId,
     systemName: system?.name ?? input.systemId,
-    modelId: input.modelId,
-    quantId: input.quantId,
+    modelId: scenario.modelId,
+    quantId: scenario.weightPrecision,
     rackCount,
     workload,
+    scenario,
+    allocation: null,
+    decode: null,
     feasible: false,
     gpusPerReplica: null,
     replicas: null,
@@ -341,10 +345,9 @@ export function estimateSystemCapacity(
     tokensPerWatt: null,
     evidence: {
       evidence: 'author_opinion' as const,
-      method:
-        'prefill：FLOPs ≈ 2 × 激活参数 × prompt tokens ÷ (稠密算力 × MFU)；' +
-        'decode：每步读一遍激活权重 + batch 份 KV ÷ (显存带宽 × MBU)；' +
-        '副本数 = floor(GPU 总数 ÷ 单副本最少 GPU 数)。',
+      method: 'TP=1/2/4/8 按单 NVLink 域分配；显存按输出结束时 KV 峰值选卡。' +
+        'prefill ≈ 2×激活参数×输入×batch / (TP×稠密算力×MFU)；decode = max(算力时间, 权重与 KV 读写时间)。' +
+        'MoE 用均匀独立路由的 batch 专家并集，GQA 按 KV heads 分片，MLA latent 在 TP 上复制。',
       inputClaims: [] as CapacityInputClaim[],
     },
   } satisfies Omit<CapacityEstimate, 'kind' | 'reason' | 'reasonCode' | 'missing' | 'caveats'>
@@ -358,6 +361,9 @@ export function estimateSystemCapacity(
   if (!quant) {
     return refusal({ ...base }, `未知的量化口径 ${input.quantId}。`, ['量化口径'], 'unknown-quant')
   }
+
+  const errors = scenarioErrors(scenario, model)
+  if (errors.length) return refusal(base, errors.join(' '), [], 'invalid-scenario')
 
   // ── 拒绝门 1：按 capacityPolicy 分支的策略性拒绝（v1.3：不再直接依赖 status） ──
   // 这一档系统可能已经 `announced`（如 Rubin Ultra NVL576），但结构/规格主要来自
@@ -409,15 +415,21 @@ export function estimateSystemCapacity(
   const withEvidence = { ...base, evidence: { ...base.evidence, inputClaims } }
 
   // ── 拒绝门 2：GPU 的官方数学参数缺失 ──
-  const math = gpu.mathSpecs
+  const profile = resolveHardwareProfile(system.id, scenario.hardwareProfile, pack)
+  const math = profile?.math ?? null
+  if (profile) withEvidence.evidence.inputClaims = [
+    ...profile.claims,
+    { label: '每域 GPU 数', claim: gpuCountClaim! },
+    ...(powerClaim ? [{label:'系统功率',claim:powerClaim}] : []),
+  ]
   if (math === null) {
     return refusal(
       withEvidence,
-      `${gpu.name} 的官方数学参数尚未公布，因此不能算产能——本工具不会用分析师估算或记忆里的数字替代。`,
+      `${gpu.name} 缺少适用的已确认数学参数，因此不能算产能——本工具不会用分析师估算或记忆里的数字替代。`,
       [
         `${gpu.name} 单卡 HBM 容量（GB）`,
         `${gpu.name} 单卡显存带宽（TB/s）`,
-        `${gpu.name} 单卡稠密算力（FP8 / FP4 TFLOPS）`,
+        `${gpu.name} 单卡稠密算力（FP16 / FP8 / NVFP4 TFLOPS）`,
       ],
       'missing-math-specs',
     )
@@ -427,17 +439,17 @@ export function estimateSystemCapacity(
   if (gpuCount === null) {
     return refusal(
       withEvidence,
-      `${system.name} 未公布${unit.perUnitGpuLabel}量。`,
+      `${system.name} 缺少已确认的${unit.perUnitGpuLabel}量。`,
       [`${system.name} keySpecs.gpuCount`],
       'missing-gpu-count',
     )
   }
 
-  const { tflops, basis } = tflopsForQuant(math, input.quantId)
+  const { tflops, basis } = tflopsForQuant(math, scenario.computePrecision)
   if (tflops === null) {
     return refusal(
       withEvidence,
-      `${gpu.name} 的稠密算力官方未公布（FP8 与 FP4 两个口径都没有），TTFT 无从估算。`,
+      `${gpu.name} 的所选计算精度没有对应的已确认稠密算力，计算时间无法估算。INT4 不等于 NVFP4。`,
       [`${gpu.name} 稠密算力（FP8 / FP4 TFLOPS）`],
       'missing-dense-tflops',
     )
@@ -446,96 +458,73 @@ export function estimateSystemCapacity(
   const totalGpus = gpuCount * rackCount
   const caveats: string[] = [CAPACITY_HEADLINE_CAVEAT, METHOD_CAVEAT]
 
-  if (basis === 'fp8' && input.quantId !== 'fp8') {
-    caveats.push(
-      `所选量化为 ${quant.label}，但数据层只有官方 FP8/FP4 两档算力口径，算力按 FP8 稠密值计（显存仍按 ${quant.bytesPerParam} 字节/参数）。`,
-    )
+  const weightsGB = model.totalParamsB * quant.bytesPerParam
+  const peakContext = workload.avgContextTokens
+  const choices = (scenario.tensorParallel === 'auto' ? [1,2,4,8] : [scenario.tensorParallel])
+    .filter(tp => tp <= gpuCount)
+  const perGpu = (tp: number) => {
+    const kv = kvGBPerGpu(model, scenario, tp, peakContext)
+    return kv === null ? null : weightsGB / tp * 1.1 + 2 + kv
   }
-
-  // ── 显存与副本数 ──
-  const mem = memoryBreakdown(
-    model.totalParamsB,
-    quant.bytesPerParam,
-    model.kvSpec,
-    workload.avgContextTokens,
-    workload.batchPerReplica,
-  )
-  const kvKnown = mem.kvGB !== null
-  // ── 拒绝门 3：KV 口径未知 → 只降级不编数 ──
-  if (!kvKnown) {
-    caveats.push(
-      `${model.name} 的 KV cache 口径没有可靠公开参数（${model.kvSpec.kind === 'unsupported' ? model.kvSpec.note : '未知'}），` +
-        'decode 步长与吞吐一律不出数；下面的单副本 GPU 数只按「权重 + 运行开销」的下限算，实际必然更多。',
-    )
+  if (kvGBPerGpu(model,scenario,1,peakContext) === null) {
+    return refusal(withEvidence, 'KV 布局没有可靠公开参数，不能判定可部署显存或计算 decode。', ['KV 布局'], 'unsupported-kv')
   }
-  const sizingGB = mem.totalGB ?? mem.weightsGB + mem.overheadGB
-  const gpusPerReplica = minGpus(sizingGB, math.memoryGB)
-  const replicas = Math.floor(totalGpus / gpusPerReplica)
-  const feasible = replicas >= 1
-
-  if (rackCount > 1) {
-    caveats.push(
-      `${rackCount} ${unit.measure}${unit.unitNoun}按**数据并行副本**线性外推（每个副本仍在${unit.replicaScope}），` +
-        `没有建模跨${unit.unitNoun}张量/专家并行的通信代价——真实多${unit.unitNoun}吞吐会低于线性值。`,
-    )
+  const selectedTp = choices.find(tp => perGpu(tp)! <= math.memoryGB * 0.9)
+  const gpusPerReplica = selectedTp ?? null
+  const replicasPerDomain = selectedTp ? Math.floor(gpuCount / selectedTp) : 0
+  const replicas = replicasPerDomain * rackCount
+  const feasible = replicas > 0
+  // The largest candidate explains why a scenario does not fit; it never contributes throughput.
+  const tp = selectedTp ?? choices.at(-1) ?? 1
+  const kvGB = kvGBPerGpu(model, scenario, tp, peakContext)!
+  const mem: MemoryBreakdown = { weightsGB, kvGB: kvGB * tp,
+    overheadGB: weightsGB * .1 + 2 * tp, totalGB: perGpu(tp)! * tp }
+  const allocation = { domains: rackCount, gpusPerDomain: gpuCount, replicasPerDomain,
+    idleGpus: (gpuCount - replicasPerDomain * tp) * rackCount,
+    peakPerGpuGB: perGpu(tp)!, kvPerGpuGB: kvGB,
+    kvDivisor: model.kvSpec.kind === 'mha-gqa' ? Math.min(tp, model.kvSpec.kvHeads) : 1 }
+  caveats.push(`每个独立域 ${gpuCount} GPU；仅支持 TP=1/2/4/8。副本数 = floor(${gpuCount} / TP) × ${rackCount}，不跨域拼接。`)
+  caveats.push(`按输出结束 ${peakContext} tokens 的 KV 峰值部署（最后输出尚未再次送入模型）；KV ${scenario.kvPrecision.toUpperCase()}。` +
+    (model.kvSpec.kind === 'mla' ? 'MLA latent 在每个 TP GPU 上复制；没有加入 context parallelism。' : `KV 按 min(TP, KV heads)=${allocation.kvDivisor} 分片，其余 GPU 复制。`))
+  caveats.push('显存另计权重 10% + 每 GPU 2 GB 运行开销，保留 10% HBM 余量；均为教学假设。权重量化需模型与内核支持。')
+  if (!feasible) caveats.push('当前单域 TP≤8 无法容纳副本。增加独立服务器/机架无效；需降低 batch、上下文或权重精度。')
+  const coverage = expertCoverage(model, scenario.batch)
+  if (model.moe) caveats.push(`MoE 均匀独立路由假设：batch 预期覆盖 ${coverage.expectedExperts!.toFixed(1)} 个路由专家；每步读权重 ${coverage.minParamsB.toFixed(1)}–${coverage.maxParamsB.toFixed(1)}B，期望 ${coverage.expectedParamsB.toFixed(1)}B。共享专家计入固定权重；忽略专家异构与 all-to-all。`)
+  if (scenario.weightPrecision === 'nvfp4') caveats.push('NVFP4 权重按 0.5625 B/参数（含每 16 个参数的 FP8 scale）；其他元数据归运行开销。')
+  const ttft = feasible ? bandOf(
+    estTTFTms(model.activeParamsB, scenario.inputTokens * scenario.batch, tflops, tp, MFU_BAND.high)!,
+    estTTFTms(model.activeParamsB, scenario.inputTokens * scenario.batch, tflops, tp, MFU_BAND.mid)!,
+    estTTFTms(model.activeParamsB, scenario.inputTokens * scenario.batch, tflops, tp, MFU_BAND.low)!,
+  ) : null
+  caveats.push('已有上下文假设 KV 已驻留；prefill 完成产生首个 token，输出 N 个 token 需要 N−1 次 decode；prefill 仅估计输入 tokens 的参数计算，未计注意力随上下文增长的额外 FLOPs、内核和采样成本。')
+  const decodeAt = (context: number, mfu: number, mbu: number) => {
+    const computeMs = estTTFTms(model.activeParamsB, scenario.batch, tflops, tp, mfu)!
+    const readWriteKV = kvGBPerGpu(model,scenario,tp,context+1)!
+    const memoryMs = (coverage.expectedParamsB * quant.bytesPerParam / tp + readWriteKV) / (math.bandwidthTBs * mbu)
+    return { computeMs, memoryMs, ms: Math.max(computeMs,memoryMs) }
   }
-
-  if (!feasible) {
-    caveats.push(
-      `按 ${quant.label} 与当前上下文，单副本至少需要 ${gpusPerReplica} 张 GPU，` +
-        `超过了参与估算的 ${totalGpus} 张——该配置放不下这个模型，需要增加${unit.counterLabel}或换更激进的量化。`,
-    )
-  }
-
-  // ── 时延与吞吐（时延区间方向相反：高利用率 = 低时延） ──
-  const ttft = feasible
-    ? bandOf(
-        estTTFTms(model.activeParamsB, workload.promptTokens, tflops, gpusPerReplica, MFU_BAND.high)!,
-        estTTFTms(model.activeParamsB, workload.promptTokens, tflops, gpusPerReplica, MFU_BAND.mid)!,
-        estTTFTms(model.activeParamsB, workload.promptTokens, tflops, gpusPerReplica, MFU_BAND.low)!,
-      )
-    : null
-
-  const kvPerToken = kvBytesPerToken(model.kvSpec)
-  const stepAt = (mbu: number): number | null =>
-    estStepMs(
-      model.activeParamsB,
-      quant.bytesPerParam,
-      kvPerToken,
-      workload.avgContextTokens,
-      workload.batchPerReplica,
-      math.bandwidthTBs,
-      gpusPerReplica,
-      mbu,
-    )
-
-  const stepFast = stepAt(MBU_BAND.high)
-  const stepMid = stepAt(MBU_BAND.mid)
-  const stepSlow = stepAt(MBU_BAND.low)
-
-  const tpot =
-    feasible && stepFast !== null && stepMid !== null && stepSlow !== null
-      ? bandOf(stepFast, stepMid, stepSlow)
-      : null
-
-  const throughput = (stepMs: number | null): number | null => {
-    const perReplica = tokensPerSecond(stepMs, workload.batchPerReplica)
-    return perReplica === null ? null : perReplica * replicas
-  }
-  const tpsHigh = throughput(stepFast)
-  const tpsMid = throughput(stepMid)
-  const tpsLow = throughput(stepSlow)
-  const tokensPerSec =
-    feasible && tpsLow !== null && tpsMid !== null && tpsHigh !== null
-      ? bandOf(tpsLow, tpsMid, tpsHigh)
-      : null
+  const finalReadContext = Math.max(scenario.cachedTokens + scenario.inputTokens, peakContext - 1)
+  const stepMid = decodeAt(finalReadContext,MFU_BAND.mid,MBU_BAND.mid)
+  const stepFast = decodeAt(finalReadContext,MFU_BAND.high,MBU_BAND.high).ms
+  const stepSlow = decodeAt(finalReadContext,MFU_BAND.low,MBU_BAND.low).ms
+  const tpot = feasible ? bandOf(stepFast, stepMid.ms, stepSlow) : null
+  const decode = feasible ? { firstMemoryMs: decodeAt(scenario.cachedTokens+scenario.inputTokens,MFU_BAND.mid,MBU_BAND.mid).memoryMs, lastMemoryMs: stepMid.memoryMs, computeMs: stepMid.computeMs, memoryMs: stepMid.memoryMs,
+    firstStepMs: decodeAt(scenario.cachedTokens+scenario.inputTokens,MFU_BAND.mid,MBU_BAND.mid).ms,
+    lastStepMs: stepMid.ms, bottleneck: stepMid.computeMs >= stepMid.memoryMs ? 'compute' as const : 'memory' as const,
+    expectedWeightParamsB: coverage.expectedParamsB, minWeightParamsB: coverage.minParamsB,
+    maxWeightParamsB: coverage.maxParamsB, expectedExperts: coverage.expectedExperts } : null
+  const tokensPerSec = feasible ? bandOf(
+    tokensPerSecond(stepSlow,scenario.batch)! * replicas,
+    tokensPerSecond(stepMid.ms,scenario.batch)! * replicas,
+    tokensPerSecond(stepFast,scenario.batch)! * replicas,
+  ) : null
 
   // ── tokens/W ──
   const rackPowerKW = typeof powerClaim?.value === 'number' ? powerClaim.value : null
   let tokensPerWatt: Band | null = null
   if (rackPowerKW === null) {
     caveats.push(
-      `${system.name} 未公布${unit.unitPowerLabel}（keySpecs.rackPowerKW 为「官方未公布」），tokens/W 不出数。`,
+      `${system.name} 的${unit.unitPowerLabel}没有已确认的适用值（取决于配置或仍待确认），tokens/W 不出数。`,
     )
   } else if (tokensPerSec !== null) {
     const watts = rackPowerKW * 1000 * rackCount
@@ -559,6 +548,8 @@ export function estimateSystemCapacity(
     replicas,
     totalGpus,
     memory: mem,
+    allocation,
+    decode,
     basis,
     ttftMs: ttft,
     tpotMs: tpot,

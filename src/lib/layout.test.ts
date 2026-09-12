@@ -48,6 +48,14 @@ describe('resolveLayout', () => {
   })
 })
 
+it('POD 配套模块与计算机架有明确通道，三个独立模块互不重叠',()=>{
+  const layout=resolveLayout('sys.vera-rubin-nvl72')
+  const modules=['asm.pod.vera-cpu-rack','asm.pod.stx-cmx','asm.pod.spectrum6-spx'].map(id=>layout.get(id)!)
+  const compute=layout.get('asm.rubin.rack')!
+  for(const m of modules) expect(m.pos[2]-m.size[2]/2).toBeGreaterThan(compute.pos[2]+compute.size[2]/2+1)
+  for(let i=1;i<modules.length;i++) expect(modules[i]!.pos[0]-modules[i]!.size[0]/2).toBeGreaterThan(modules[i-1]!.pos[0]+modules[i-1]!.size[0]/2)
+})
+
 describe('机架内 rack-U 摆位', () => {
   const layout = resolveLayout(SYSTEM_ID)
   const rackHeight = layout.get('asm.gb300.rack')!.size[1]

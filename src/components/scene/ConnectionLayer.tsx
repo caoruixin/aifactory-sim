@@ -38,7 +38,7 @@
  */
 
 import { Html, Line } from '@react-three/drei'
-import { invalidate } from '@react-three/fiber'
+import { invalidate, useThree } from '@react-three/fiber'
 import { useEffect, useMemo } from 'react'
 import { assemblyById, episodeOf } from '../../data'
 import type { LodLevel, NetworkPlane } from '../../data/types'
@@ -48,6 +48,7 @@ import { FLOW_EMPHASIS, planeColor } from '../../lib/palette'
 import { routeConnections, stackStubLabels } from '../../lib/routing'
 import type { ContainmentOptions, RoutedConnection } from '../../lib/routing'
 import { useFactoryStore } from '../../store'
+import { useVisualPlayback } from '../../hooks/useVisualPlayback'
 
 export interface ConnectionLayerProps {
   systemId: string
@@ -72,8 +73,10 @@ export default function ConnectionLayer({
   containment = null,
   showStubLabels = true,
 }: ConnectionLayerProps) {
+  const canvasHeight = useThree(s=>s.size.height)
   const planes = useFactoryStore((s) => s.planes)
   const flow = useFactoryStore((s) => s.flow)
+  const flowPlaying = useVisualPlayback()
   const reducedMotion = useFactoryStore((s) => s.reducedMotion)
   const select = useFactoryStore((s) => s.select)
   // 窄订阅：切面只需要「模式 + 哪一章」两个标量，整个订 `s.lens` 会让每次
@@ -104,11 +107,11 @@ export default function ConnectionLayer({
       mode,
       lens: { lensId, chapterIdx: lensChapterIdx },
       stepConnectionIds: step?.connectionIds ?? [],
-      flowPlaying: flow.playing,
+      flowPlaying,
       reducedMotion,
       systemId,
     })
-  }, [systemId, flow.episodeIdx, flow.stepIdx, flow.playing, reducedMotion, mode, lensId, lensChapterIdx])
+  }, [systemId, flow.episodeIdx, flow.stepIdx, flowPlaying, reducedMotion, mode, lensId, lensChapterIdx])
 
   const activeConnectionIds = useMemo(() => new Set(emphasis.connectionIds), [emphasis])
 
@@ -152,8 +155,8 @@ export default function ConnectionLayer({
       if (!planes[r.plane]) continue
       visible.push({ connectionId: r.connectionId, tip: r.stub.tip })
     }
-    return stackStubLabels(visible)
-  }, [routes, planeFilter, planes, showStubLabels])
+    return stackStubLabels(visible, 0.12 * Math.max(1, 760 / Math.max(240,canvasHeight)))
+  }, [routes, planeFilter, planes, showStubLabels, canvasHeight])
 
   // demand 帧循环下，store 驱动的重渲染（平面开关、步骤切换、**切面换章**）不会自动
   // 触发 WebGL 重绘。`emphasis` 入依赖 = 切面章节切换也一定补帧（哪怕两章点亮的是同

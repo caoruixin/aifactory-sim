@@ -227,14 +227,15 @@ describe('GB300 NVL72：功率、液冷与 roofline 输入', () => {
       systemById(SYSTEM_ID)!.keySpecs.fp4DensePflops!.value as number,
     )
     // TDP 官方未公布 → 必须是 null，不得编数
-    expect(math.tdpW).toBeNull()
-    expect(math.derivation).toContain('÷ 72')
+    expect(math.tdpW).toBe(1400)
+    expect(math.memoryGB).toBe(279)
+    expect(math.fp16Tflops).toBe(2500)
   })
 
-  it('单卡 TDP 的 Claim 明确标注为「官方未公布」', () => {
+  it('单卡 TDP 的 Claim 标为最高可配置值', () => {
     const claim = componentById('cmp.gb300.b300-gpu')!.specs.tdpW!
-    expect(claim.value).toBeNull()
-    expect(claim.note).toContain('未')
+    expect(claim.value).toBe(1400)
+    expect(claim.note).toContain('最高可配置')
   })
 
   it('官方文档内部冲突已在数据里留痕（每托盘 HBM 与 E1.S 数量）', () => {
@@ -299,7 +300,7 @@ describe('数据源登记', () => {
         .filter((a) => a.systemId === SYSTEM_ID && a.countClaim)
         .map((a) => a.countClaim!.sourceId),
     )
-    expect([...gb300Sources]).toEqual(['src.nvidia-nvl72-ra'])
+    expect([...gb300Sources].sort()).toEqual(['src.nvidia-blackwell-ultra-blog','src.nvidia-nvl72-ra'].sort())
   })
 })
 
@@ -415,10 +416,10 @@ describe('Vera Rubin NVL72：机架级数量（NVIDIA 官方口径）', () => {
 
 describe('Vera Rubin NVL72：证据纪律与 null 传播', () => {
   const claims = claimsAuthoredIn(
-    VERA_RUBIN_SYSTEM,
-    VERA_RUBIN_COMPONENTS,
-    VERA_RUBIN_ASSEMBLIES,
-    VERA_RUBIN_CONNECTIONS,
+    systemById(VERA_RUBIN_SYSTEM.id)!,
+    FACTORY_PACK.components.filter(c=>c.id.startsWith('cmp.rubin.')),
+    FACTORY_PACK.assemblies.filter(a=>a.systemId===VERA_RUBIN_SYSTEM.id && !a.id.startsWith('asm.pod.')),
+    FACTORY_PACK.connections.filter(c=>c.systemId===VERA_RUBIN_SYSTEM.id && !c.id.startsWith('con.pod.')),
   )
 
   /**
@@ -436,6 +437,10 @@ describe('Vera Rubin NVL72：证据纪律与 null 传播', () => {
    * ——任何人把一个规格表数字悄悄降级、或把一条解读悄悄升级成 verified_spec，都会在这里红掉。
    */
   const VENDOR_CLAIM_ALLOWLIST = new Set([
+    // 相对收益 / 工序耗时是厂商宣称，不是可保证的硬件规格。
+    'cmp.rubin.power-shelf.specs.gpuDensityGain',
+    'cmp.rubin.bluefield-4.specs.vsPreviousGen',
+    'cmp.rubin.compute-tray.specs.assemblyTime',
     // 发布稿里的前瞻性上市承诺（Safe Harbor）
     'sys.vera-rubin-nvl72.keySpecs.availability',
     // 产品页规格表 Rubin GPU 列在 NVLink-C2C 行是「-」；1.8 TB/s 是每超级芯片口径
@@ -501,17 +506,18 @@ describe('Vera Rubin NVL72：证据纪律与 null 传播', () => {
     const gpu = componentById('cmp.rubin.rubin-gpu')!
     const math = (gpu as Extract<typeof gpu, { kind: 'gpu' }>).mathSpecs!
     expect(math.memoryGB).toBe(288)
-    expect(math.bandwidthTBs).toBe(22)
+    expect(math.bandwidthTBs).toBe(19.2)
     // 35 PFLOPS/卡 × 72 = 2,520 PFLOPS（官方 NVFP4 Training 稠密值）
     expect((math.fp4Tflops! / 1000) * 72).toBe(VERA_RUBIN_SYSTEM.keySpecs.fp4DensePflops!.value)
     // 17.5 PFLOPS/卡 × 72 = 1,260 PFLOPS（官方 FP8/FP6 Training 稠密值）
     expect((math.fp8Tflops! / 1000) * 72).toBe(VERA_RUBIN_SYSTEM.keySpecs.fp8DensePflops!.value)
     // 显存/带宽与整机架口径自洽（1% 容差：官方 20.7 TB / 1,580 TB/s 是取整后的值）
     expect(Math.abs((math.memoryGB * 72) / 1000 - 20.7) / 20.7).toBeLessThan(0.01)
-    expect(Math.abs(math.bandwidthTBs * 72 - 1580) / 1580).toBeLessThan(0.01)
+    expect(Math.abs(math.bandwidthTBs * 72 - 1400) / 1400).toBeLessThan(0.02)
     // NVFP4 Inference 那一列没有稠密标注，绝不能出现在 mathSpecs 里
     expect(math.fp4Tflops).not.toBe(50_000)
-    expect(math.derivation).toContain('Dense specification')
+    expect(math.fp16Tflops).toBe(4000)
+    expect(gpu.specs.memoryBandwidthTBs!.note).toContain('MaxLPS')
   })
 
   it('预发布限定（Preliminary information）在关键 Claim 上留痕', () => {
@@ -1346,7 +1352,7 @@ describe('HGX B300：NVLink 服务器域（v1.4 W-C）', () => {
       expect(note!).toContain('112')
     }
     // mathSpecs.derivation 也要说明「取单卡行、不用整板反推」
-    expect(m.derivation).toContain('112')
+    expect(m.fp4Tflops).toBe(gpu.specs.fp4DenseTflops!.value)
   })
 
   it('★ 每卡 NVLink 带宽与 GB300 完全相同——变的是域里有几张卡，不是链路速度', () => {

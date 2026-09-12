@@ -1,3 +1,8 @@
+import { useHardwarePack } from '../hooks/useHardwarePack'
+import { useScenarioStore } from '../scenarioStore'
+import { useFactoryStore } from '../store'
+import { decodeScenario } from '../lib/scenario'
+import ClaimAuditPanel from '../components/panels/ClaimAuditPanel'
 /**
  * `/report` — 给老板看的一页纸汇报（可打印）。
  *
@@ -10,7 +15,7 @@
  * 打印用 Tailwind 的 `print:` 变体收拾：去掉导航与背景色、避免在节中间分页。
  */
 
-import { useMemo } from 'react'
+import { useMemo, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import CapacityBands from '../components/panels/CapacityBands'
 import RackElevationSvg from '../components/fallback/RackElevationSvg'
@@ -83,14 +88,18 @@ const RELATION_INTRO: Record<ReportBodyRelation, string> = {
 }
 
 export default function ReportPage() {
+  const scenario = useScenarioStore(s=>s.input)
+  const generation = useFactoryStore(s=>s.generation)
+  const hardwarePack = useHardwarePack()
+  useEffect(()=>{const shared=decodeScenario(new URLSearchParams(window.location.search).get('scenario'));if(shared)useScenarioStore.getState().setInput(shared);const gen=new URLSearchParams(window.location.search).get('gen');if(gen)useFactoryStore.getState().setGeneration(gen)},[])
   const claims = useMemo(allClaims, [])
   // 产能卡按内容包里的全部系统动态渲染——新增代际不需要改这一页。
   const capacity = useMemo(
     () =>
       FACTORY_PACK.systems.map((s) =>
-        estimateSystemCapacity({ systemId: s.id, modelId: 'deepseek-v3', quantId: 'fp8' }),
+        estimateSystemCapacity({ systemId: s.id, modelId: scenario.modelId, quantId: scenario.weightPrecision, scenario }),
       ),
-    [],
+    [scenario],
   )
   /**
    * 遍历**人工比较定义**（不是 systems），按关系分组：换代主线 / 同代内的域选择。
@@ -101,9 +110,9 @@ export default function ReportPage() {
     () =>
       reportComparisonGroups().map((g) => ({
         relation: g.relation,
-        results: g.definitions.map((d) => buildComparison(d)),
+        results: g.definitions.map((d) => buildComparison(d,hardwarePack)),
       })),
-    [],
+    [hardwarePack],
   )
   /** 换代主线上的代际（只收有人写过换代比较定义的那几代），用于标题里的箭头链。 */
   const chainNames = useMemo(
@@ -111,9 +120,9 @@ export default function ReportPage() {
     [],
   )
   /** Vera Rubin ↔ Groq 3 LPX 是**配对**而不是换代，单独成段讲（见下面的 §4b 配对小节）。 */
-  const pairing = useMemo(() => compareSystems(VERA_RUBIN, LPX), [])
+  const pairing = useMemo(() => compareSystems(VERA_RUBIN, LPX,hardwarePack), [hardwarePack])
   const lpxCapacity = capacity.find((c) => c.systemId === LPX)
-  const episode = flowsOfSystem(GB300)[0]
+  const episode = flowsOfSystem(generation)[0]
   const waicSource = sourceById(WAIC_SOURCE)
 
   const byEvidence = useMemo(() => {
@@ -164,7 +173,7 @@ export default function ReportPage() {
         <p>
           本工具把这些资料收敛成一个可下钻的三维模型 + 一套<strong>可溯源的内容包</strong>：
           集群 → 机架 → 托盘 → 板卡逐层展开，每个部件的每个数字都带出处与证据等级，
-          官方没公布的一律显示「未公布」而不是编一个看起来合理的数。目标不是做得漂亮，
+          未确认的参数分别列明部署决定、范围冲突或未找到公开依据。目标不是做得漂亮，
           而是<strong>讲的时候不会说错</strong>。
         </p>
         <ul className="ml-5 list-disc space-y-1">
@@ -197,6 +206,8 @@ export default function ReportPage() {
           这几个数字说错，后面的结论客户就不会信了。
         </p>
       </Section>
+
+      <ClaimAuditPanel />
 
       {/* ── 3. 推理数据流 ── */}
       <Section n={3} title="推理数据流：一个请求在机架里怎么跑">
@@ -240,7 +251,7 @@ export default function ReportPage() {
             </ol>
             <p className="text-xs leading-relaxed text-dim">
               ⚠️ 步骤的相对时长只用于动画节奏，<strong>不是真实时延</strong>；工具里也刻意
-              不把它换算成毫秒展示。真实时延请看下一节的 TTFT / TPOT 粗估区间。
+              不把它换算成毫秒展示。下一节提供参数计算时间与 decode 每步时间估算，未包含通信、排队和调度。
             </p>
           </>
         ) : (
@@ -340,8 +351,7 @@ export default function ReportPage() {
 
         <h3 className="mt-6 text-sm font-semibold">同一负载下的产能粗估对照</h3>
         <p className="text-xs leading-relaxed text-dim">
-          参考模型 deepseek-v3（671B 总参 / 37B 激活，MLA）、FP8、单机架、中等负载
-          （2k 输入 / 4k 上下文 / 并发 32）。
+          当前场景：{scenario.modelId}，权重 {scenario.weightPrecision} / 计算 {scenario.computePrecision} / KV {scenario.kvPrecision}；{scenario.unitCount} 个独立域，TP {scenario.tensorParallel}。已有上下文 {scenario.cachedTokens}、输入 {scenario.inputTokens}、输出 {scenario.outputTokens} tokens，batch {scenario.batch}。Rubin 配置：{scenario.hardwareProfile}。
           {FACTORY_PACK.systems.length} 代里只有 {capacity.filter((c) => c.kind === 'estimate').length}{' '}
           代拿得到完整数字——<strong>拿不到的那几代分别因为什么拿不到</strong>，正是这一节要展示的结论。
         </p>
@@ -384,8 +394,8 @@ export default function ReportPage() {
       <Section n={5} title="证据边界：哪些能对外说、哪些只能内部参考">
         <p>
           内容包里共 <strong>{claims.length}</strong> 条可溯源事实，其中{' '}
-          <strong>{unknownCount}</strong> 条是「官方未公布」——它们在界面上显示为「未公布」，
-          并且会让下游的产能估算降级或拒绝出数，而不是被当成 0 参与计算。
+          <strong>{unknownCount}</strong> 条没有已确认的适用值，分别标为部署决定、来源范围待确认、
+          本次未找到可靠依据或不适用。依赖它们的计算会保留空值或拒绝出数，不当成 0。
         </p>
         <table className="w-full border-collapse text-xs">
           <thead>
@@ -398,7 +408,7 @@ export default function ReportPage() {
           <tbody>
             {(
               [
-                ['verified_spec', '厂商官方文档/规格表里的确切数字。可以直接对外引用。'],
+                ['verified_spec', '来自厂商官方文档 / 规格表；还需核对适用范围、核验状态和限定条件，待确认项不能当作已确认参数引用。'],
                 ['vendor_claim', '厂商宣称（含营销口径）。要连同前提一起说，不能当规格用。'],
                 ['analyst_estimate', '第三方分析师测算。只能讲趋势，不能进方案数字。'],
                 ['forecast', '未发布产品的预测。汇报时必须显式说明「这是预测」。'],
@@ -514,7 +524,7 @@ export default function ReportPage() {
               <tr className="align-top">
                 <td className="py-1.5 pr-2">集群</td>
                 <td className="py-1.5 pr-2">万卡+</td>
-                <td className="py-1.5 text-dim">本工具目前四代都停在 Scale-Up 域内，未建模到这一档</td>
+                <td className="py-1.5 text-dim">本工具展示计算域与 POD 配套模块，未建模万卡级集群调度</td>
               </tr>
             </tbody>
           </table>
@@ -577,11 +587,11 @@ export default function ReportPage() {
         <ul className="ml-5 list-disc space-y-1.5">
           <li>
             <strong>补齐 Vera Rubin 的官方缺口</strong>：整机架功率、单卡 TDP、每卡 NVLink 链路数、
-            scale-out 参考架构。这四项一旦官方公布，工具里的 tokens/W 与拓扑图会自动补全。
+            scale-out 参考架构。补充资料经核验并接入后，才能更新相应的能效与拓扑模型。
           </li>
           <li>
-            <strong>把产能粗估接到真实压测</strong>：现在的区间只建模了「prefill 吃算力、
-            decode 吃显存带宽」两条主线，下一步要引入实测 MFU/MBU 与集合通信开销，
+            <strong>把产能粗估接到真实压测</strong>：当前 prefill 估计参数计算，decode 同时考虑算力与显存带宽；
+            下一步要引入实测 MFU/MBU、上下文相关注意力计算与集合通信开销，
             并区分 goodput 与 SLA 达成率。
           </li>
           <li>
@@ -663,7 +673,7 @@ function KeySpecTable({ systemId, keys }: { systemId: string; keys: string[] }) 
               </th>
               <td className="py-1 pr-2 text-right font-medium whitespace-nowrap">
                 {claim.value === null ? (
-                  <span className="text-dim italic">官方未公布</span>
+                  <span className="text-dim italic">适用值待确认</span>
                 ) : (
                   <>
                     {typeof claim.value === 'number' ? claim.value.toLocaleString('zh-CN') : String(claim.value)}
@@ -730,6 +740,7 @@ function DiffTable({ title, result }: { title: string; result: ReturnType<typeof
         {title}：共 {result.rows.length} 个部件配对，{rows.length} 处有变化
         （{result.counts.unchanged} 处无变化）
       </h4>
+      <div className="overflow-x-auto print:overflow-visible" role="region" aria-label={`${title} 差异表`} tabIndex={0}>
       <table className="mt-1 w-full border-collapse text-xs">
         <thead>
           <tr className="border-b border-line text-left text-dim">
@@ -756,6 +767,7 @@ function DiffTable({ title, result }: { title: string; result: ReturnType<typeof
           ))}
         </tbody>
       </table>
+      </div>
     </div>
   )
 }

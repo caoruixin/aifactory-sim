@@ -1,0 +1,39 @@
+{
+  "date": "2026-09-12",
+  "baselineCount": 4,
+  "checks": [
+    {
+      "file": "tests/e2e/interaction.spec.ts-snapshots/capacity-live-feedback-desktop-darwin.png",
+      "width": 1440,
+      "height": 900,
+      "sha256": "750626b4465099c20062d5958297657c0f64287b205516bab507c436638a5756",
+      "review": "individually inspected before adopting baseline"
+    },
+    {
+      "file": "tests/e2e/interaction.spec.ts-snapshots/load-inline-390-desktop-darwin.png",
+      "width": 390,
+      "height": 900,
+      "sha256": "10dbc621e5457f40b8578337ced9aece095643eb1e742b5c5a1da5ea0067e92d",
+      "review": "individually inspected before adopting baseline"
+    },
+    {
+      "file": "tests/e2e/interaction.spec.ts-snapshots/load-inline-900-desktop-darwin.png",
+      "width": 900,
+      "height": 900,
+      "sha256": "655434bf498ef9b15f1756bc73264bd0753e39d0a651379de013de9ea15abc4d",
+      "review": "individually inspected before adopting baseline"
+    },
+    {
+      "file": "tests/e2e/interaction.spec.ts-snapshots/load-overview-desktop-darwin.png",
+      "width": 1440,
+      "height": 900,
+      "sha256": "5f8ca4427066b3a27abee922ba5aa45bc71f2a5fbd44beb013550104c2ab20a8",
+      "review": "individually inspected before adopting baseline"
+    }
+  ],
+  "additionalManualChecks": [
+    "Actual WebGL at 1440×900 and 390×900: model, controls and output visible together; no horizontal overflow or browser page errors.",
+    "Resource summary does not obscure fallback view tabs.",
+    "Fitted rack diagram uses a readable clickable component legend."
+  ]
+}

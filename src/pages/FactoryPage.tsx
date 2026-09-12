@@ -1,3 +1,4 @@
+import { SimulationClock, ProcessTabs, ResourceOverlay } from '../components/panels/SimulationPanel'
 /**
  * 主工作台。四区布局：
  *   顶  BreadcrumbBar（代际切换 / 模式切换 / 物理层级）
@@ -9,7 +10,7 @@
  * 布局原则：**除中央格外全部是 DOM**。这样 WebGL 不可用时只要换掉中央那一格，
  * 面包屑/导览/详情/步骤条/产能卡全部照常工作——降级路径不是另写一套界面。
  *
- * 桌面三栏 grid；`md`（768px）以下换成 `MobileFactoryView`——专门的移动布局
+ * 桌面三栏 grid；1200px 以下换成 `MobileFactoryView`——专门的移动布局
  * （禁 orbit、导览按钮驱动机位、热点列表 + Drawer 详情），不是桌面栏位纵向堆叠。
  * `<main>` 本身（含 `data-ready`/`data-gl`/`data-mode`）两种断点下都保留，
  * 深链播种与降级检测不因断点切换而失效。
@@ -100,28 +101,30 @@ export default function FactoryPage() {
           : 'grid h-screen grid-rows-[auto_1fr_auto] bg-ink text-fg'
       }
     >
+      <SimulationClock />
       {isMobile ? (
         <MobileFactoryView />
       ) : (
         <>
           <BreadcrumbBar />
 
-          <div className="grid min-h-0 grid-cols-1 lg:grid-cols-[248px_1fr_380px]">
+          <div className="grid min-h-0 min-w-0 grid-cols-1 min-[1200px]:grid-cols-[224px_minmax(0,1fr)_360px]">
             <aside className="min-h-0 border-line bg-panel lg:border-r">
-              {lensMode ? <LensPanel /> : <TourPanel />}
+              {lensMode ? <LensPanel /> : <TourPanel onInspectAssembly={()=>setTab('detail')} />}
             </aside>
 
             {/* flex 列而不是让子元素 h-full：降级提示条与产能卡各占自己的高度，
                 剩下的才归中央视图，否则结构树会撑出容器、被底部步骤条盖住。 */}
-            <section className="relative flex min-h-[52vh] min-w-0 flex-col bg-ink lg:min-h-0">
+            <section className="relative flex min-h-[52vh] min-w-0 flex-col bg-ink min-[1200px]:min-h-0">
               {degraded ? <DegradedNotice status={glStatus} /> : null}
+              {!compareMode && <div className="relative shrink-0 [&:has([data-simulation-resources])]:h-[4.5rem]"><ResourceOverlay/></div>}
               <div className="relative min-h-0 flex-1">
                 {logicalStepLabel === null ? null : <LogicalStepOverlay label={logicalStepLabel} />}
                 {degraded ? (
-                  <Fallback2D />
+                  <Fallback2D onInspectAssembly={() => setTab('detail')} />
                 ) : (
                   <ErrorBoundary
-                    fallback={<Fallback2D />}
+                    fallback={<Fallback2D onInspectAssembly={() => setTab('detail')} />}
                     onError={() => useFactoryStore.getState().setGlStatus('failed')}
                   >
                     <Suspense fallback={<CanvasSkeleton />}>
@@ -171,7 +174,7 @@ export default function FactoryPage() {
                       </button>
                     ))}
                   </div>
-                  <div className="min-h-0 flex-1 overflow-y-auto">
+                  <div className={`min-h-0 flex-1 overflow-y-auto ${tab==='capacity'?'scroll-pt-24':''}`}>
                     {tab === 'detail' ? (
                       <DetailPanel />
                     ) : (
@@ -189,7 +192,7 @@ export default function FactoryPage() {
               tab 时只 select 是看不到东西的（tab 是这里的本地 state，所以动作下传）。
               ★ 切面模式下右栏根本没有这两个 tab（换成了章节面板），因此不下传回调——
               切一个不存在的 tab 只会在退出切面时把用户莫名其妙地扔到详情页。 */}
-          <FlowBar onInspectAssembly={lensMode ? undefined : () => setTab('detail')} />
+          <div className="min-w-0"><ProcessTabs /><FlowBar onInspectAssembly={lensMode ? undefined : () => setTab('detail')} /></div>
         </>
       )}
     </main>

@@ -82,7 +82,7 @@ function lensChapterPatch(s: FactoryState, lensId: string, chapterIdx: number): 
   const genChanged = s.generation !== chapter.systemId
   // 换代时下钻的基点必须是**新系统的根**：章节可能不给焦点（纯叙事章），
   // 那时 `applyScene` 只改层级、保留 focusPath——拿旧代际的 focusPath 会指向另一棵树。
-  const base: DrillState = genChanged ? initialDrillState(chapter.systemId) : s
+  const base: DrillState = initialDrillState(chapter.systemId)
   const drill = nextState(base, {
     type: 'applyScene',
     level: chapter.lodLevel,
@@ -99,7 +99,7 @@ function lensChapterPatch(s: FactoryState, lensId: string, chapterIdx: number): 
     // 3D 的场景高亮通道会与切面高亮通道同时开火。
     tourStopIdx: -1,
     lens: { lensId, chapterIdx },
-    hoveredId: genChanged ? null : s.hoveredId,
+    hoveredId: null,
     flow: genChanged ? { ...s.flow, stepIdx: 0, playing: false } : s.flow,
     compare: right === s.compare.right ? s.compare : { ...s.compare, right },
   }

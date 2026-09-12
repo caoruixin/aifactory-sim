@@ -5,7 +5,7 @@
  * 1. 纯 JSON 可序列化——无函数、无 Date、无类实例、无 Symbol。`pack.test.ts` 有 JSON 往返断言。
  * 2. 可选字段一律写成 `| null` 显式空值，不用 `?:` 省略；否则 `undefined` 会在 JSON 往返中被吞掉。
  *    （唯一例外见 `VisualHint.wireframe`：要么整键不出现，要么为 boolean，绝不赋 undefined。）
- * 3. 证据纪律：任何易变事实（数量/规格/功率）都必须包成 `Claim`，官方未公布时 `value: null`
+ * 3. 证据纪律：任何易变事实（数量/规格/功率）都必须包成 `Claim`，未确认适用值时 `value: null`
  *    ——「官方未公布不编数」。作者的行业背景知识只能进 `evidence: 'author_opinion'` 或纯文案字段
  *    （summary / presalesNote / note）。
  * 4. 跨代比较永不解析 ID 字符串，只用 `AssemblyNode.roleKey` 配对。
@@ -62,7 +62,7 @@ export type ClaimValue = number | string | boolean
 export type Confidence = 'high' | 'medium' | 'low'
 
 /**
- * 一条可溯源的事实。`value: null` 是一等公民，含义是「该源未公布此数值」，
+ * 一条可溯源的事实。`value: null` 是一等公民，含义是「没有已确认、适用于此配置的值」，
  * 下游（产能估算/对比表）必须把 null 传播成 null 或拒绝出数，绝不当 0 处理。
  */
 export interface Claim<T extends ClaimValue = ClaimValue> {
@@ -75,6 +75,12 @@ export interface Claim<T extends ClaimValue = ClaimValue> {
   asOf: string // YYYY-MM
   confidence: Confidence
   note: string | null
+  /** Optional audit record; source publication date remains in asOf. */
+  review?: {
+    date: string
+    disposition: 'reviewed' | 'scope-conflict' | 'deployment-dependent' | 'not-found' | 'not-applicable' | 'non-spec'
+    reason: string
+  }
 }
 
 // ─────────────────────────── 视觉（3D 只认外形，不认型号） ───────────────────────────
@@ -146,13 +152,14 @@ export type NonGpuComponentKind =
 export type ComponentKind = 'gpu' | NonGpuComponentKind
 
 /**
- * roofline 数学的输入口径——**与 Claim 证据展示刻意分离**：
+ * roofline 数学的兼容视图——由带来源的 Claim 派生：
  * 这里只放能直接进公式的官方数字，任一关键字段为 null 时 `capacity.ts` 走拒绝/降级门。
  * 未公布的整体设为 `mathSpecs: null`，不允许拿分析师估算填。
  */
 export interface GpuMathSpecs {
   memoryGB: number
   bandwidthTBs: number
+  fp16Tflops: number | null
   fp8Tflops: number | null // 稠密口径（dense）
   fp4Tflops: number | null // 稠密口径（dense）
   tdpW: number | null
@@ -345,6 +352,8 @@ export const FLOW_PHASE_ORDER: readonly FlowPhase[] = [
 export type ParticleDirection = 'forward' | 'reverse' | 'bidirectional' | null
 
 export interface FlowStep {
+  loopContext?: 'prefill-layer' | 'decode-layer-token' | null
+  payload?: 'request' | 'activation' | 'kv' | 'token' | 'resident-weight'
   id: string
   phase: FlowPhase
   label: string

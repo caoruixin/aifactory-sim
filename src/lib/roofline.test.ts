@@ -84,17 +84,17 @@ describe('性能估算（示意 roofline）', () => {
     expect(tokensPerSecond(step32, 32)!).toBeCloseTo(tokensPerSecond(step1, 1)! * 32)
   })
 
-  it('tflopsForQuant：INT4/FP4 仅在有官方 FP4 值时切换，否则回退 FP8 口径并标注 basis', () => {
+  it('tflopsForQuant：对应计算精度缺失时保持未知，INT4 不借 NVFP4 算力', () => {
     const b300 = { fp8Tflops: 5000, fp4Tflops: 15000 }
     const h100 = { fp8Tflops: 1979, fp4Tflops: null }
     const h20 = { fp8Tflops: null, fp4Tflops: null }
-    expect(tflopsForQuant(b300, 'int4')).toEqual({ tflops: 15000, basis: 'fp4' })
+    expect(tflopsForQuant(b300, 'nvfp4')).toEqual({ tflops: 15000, basis: 'fp4' })
     expect(tflopsForQuant(b300, 'fp8')).toEqual({ tflops: 5000, basis: 'fp8' })
-    // 数据层无官方 FP16 算力字段 → FP16 也回退 FP8 口径（UI 标注，不编数）
-    expect(tflopsForQuant(h100, 'fp16')).toEqual({ tflops: 1979, basis: 'fp8' })
-    expect(tflopsForQuant(h100, 'int4')).toEqual({ tflops: 1979, basis: 'fp8' })
+    // 测试 GPU 未给出 FP16 规格，不回退 FP8。
+    expect(tflopsForQuant(h100, 'fp16')).toEqual({ tflops: null, basis: 'fp16' })
+    expect(tflopsForQuant(h100, 'int4')).toEqual({ tflops: null, basis: null })
     // 无任何官方算力值 → null 透传（UI 显示 N/A）
-    expect(tflopsForQuant(h20, 'int4')).toEqual({ tflops: null, basis: 'fp8' })
+    expect(tflopsForQuant(h20, 'int4')).toEqual({ tflops: null, basis: null })
   })
 
   it('量级 sanity：70B FP8 在 H100 单卡 batch=1 的 TPOT 在几十 ms 量级', () => {

@@ -764,14 +764,13 @@ describe('推理数据流剧本（FlowEpisode）通用不变量', () => {
     }
   })
 
-  it('★ phase 顺序在 FLOW_PHASE_ORDER 下单调不减', () => {
+  it('phase 合法，入口 / 层内循环 / 出口有明确的上下文', () => {
     for (const f of pack.flows) {
-      let prev = -1
+      expect(f.steps[0]!.phase).toBe('ingress')
+      expect(f.steps.at(-1)!.phase).toBe('egress')
       for (const step of f.steps) {
-        const idx = phaseIndex.get(step.phase)!
-        expect(idx, `${f.id} 的步骤 ${step.id} phase=${step.phase} 非法`).toBeDefined()
-        expect(idx, `${f.id} 的步骤 ${step.id} 违反 phase 单调`).toBeGreaterThanOrEqual(prev)
-        prev = idx
+        expect(phaseIndex.has(step.phase)).toBe(true)
+        if (step.phase === 'moe-dispatch' || step.phase === 'moe-combine') expect(step.loopContext).toMatch(/prefill-layer|decode-layer-token/)
       }
     }
   })

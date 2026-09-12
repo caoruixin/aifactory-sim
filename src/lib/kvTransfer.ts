@@ -7,7 +7,7 @@
 
 import { FACTORY_PACK } from '../data'
 import type { Claim, FactoryContentPack } from '../data/types'
-import { assemblyByRoleKey, connectionBetween, toUnidirGBps } from './storagePath'
+import { assemblyByRoleKey, connectionBetween, gpuComponentOf, toUnidirGBps } from './storagePath'
 import type { LinkRate } from './storagePath'
 
 export interface KvTransferRung {
@@ -45,8 +45,8 @@ export interface KvTransferRungsResult {
 
 /**
  * KV 交接三档链路的数据适配（`kv-transfer` 计算器用，章节 pin HGX B300）：
- * - **NVLink 域内**（板内/机架内一跳）：系统 `keySpecs.nvlinkAggregateBandwidthTBs`——
- *   官方原文明确写「双向合计」，`LinkRate.direction: 'bidirectional'`；
+ * - **NVLink 域内**：单 GPU 端点 `specs.nvlinkPerGpuGBs`，比较同一对发送 / 接收 GPU；
+ *   双向合计除以 2 得到端点单向上限，不使用整个域的聚合带宽；
  * - **跨机计算网**（CX-8 SuperNIC）：`scaleout-nic` ↔ `scaleout-leaf` 连接的官方带宽——
  *   官方口径是**单向端口速率**（不是双向合计数字），即便 `Connection.direction` 字段
  *   标的是 `'bidirectional'`（物理链路双工），本函数仍按数字口径标注为 `'unidirectional'`；
@@ -58,18 +58,18 @@ export function kvTransferRungsOf(
   systemId: string,
   pack: FactoryContentPack = FACTORY_PACK,
 ): KvTransferRungsResult {
-  const system = pack.systems.find((s) => s.id === systemId)
+  const gpu = gpuComponentOf(systemId, pack)
 
-  // ── NVLink 域内：系统级聚合带宽 keySpec（双向合计口径） ──
-  const nvlinkClaim = system?.keySpecs.nvlinkAggregateBandwidthTBs ?? null
+  // ── NVLink 域内：单 GPU 端点上限（双向合计口径） ──
+  const nvlinkClaim = gpu?.specs.nvlinkPerGpuGBs ?? gpu?.specs.nvlinkPerGpuTBs ?? null
   const nvlinkRung: KvTransferRung = {
     id: 'nvlink-domain',
-    label: 'NVLink 域内直达（板内/机架内一跳）',
+    label: 'NVLink 域内 · 一对 GPU 端点',
     rate: {
       value: typeof nvlinkClaim?.value === 'number' ? nvlinkClaim.value : null,
-      unit: 'TBps',
+      unit: nvlinkClaim?.unit === 'TB/s' ? 'TBps' : 'GBps',
       direction: 'bidirectional',
-      label: 'NVLink 域聚合带宽',
+      label: '单 GPU NVLink 端点双向带宽',
     },
     claim: nvlinkClaim,
   }
@@ -81,7 +81,7 @@ export function kvTransferRungsOf(
   const scaleoutClaim = scaleoutConn?.bandwidth ?? null
   const scaleoutRung: KvTransferRung = {
     id: 'cross-node-ethernet',
-    label: '跨机计算网（CX-8 SuperNIC → Leaf）',
+    label: '跨机计算网 · 一对 GPU/NIC 端点',
     rate: {
       value: typeof scaleoutClaim?.value === 'number' ? scaleoutClaim.value : null,
       unit: 'Gbps',
@@ -99,7 +99,7 @@ export function kvTransferRungsOf(
   const storageClaim = storageConn?.bandwidth ?? null
   const storageRung: KvTransferRung = {
     id: 'storage-fabric',
-    label: '业务存储网（L2 共享存储）',
+    label: '业务存储网 · 一对节点端点（GPU 共用）',
     rate: {
       value: typeof storageClaim?.value === 'number' ? storageClaim.value : null,
       unit: 'GBps',

@@ -1,3 +1,5 @@
+import { encodeScenario } from '../../lib/scenario'
+import { useScenarioStore } from '../../scenarioStore'
 /**
  * 顶部条：代际切换 + 模式切换 + 物理层级面包屑。
  *
@@ -45,6 +47,7 @@ function capacityCaveat(system: { status: string; capacityPolicy: string } | und
 }
 
 export default function BreadcrumbBar() {
+  const scenario = useScenarioStore(s=>s.input)
   const generation = useFactoryStore((s) => s.generation)
   const focusPath = useFactoryStore((s) => s.focusPath)
   const level = useFactoryStore((s) => s.level)
@@ -118,7 +121,7 @@ export default function BreadcrumbBar() {
         </div>
 
         <div className="ml-auto flex items-center gap-3">
-          <Link to="/report" className="text-xs text-accent underline">
+          <Link to={`/report?scenario=${encodeURIComponent(encodeScenario(scenario))}&gen=${encodeURIComponent(generation)}`} className="text-xs text-accent underline">
             汇报页 →
           </Link>
         </div>

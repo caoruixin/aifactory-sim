@@ -1,0 +1,132 @@
+{
+  "date": "2026-09-12",
+  "baselineCount": 17,
+  "checks": [
+    {
+      "file": "tests/e2e/factory.spec.ts-snapshots/compare-gb300-vera-desktop-darwin.png",
+      "width": 1440,
+      "height": 900,
+      "sha256": "079b162246d5c5c73fd5af7d5ad8568d0ed99bfcf1caf11b10bd955d55f2926e",
+      "review": "individually inspected before adopting baseline"
+    },
+    {
+      "file": "tests/e2e/factory.spec.ts-snapshots/compare-gb300-vera-diffonly-desktop-darwin.png",
+      "width": 1440,
+      "height": 900,
+      "sha256": "13ce5b7b96e44586a39e3cde17dd191f508b34f13d4dd47feaccb03174e97ef6",
+      "review": "individually inspected before adopting baseline"
+    },
+    {
+      "file": "tests/e2e/factory.spec.ts-snapshots/fallback-connections-desktop-darwin.png",
+      "width": 1440,
+      "height": 900,
+      "sha256": "c204282f128b98dc97a51facc18b2d5041744142eef377a8df919692eb98c1b9",
+      "review": "individually inspected before adopting baseline"
+    },
+    {
+      "file": "tests/e2e/factory.spec.ts-snapshots/fallback-structure-desktop-darwin.png",
+      "width": 1440,
+      "height": 900,
+      "sha256": "4ee369b524682d04225105edd0bdac9711ddc5b00122276e7946e895ffbcd66f",
+      "review": "individually inspected before adopting baseline"
+    },
+    {
+      "file": "tests/e2e/factory.spec.ts-snapshots/fallback-tree-desktop-darwin.png",
+      "width": 1440,
+      "height": 900,
+      "sha256": "1b3550740199f86952f60c9c7368bf2df50d1338c9abdb0e991343448063afd4",
+      "review": "individually inspected before adopting baseline"
+    },
+    {
+      "file": "tests/e2e/factory.spec.ts-snapshots/gb300-board-ingress-desktop-darwin.png",
+      "width": 1440,
+      "height": 900,
+      "sha256": "d1877e093aada4479f22df8839c1cadb41d40e4b24824bd1f82f1f277979b0b6",
+      "review": "individually inspected before adopting baseline"
+    },
+    {
+      "file": "tests/e2e/factory.spec.ts-snapshots/gb300-cluster-desktop-darwin.png",
+      "width": 1440,
+      "height": 900,
+      "sha256": "f1e516f94f38da913993e4721ff4b2fee7b4f6de85b60c81ff8a665724ce55e1",
+      "review": "individually inspected before adopting baseline"
+    },
+    {
+      "file": "tests/e2e/factory.spec.ts-snapshots/gb300-cluster-facility-planes-desktop-darwin.png",
+      "width": 1440,
+      "height": 900,
+      "sha256": "5f21c3db7fcca53a84b5107db5d9680cd6446e0cecb38f1d00030a0c6de7df4e",
+      "review": "individually inspected before adopting baseline"
+    },
+    {
+      "file": "tests/e2e/factory.spec.ts-snapshots/gb300-rack-allplanes-desktop-darwin.png",
+      "width": 1440,
+      "height": 900,
+      "sha256": "61460ee7c65024a28ad270e66fd628af3ebed15aded94f73b38be9aed44ffeb1",
+      "review": "individually inspected before adopting baseline"
+    },
+    {
+      "file": "tests/e2e/factory.spec.ts-snapshots/gb300-tray-explode-desktop-darwin.png",
+      "width": 1440,
+      "height": 900,
+      "sha256": "6f27cd9c889881358b3444126a38953d34109c1a7e1d558e85dd2ba60c7bd344",
+      "review": "individually inspected before adopting baseline"
+    },
+    {
+      "file": "tests/e2e/factory.spec.ts-snapshots/hgx-board-desktop-darwin.png",
+      "width": 1440,
+      "height": 900,
+      "sha256": "6aa2978ed33ebbd5ca12377d1af0790df801936a3bb9f49ddc18efa13212f3ef",
+      "review": "individually inspected before adopting baseline"
+    },
+    {
+      "file": "tests/e2e/factory.spec.ts-snapshots/hgx-rack-desktop-darwin.png",
+      "width": 1440,
+      "height": 900,
+      "sha256": "f1b31744146cbbe9437e196cde08bc361d89578070d33f3596746206a9608c79",
+      "review": "individually inspected before adopting baseline"
+    },
+    {
+      "file": "tests/e2e/factory.spec.ts-snapshots/lens-network-ch1-desktop-darwin.png",
+      "width": 1440,
+      "height": 900,
+      "sha256": "b7fe83e34e623598a730bd9fda004b6dbc2ca71c05ed8b993fe23b62cbce93bd",
+      "review": "individually inspected before adopting baseline"
+    },
+    {
+      "file": "tests/e2e/factory.spec.ts-snapshots/lpx-rack-desktop-darwin.png",
+      "width": 1440,
+      "height": 900,
+      "sha256": "15d531811498d447d446b6534e7c9e70c4c127f7ef02ebf4e5ad2c80ca36a511",
+      "review": "individually inspected before adopting baseline"
+    },
+    {
+      "file": "tests/e2e/factory.spec.ts-snapshots/mobile-tour-stop1-mobile-darwin.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "3bae971585a170f6045878ff04dbe3112f5ed0ad43ae2261f2ae07ecf81b706c",
+      "review": "individually inspected before adopting baseline"
+    },
+    {
+      "file": "tests/e2e/factory.spec.ts-snapshots/nvl576-cluster-desktop-darwin.png",
+      "width": 1440,
+      "height": 900,
+      "sha256": "7a614e9b276abee161ebf3665d203b6804c551e251c4d352640c100268131749",
+      "review": "individually inspected before adopting baseline"
+    },
+    {
+      "file": "tests/e2e/factory.spec.ts-snapshots/report-page-desktop-darwin.png",
+      "width": 1440,
+      "height": 900,
+      "sha256": "cdb7d5699608b2d240a79ba3ddd60c065da99c9c964509ca7f75ebbf8b3773cc",
+      "review": "individually inspected before adopting baseline"
+    }
+  ],
+  "additionalManualChecks": [
+    "POD modules have separate positions outside the compute rack row.",
+    "1440px load demonstration: token / KV state and editable shared scenario are visible.",
+    "900px load view: resource summary and drawers are accessible.",
+    "Seeking does not change camera pose; Locate bottleneck changes camera pose.",
+    "No browser page errors during the manual load / POD walkthrough."
+  ]
+}

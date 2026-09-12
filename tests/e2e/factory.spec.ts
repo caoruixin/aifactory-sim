@@ -446,14 +446,14 @@ test('移动·比较模式：没有 Canvas 也必须置 data-ready（否则深�
 
 // ─────────────────────────── 8：数据流步骤条 DOM 断言 ───────────────────────────
 
-test('桌面·数据流步骤条：10 步走完 + 逻辑/物理徽章按内容包切换', async ({ page }, testInfo) => {
+test('桌面·数据流步骤条：层内循环走查 + 逻辑/物理徽章按内容包切换', async ({ page }, testInfo) => {
   onlyOn(testInfo, 'desktop')
   await gotoAndSettle(page, '/?motion=off')
 
   const episode = FACTORY_PACK.flows.find((f) => f.systemId === GB300)
   expect(episode).toBeTruthy()
   const steps = episode!.steps
-  expect(steps.length).toBe(10)
+  expect(steps.length).toBe(15)
 
   for (let i = 0; i < steps.length; i += 1) {
     await page.click(`[data-flow-step-button="${i}"]`)
@@ -468,7 +468,7 @@ test('桌面·数据流步骤条：10 步走完 + 逻辑/物理徽章按内容�
 
 // ─────────────────────────── 9：motion 开启——useFrame 自动推进 ───────────────────────────
 
-test('桌面·数据流自动播放：motion 开启时 useFrame 真的推进 stepIdx（B3 遗留验证点）', async ({
+test('桌面·数据流自动播放：计算时钟真的推进 stepIdx（B3 遗留验证点）', async ({
   page,
 }, testInfo) => {
   onlyOn(testInfo, 'desktop')
@@ -590,12 +590,12 @@ test('桌面·B2 KV 写入步：chips 出现 HBM 与 B300 GPU，点击后右栏�
 
   const kvIdx = FACTORY_PACK.flows
     .find((f) => f.systemId === GB300)!
-    .steps.findIndex((s) => s.id === 'flow.gb300.moe-inference.kv-write')
+    .steps.findIndex((s) => s.id === 'flow.gb300.moe-inference.prefill-kv-write')
   expect(kvIdx).toBeGreaterThanOrEqual(0)
 
   await page.click(`[data-flow-step-button="${kvIdx}"]`)
   const chips = page.locator('[data-flow-chip]')
-  await expect(chips).toHaveCount(3) // B300 GPU / HBM3e 显存堆栈 / Grace CPU
+  await expect(chips).toHaveCount(2) // B300 GPU / HBM3e：KV 在 GPU 本地
   const chipText = (await chips.allTextContents()).join(' | ')
   expect(chipText).toContain('HBM')
   expect(chipText).toContain('B300 GPU')
@@ -679,7 +679,7 @@ test('桌面·C1 视角保持：只用滚轮缩放过（wheel 不触发 controls
   const zoomed = await cameraPose(page)
   expect(zoomed).not.toBe(initial)
 
-  await page.setViewportSize({ width: 1180, height: 820 })
+  await page.setViewportSize({ width: 1280, height: 820 })
   await page.waitForTimeout(700)
   expect(await cameraPose(page)).toBe(zoomed)
 })
@@ -731,7 +731,7 @@ test('桌面·F2 kv-write 脉冲：播放中真的在呼吸，暂停后回到基
 
   const kvIdx = FACTORY_PACK.flows
     .find((f) => f.systemId === GB300)!
-    .steps.findIndex((s) => s.id === 'flow.gb300.moe-inference.kv-write')
+    .steps.findIndex((s) => s.id === 'flow.gb300.moe-inference.prefill-kv-write')
   await page.click(`[data-flow-step-button="${kvIdx}"]`)
   await page.waitForTimeout(700)
   const canvas = page.locator('canvas').first()
@@ -788,7 +788,7 @@ test('桌面·F2 ?motion=off 时 kv-write 不脉冲（静态高亮保留）', as
 
   const kvIdx = FACTORY_PACK.flows
     .find((f) => f.systemId === GB300)!
-    .steps.findIndex((s) => s.id === 'flow.gb300.moe-inference.kv-write')
+    .steps.findIndex((s) => s.id === 'flow.gb300.moe-inference.prefill-kv-write')
   await page.click(`[data-flow-step-button="${kvIdx}"]`)
   await page.waitForTimeout(600)
   const canvas = page.locator('canvas').first()
@@ -1057,7 +1057,7 @@ test('/report：五系统动态渲染 + VR↔LPX 配对段 + LPX 拒绝卡 + 国
 
   await page.goto('/report')
   // v1.4 W-B 新增第 6 节「国产超节点对照」，七节标题 = 7 个 h2。
-  await expect(page.locator('h2')).toHaveCount(7)
+  await expect(page.locator('h2')).toHaveCount(8)
 
   // ① 产能卡与系统清单按内容包动态渲染：五个系统一个不少
   await expect(page.locator('[data-report-capacity] [data-capacity-card]')).toHaveCount(
@@ -1418,7 +1418,7 @@ test('桌面·W-C HGX 三个导览站的 ?tour= 深链一次到位（层级/平�
   }
 })
 
-test('桌面·W-C HGX 产能出数：standard 放行、能效因机架功率未公布而不出数', async ({
+test('桌面·W-C HGX 产能出数：standard 放行、能效因适用整机功率未确认而不出数', async ({
   page,
 }, testInfo) => {
   onlyOn(testInfo, 'desktop')
@@ -1435,16 +1435,15 @@ test('桌面·W-C HGX 产能出数：standard 放行、能效因机架功率未�
   await expect(card).not.toContainText('仅提供配对产能语境')
   await expect(card).not.toContainText('第三方分析师')
 
-  // ★ 但能效一栏必须缺数：功率官方刻意不公布
-  //  （RA 把「每机架几台」写成「可用机架功率」的函数）。
+  // ★ 能效依赖 OEM 配置下已确认的单台服务器功率，不能拿 GPU TDP 或任意机架功率替代。
   //   v1.4 QA 返工点 1 后措辞按域架构分型：HGX 的功率单位是每台服务器,
   //   与 gpuCount=8 同口径——「整机架功率」字样在这一代不该再出现。
   await expect(card).toContainText('能效')
-  await expect(card).toContainText('单台服务器整机功率官方未公布')
-  await expect(card).not.toContainText('整机架功率')
+  await expect(card).toContainText('单台服务器整机功率尚无已确认的适用值')
+  await expect(card.locator('header')).not.toContainText('机架')
   // 同屏顺带锁「×N 服务器」与数量输入框标签(每机架/机架数字样在 HGX 下清零)
   await expect(card).toContainText('×1 服务器')
-  await expect(page.locator('text=服务器台数')).toHaveCount(1)
+  await expect(page.getByRole('spinbutton', {name:'服务器台数',exact:true})).toHaveCount(1)
 })
 
 test('桌面·W-C 比较模式 GB300 ↔ HGX：diff 计数 + 域架构叙述 + 交换两次复原', async ({

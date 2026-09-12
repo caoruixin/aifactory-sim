@@ -1,13 +1,13 @@
+import { LoadSimulationPanel } from './SimulationPanel'
+import { useScenarioStore } from '../../scenarioStore'
 /**
  * 底部步骤条：推理数据流播放控件。
  *
  * 步骤态参考 llms-study `LifecycleSim` 的三态模式（active/done/pending），但这里不依赖
  * framer-motion——footer 高度有限，纯 CSS 过渡足够。
  *
- * - 播放/暂停/上一步/下一步/速度(0.5/1/2) 都只写 `store.flow`，真正驱动播放进度的是
- *   3D 侧的 `FlowLayer`（`useFrame` 里推进并粗粒度回写 `stepIdx`）——这里只读不驱动，
- *   保证 FlowBar 在 `?gl=off` 降级路径下也能挂载而不报错（虽然此时不会自动前进，
- *   手动点步骤依然可用）。
+ * - 控件修改播放状态；SimulationClock 在 DOM 侧推进步骤，3D 仅绘制当前步骤。
+ *   无 WebGL 与减少动态效果下也能自动推进，计算时间独立于绘制帧率。
  * - t0/t1 用 `flowTimeline.ts` 算，不需要真的路由结果（传空 Map 即可，t0/t1 只看
  *   `durationHint`），因此 FlowBar 完全不用知道当前 3D 深度/摆位。
  * - `reducedMotion` 时给一行提示：没有移动的粒子是预期行为，不是 bug。
@@ -46,16 +46,16 @@ export default function FlowBar({ onInspectAssembly }: FlowBarProps = {}) {
   const reducedMotion = useFactoryStore((s) => s.reducedMotion)
   const generation = useFactoryStore((s) => s.generation)
 
-  // 剧本按当前代际取：内容包里只有 GB300 有推理数据流剧本，
-  // 切到 Vera Rubin / Rubin Ultra 时如实说明「这一代还没有剧本」，
-  // 而不是拿上一代的步骤文案配着另一代的画面播（那会讲错架构）。
+  // Each system owns its script; a missing episode has an explicit empty state.
   const episode = episodeOf(generation, flow.episodeIdx)
+  const view = useScenarioStore(s=>s.view)
+  if (view==='load') return <LoadSimulationPanel />
 
   if (!episode || episode.steps.length === 0) {
     return (
       <footer className="border-t border-line bg-panel px-4 py-2 text-xs text-dim">
         {systemById(generation)?.name ?? generation} 这一代暂无推理数据流剧本
-        （目前只为 GB300 NVL72 编写了完整剧本）。切回 GB300 即可播放。
+        ；请切换系统或检查当前内容包。
       </footer>
     )
   }
@@ -77,7 +77,7 @@ export default function FlowBar({ onInspectAssembly }: FlowBarProps = {}) {
 
   return (
     <footer
-      className="border-t border-line bg-panel"
+      className="min-w-0 border-t border-line bg-panel"
       data-flow-step={stepIdx}
       data-flow-total={segments.length}
       data-flow-playing={flow.playing ? '1' : '0'}

@@ -216,7 +216,7 @@ export function specDeltasOf(
 
 function formatClaim(c: Claim | null): string {
   if (!c) return '—'
-  if (c.value === null) return '官方未公布'
+  if (c.value === null) return '待确认'
   if (typeof c.value === 'boolean') return c.value ? '是' : '否'
   const v = typeof c.value === 'number' ? c.value.toLocaleString('zh-CN') : c.value
   return c.unit ? `${v} ${c.unit}` : String(v)

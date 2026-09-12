@@ -10,19 +10,26 @@
  *   2. **当前站自动滚入可视区**：深链可以直接落到第 8 站，不滚的话左栏看上去像没反应。
  */
 
-import { useCallback } from 'react'
-import { scenesOfSystem } from '../../data'
+import { useCallback, useState } from 'react'
+import { scenesOfSystem, assembliesOfSystem, componentById, ancestorsOf } from '../../data'
 import { LEVEL_LABEL } from '../../lib/drill'
 import { useFactoryStore } from '../../store'
 import RichText from '../ui/RichText'
 import PlaneToggles from './PlaneToggles'
 
-export default function TourPanel() {
+export default function TourPanel({onInspectAssembly}: {onInspectAssembly?:()=>void}) {
   const generation = useFactoryStore((s) => s.generation)
   const tourStopIdx = useFactoryStore((s) => s.tourStopIdx)
   const applyScene = useFactoryStore((s) => s.applyScene)
   const reset = useFactoryStore((s) => s.reset)
   const scenes = scenesOfSystem(generation)
+  const [query,setQuery] = useState('')
+  const select = useFactoryStore(s=>s.select)
+  const drillTo = useFactoryStore(s=>s.drillTo)
+  const selectedId = useFactoryStore(s=>s.selectedId)
+  const focusPath = useFactoryStore(s=>s.focusPath)
+  const matches = query.trim() ? assembliesOfSystem(generation).filter(a=>`${a.label} ${componentById(a.componentId)?.name??''}`.toLowerCase().includes(query.trim().toLowerCase())) : []
+  const podModules=assembliesOfSystem(generation).filter(a=>a.id.startsWith('asm.pod.'))
 
   /**
    * 回调 ref：当前站的条目一挂载就滚进可视区。
@@ -36,6 +43,15 @@ export default function TourPanel() {
 
   return (
     <div className="flex h-full flex-col overflow-y-auto">
+      <section className="border-b border-line p-3">
+        <label className="text-xs text-dim">搜索组件<input type="search" value={query} onChange={e=>setQuery(e.target.value)} className="mt-1 w-full min-w-0 rounded border border-line bg-panel px-2 py-1.5" placeholder="GPU / HBM / STX…"/></label>
+        {query.trim() && <ul className="mt-2 space-y-2 text-xs">{matches.length===0 && <li>没有匹配组件</li>}{matches.map(a=><li key={a.id} aria-current={focusPath.includes(a.id)?'location':undefined} className={`rounded border p-2 ${selectedId===a.id||focusPath.includes(a.id)?'border-accent bg-accent/10':'border-line'}`}><button type="button" className="text-left" onClick={()=>{select(a.id);onInspectAssembly?.()}}>{a.label}</button><p className="text-[10px] text-dim">{ancestorsOf(a.id).map(n=>n.label).join(' › ')}</p><button type="button" className="mt-1 text-accent underline" onClick={()=>{drillTo(a.id);onInspectAssembly?.()}}>定位组件</button></li>)}</ul>}
+      </section>
+      {podModules.length>0 && !query.trim() && <details className="border-b border-line p-3 text-xs">
+        <summary className="cursor-pointer font-medium">POD 配套 · 独立资源</summary>
+        <p className="my-2 text-[11px] text-dim">Agent 执行、KV 存储与网络连接；图中数量为示意。</p>
+        <ul className="space-y-2">{podModules.map(a=><li key={a.id}><button type="button" className="text-left text-accent underline" onClick={()=>{drillTo(a.id);onInspectAssembly?.()}}>{a.label}</button></li>)}</ul>
+      </details>}
       <section className="border-b border-line px-3 py-3">
         <div className="flex items-baseline justify-between">
           <h2 className="text-[11px] font-semibold tracking-widest text-dim uppercase">场景导览</h2>

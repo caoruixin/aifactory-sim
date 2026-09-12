@@ -112,6 +112,12 @@ describe('parseShotParams（纯解析）', () => {
       glOff: true,
     })
   })
+
+  it('分享显式关闭全部平面时不恢复默认平面', () => {
+    expect(parseShotParams('?planes=').planes).toEqual([])
+    seed('?planes=')
+    expect(Object.values(useFactoryStore.getState().planes).every(on => !on)).toBe(true)
+  })
 })
 
 describe('?tour= 基座', () => {

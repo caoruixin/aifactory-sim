@@ -1,11 +1,9 @@
 /**
  * 数据流播放：单个 `InstancedMesh` 粒子沿当前步骤的路径移动。
  *
- * - `useFrame` 里推进「当前步骤已播放的秒数」，超过该步骤 `durationHint`（教学节奏，
- *   非真实时延）就跨段——循环播放到下一步，粗粒度回写 `store.setFlow({ stepIdx })`，
- *   `FlowBar` 的步骤条与 `ConnectionLayer` 的当前步高亮都读这个字段；
- * - `reducedMotion` 时依然按同样节奏推进 `stepIdx`（“播放”变成“离散步进”），
- *   但不渲染粒子——当前步骤连接的静态高亮已经由 `ConnectionLayer` 负责，两者不重复；
+ * - `useFrame` 只推进粒子相位；流程步骤与负载计算由 DOM 时钟推进，帧率不影响结果；
+ * - 两种演示都驱动同一套粒子和硬件高亮，暂停保留当前位置；
+ * - `reducedMotion` 不渲染粒子，DOM 时钟与静态高亮照常工作；
  * - `logicalOnly` 步骤、或当前深度下查不到路径的步骤，粒子隐藏（缩放为 0），
  *   叙事交给 `FlowBar` 的文案主导；
  * - HBM 装配节点常亮一颗微光标记，与是否在播放无关——呼应「权重常驻显存，不随
@@ -23,7 +21,7 @@
  *    ⚠️ 暂停时 alpha 恒为 1（粒子转成「停在哪」的静态标记），这是设计不是 bug。
  */
 
-import { invalidate, useFrame } from '@react-three/fiber'
+import { invalidate, useFrame, useThree } from '@react-three/fiber'
 import { useEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
 import { ancestorsOf, componentById, episodeOf, FACTORY_PACK } from '../../data'
@@ -37,6 +35,7 @@ import { palette } from '../../lib/palette'
 import { indexRoutesById, routeConnections, visibleAncestorAt } from '../../lib/routing'
 import type { ContainmentOptions } from '../../lib/routing'
 import { useFactoryStore } from '../../store'
+import { useScenarioStore } from '../../scenarioStore'
 
 /** 单个步骤最多同时画几颗粒子（大多数步骤只有 1 条主路径，留一点余量给多路径步骤）。 */
 const MAX_PARTICLES = 3
@@ -80,13 +79,13 @@ export default function FlowLayer({
   const meshRef = useRef<THREE.InstancedMesh>(null)
   const materialRef = useRef<THREE.MeshStandardMaterial>(null)
   const progressRef = useRef(0)
+  const canvas = useThree(s => s.gl.domElement)
   const dummy = useMemo(() => new THREE.Object3D(), [])
 
   const episodeIdx = useFactoryStore((s) => s.flow.episodeIdx)
   const stepIdx = useFactoryStore((s) => s.flow.stepIdx)
 
-  // 剧本按代际取：只有 GB300 有剧本，切到其它代际时 segments 为空、粒子自然隐藏
-  // （FlowBar 会在 DOM 侧解释「该代际暂无剧本」）。
+  // Each system has its own explanatory script and physical routes.
   const episode = episodeOf(systemId, episodeIdx)
 
   // 与 ConnectionLayer 同一条规则：containment **整对象透传 + 整对象入依赖**，
@@ -100,7 +99,7 @@ export default function FlowLayer({
   // 步骤被改变（无论是本组件自己跨段，还是 FlowBar 的上一步/下一步/点击跳转）都要
   // 从段内进度 0 重新起步，否则「点下一步」会从上一段进行到一半的进度接着播。
   useEffect(() => {
-    progressRef.current = 0
+    if(useScenarioStore.getState().view !== 'load') progressRef.current = 0
     invalidate()
   }, [stepIdx, episodeIdx])
 
@@ -109,15 +108,18 @@ export default function FlowLayer({
     if (!mesh || segments.length === 0) return
 
     const state = useFactoryStore.getState()
+    const simulation = useScenarioStore.getState()
+    const playing = simulation.view === 'load' ? simulation.playing : state.flow.playing
+    const speed = simulation.view === 'load' ? simulation.speed : state.flow.speed
     const idx = Math.min(Math.max(state.flow.stepIdx, 0), segments.length - 1)
     const seg = segments[idx]!
     const dur = Math.max(seg.durationHint, 0.05)
 
-    if (state.flow.playing) {
-      progressRef.current += delta * state.flow.speed
+    if (playing && !state.reducedMotion) {
+      progressRef.current += delta * speed
       if (progressRef.current >= dur) {
-        progressRef.current -= dur
-        state.setFlow({ stepIdx: (idx + 1) % segments.length })
+        progressRef.current %= dur
+        // Particle loop only; the DOM clock owns semantic progression.
       }
       invalidate()
     }
@@ -126,7 +128,10 @@ export default function FlowLayer({
     const headFrac = Math.min(progressRef.current / dur, 1)
     const particleScale = PARTICLE_SCALE[depth] ?? 1
     // 段首淡入 / 段尾淡出；暂停时恒为 1（粒子转成静态标记，见 fadeAlpha 注释）。
-    const alpha = fadeAlpha(progressRef.current, dur, state.flow.playing)
+    const alpha = fadeAlpha(progressRef.current, dur, playing)
+    // Small read-only telemetry lets browser tests distinguish moving particles from a static highlight.
+    canvas.dataset.flowParticlePhase = headFrac.toFixed(4)
+    canvas.dataset.flowParticlesVisible = showParticles ? '1' : '0'
     if (materialRef.current) materialRef.current.opacity = showParticles ? alpha : 0
 
     for (let i = 0; i < MAX_PARTICLES; i += 1) {

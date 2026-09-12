@@ -174,22 +174,7 @@ export const GB300_COMPONENTS: HardwareComponent[] = [
     visual: { shape: 'chip', colorToken: 'accent' },
     imageUrl: 'https://www.nvidia.com/en-us/data-center/gb300-nvl72/',
     sourceIds: [RA_SOURCE, GB300_PAGE_SOURCE],
-    mathSpecs: {
-      memoryGB: 288,
-      bandwidthTBs: 8,
-      fp8Tflops: 5000,
-      fp4Tflops: 15000,
-      tdpW: null,
-      derivation:
-        '显存 288 GB = 参考架构 Table 1「每托盘 4 张 B300 合计 1,152 GB HBM3」÷ 4；' +
-        '带宽 8 TB/s = 产品页「576 TB/s」÷ 72 卡；' +
-        'FP4 稠密 15 PFLOPS = 产品页稠密值 1080 PFLOPS ÷ 72 卡；' +
-        'FP8 稠密 5 PFLOPS = 产品页「720 PFLOPS」（脚注 1 声明含稀疏）÷ 2 ÷ 72 卡；' +
-        'TDP 官方未公布单卡值，保持 null。' +
-        '⚠️ 显存另有两个官方数字：Blackwell Ultra 数据手册 GB300 NVL72 列写 279 GB HBM3E（SKU 实配口径，' +
-        '× 72 ≈ 20.1 TB，更贴近产品页的「20 TB」），参考架构 Appendix B Table 10 写 720 GB/托盘（= 180 GB/卡）。' +
-        '本项目产能数学取参考架构 Table 1 的 288 GB（本文件母版表），差异见该 Claim 的 note。',
-    },
+    mathSpecs: null, // 在内容包装配时从官方 Claim 派生；不另存数值。
     specs: {
       hbmPerGpuGB: raSpec<number>(
         288,

@@ -107,7 +107,7 @@ export default function ConnectionListTable({ activeConnectionIds }: ConnectionL
                 <td className="py-1.5 pr-4 font-mono text-dim">
                   {c.bandwidth && c.bandwidth.value !== null
                     ? `${c.bandwidth.value}${c.bandwidth.unit ?? ''}`
-                    : '未公布'}
+                    : '待确认'}
                 </td>
               </tr>
             )

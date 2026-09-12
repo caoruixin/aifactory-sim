@@ -11,13 +11,12 @@
  *   例如 HGX 的 `con.hgx.cx8-leaf` 物理上是双工链路（`direction: 'bidirectional'`），
  *   但官方给的 800 Gb/s 数字是**单向端口速率口径**（不是双向合计），本文件按数字口径而非
  *   链路物理特性来标注 `LinkRate.direction`。
- * ★ null 传播纪律：任何一段带宽官方未公布 → 那一段（乃至依赖它的总量）一律 null，
- *   绝不当 0——UI 允许用户为「官方未公布」的段手输假设值，但假设值只作为函数参数传入，
+ * ★ null 传播纪律：任何一段带宽未确认 → 那一段（乃至依赖它的总量）一律 null，
+ *   绝不当 0——UI 允许用户为「待确认」的段手输假设值，但假设值只作为函数参数传入，
  *   不落数据层，也不会让本文件替用户编数。
  */
 
-import { FACTORY_PACK, componentById } from '../data'
-import { claim as buildClaim } from '../data/claim'
+import { FACTORY_PACK } from '../data'
 import type {
   AssemblyNode,
   Connection,
@@ -70,11 +69,11 @@ export interface UnidirGBps {
  * - 方向换算：`direction === 'bidirectional'` 视为「双向合计」，按 **÷2** 折算成单向可用估计值——
  *   这不是官方给出的单向实测数字，只是本项目的保守估算基准（v1.5 订正纪律：1.8 TB/s 双向
  *   **≠** 1800 GB/s 单向可用；把双向数字直接当单向用，正是「18×」那笔错账的算法根因）。
- * - `value === null`（官方未公布）一律返回 `gbps: null`，note 说明原因，绝不当 0。
+ * - `value === null`（未确认）一律返回 `gbps: null`，note 说明原因，绝不当 0。
  */
 export function toUnidirGBps(rate: LinkRate): UnidirGBps {
-  if (rate.value === null) {
-    return { gbps: null, note: `${rate.label}：官方未公布带宽数字，无法折算，也不能当 0 处理。` }
+  if (rate.value === null || !Number.isFinite(rate.value) || rate.value <= 0) {
+    return { gbps: null, note: `${rate.label}：带宽未确认或非有效正值，无法折算，也不能当 0 处理。` }
   }
   const raw = toGBpsRaw(rate.value, rate.unit)
   const unitConvNote =
@@ -120,15 +119,15 @@ export interface ModelLoadBreakdown {
 }
 
 /**
- * 权重加载耗时：**串行保守口径**——各段依次搬运、互不重叠（不建模流水线/预取重叠），
- * 总时长 = 各段耗时之和。任一段带宽未知（null）→ 该段 `seconds` 为 null，且
+ * 权重加载下限：staged 分段暂存取各段耗时之和；direct / pipeline 取瓶颈段。
+ * 直达模式由调用方传入实际经过的段；理想流水忽略填充与排空开销。任一段带宽未知（null）→ 该段 `seconds` 为 null，且
  * `bottleneckId`/`totalSeconds` 一并为 null（某一段查不到官方带宽不代表它耗时为零）。
  * 瓶颈段 = 全部已知时耗时最长的一段。
  */
-export function modelLoadBreakdown(weightGB: number, segments: StorageSegmentInput[]): ModelLoadBreakdown {
+export function modelLoadBreakdown(weightGB: number, segments: StorageSegmentInput[], mode: 'staged' | 'direct' | 'pipeline' = 'staged'): ModelLoadBreakdown {
   const results: StorageSegmentResult[] = segments.map((seg) => {
     const { gbps, note } = toUnidirGBps(seg.rate)
-    const seconds = gbps === null || gbps <= 0 ? null : weightGB / gbps
+    const seconds = gbps === null || !Number.isFinite(weightGB) || weightGB < 0 ? null : weightGB / gbps
     return { id: seg.id, label: seg.label, seconds, gbpsUsed: gbps, conversionNote: note }
   })
 
@@ -146,7 +145,7 @@ export function modelLoadBreakdown(weightGB: number, segments: StorageSegmentInp
       bottleneckId = r.id
     }
   }
-  return { segments: results, bottleneckId, totalSeconds }
+  return { segments: results, bottleneckId, totalSeconds: mode === 'staged' ? totalSeconds : maxSeconds }
 }
 
 // ─────────────────────────── KV 恢复 vs 重算 ───────────────────────────
@@ -289,7 +288,7 @@ export function storageLadderOf(systemId: string, pack: FactoryContentPack = FAC
   const segments: StorageSegmentInput[] = []
 
   // ── L3 对象存储 → L2 共享存储（预热路径；参考架构不涉及对象存储，恒 null） ──
-  const objectStorage = componentById('cmp.shared.object-storage')
+  const objectStorage = pack.components.find(c => c.id === 'cmp.shared.object-storage')
   const objectThroughputClaim = objectStorage?.specs.aggregateThroughputGBs
   if (objectThroughputClaim) {
     inputClaims.push({ label: 'L3 对象存储聚合吞吐', claim: objectThroughputClaim })
@@ -327,7 +326,7 @@ export function storageLadderOf(systemId: string, pack: FactoryContentPack = FAC
 
   // ── 节点内本地缓存盘（E1.S / NVMe）：数量与容量有官方数字，带宽官方未公布 ──
   const cacheNode = assemblyByRoleKey(systemId, 'cache-storage', pack)
-  const cacheComponent = cacheNode ? componentById(cacheNode.componentId) : null
+  const cacheComponent = cacheNode ? pack.components.find(c => c.id === cacheNode.componentId) : null
   segments.push({
     id: 'local-cache',
     label: `节点内本地缓存盘${cacheComponent ? `（${cacheComponent.name}）` : ''}`,
@@ -336,24 +335,13 @@ export function storageLadderOf(systemId: string, pack: FactoryContentPack = FAC
   // 本地缓存盘没有官方带宽 Claim 可挂（specs 里只有数量/容量）——不是「没查到」，
   // 是这一段本来就没有官方数字，因此不进 inputClaims；UI 的 caveat 文案会点名这一段缺什么。
 
-  // ── 节点本地缓存 → GPU HBM（GDS DMA 路径，走该系统 GPU 的官方显存带宽） ──
+  // HBM bandwidth describes reads inside the GPU, not the storage DMA ingress.
   const gpu = gpuComponentOf(systemId, pack)
-  const hbmBandwidthTBs = gpu?.mathSpecs?.bandwidthTBs ?? null
-  if (gpu?.mathSpecs) {
-    inputClaims.push({
-      label: `${gpu.name} 显存带宽`,
-      claim: buildClaim<number>({
-        value: gpu.mathSpecs.bandwidthTBs,
-        unit: 'TB/s',
-        sourceId: gpu.sourceIds[0] ?? 'src.nvidia-gb300-page',
-        note: `取自 GPU 数学参数口径（mathSpecs.derivation）：${gpu.mathSpecs.derivation}`,
-      }),
-    })
-  }
+  const pcie = gpu?.specs.pcieBidirectionalGBs
+  if (pcie) inputClaims.push({label:'GPU PCIe 接口上限（实际 DMA 路径仍需确认）',claim:pcie})
   segments.push({
-    id: 'hbm-inject',
-    label: `本地缓存 → GPU HBM（DMA${gpu ? `，${gpu.name}` : ''}）`,
-    rate: { value: hbmBandwidthTBs, unit: 'TBps', direction: 'unidirectional', label: 'GPU 显存带宽' },
+    id: 'hbm-inject', label: 'GPU DMA 入口（PCIe / C2C 实际路径）',
+    rate: { value: null, unit: 'GBps', direction: 'unidirectional', label: '有效 DMA 入口；由拓扑与配置决定，不能用 HBM 带宽替代' },
   })
 
   return { segments, inputClaims }
@@ -376,7 +364,7 @@ export function kvRestoreTiersOf(systemId: string, pack: FactoryContentPack = FA
   const tiers: KvTierInput[] = []
 
   const cacheNode = assemblyByRoleKey(systemId, 'cache-storage', pack)
-  const cacheComponent = cacheNode ? componentById(cacheNode.componentId) : null
+  const cacheComponent = cacheNode ? pack.components.find(c => c.id === cacheNode.componentId) : null
   tiers.push({
     id: 'l1-local-cache',
     label: `L1 本地缓存盘${cacheComponent ? `（${cacheComponent.name}）` : ''}`,
